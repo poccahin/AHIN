@@ -8,9 +8,36 @@ It is a cognitive-economic accounting and settlement architecture for:
   - Anchoring participation in AHIN
   - Supporting Proof of Cognitive Canxian
   - Structurally aligning Virtue and Well-being
+
+Sub-components:
+  - PriceOracle: LIFE++/USDT price feed
+  - AdmissionGate: AHIN admission orchestration
+  - CollaborationCostEngine: micro-usage cost lifecycle
+  - MerchantSettlementService: edge receipt settlement
+  - TreasuryService: public-good treasury governance
+  - CognitiveValueFlowSystem: unified facade
+  - WalletService: account balance management
+  - TransferEngine: atomic value transfer execution
+  - PaymentIntentService: two-phase payment intents
 """
 from packages.value_flow.wallet_service import WalletService
 from packages.value_flow.payment_intent_service import PaymentIntentService
 from packages.value_flow.transfer_engine import TransferEngine
+from packages.value_flow.price_oracle import PriceOracle
+from packages.value_flow.admission_gate import AdmissionGate
+from packages.value_flow.collaboration_cost_engine import CollaborationCostEngine
+from packages.value_flow.merchant_settlement_service import MerchantSettlementService
+from packages.value_flow.treasury_service import TreasuryService
+from packages.value_flow.cognitive_value_flow_system import CognitiveValueFlowSystem
 
-__all__ = ["WalletService", "PaymentIntentService", "TransferEngine"]
+__all__ = [
+    "WalletService",
+    "PaymentIntentService",
+    "TransferEngine",
+    "PriceOracle",
+    "AdmissionGate",
+    "CollaborationCostEngine",
+    "MerchantSettlementService",
+    "TreasuryService",
+    "CognitiveValueFlowSystem",
+]

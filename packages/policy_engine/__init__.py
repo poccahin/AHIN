@@ -7,6 +7,10 @@ The PolicyEngine is the Life++ analog of an OS security policy:
   - Anti-zombie: reject tasks from agents with zombie output history
   - Kill-switch hooks for compromised agents
   - Admission gate: AHIN stake check
+
+Sub-components:
+  - PolicyEngine: task-level policy enforcement
+  - AntiSpamPolicy: value-flow-level behavioral constraints
 """
 from __future__ import annotations
 
@@ -14,6 +18,8 @@ import logging
 import time
 from collections import defaultdict
 from typing import Any, Dict, Optional
+
+from packages.policy_engine.anti_spam_policy import AntiSpamPolicy
 
 logger = logging.getLogger(__name__)
 

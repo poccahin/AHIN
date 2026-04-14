@@ -249,6 +249,62 @@ THEORY_TO_SYSTEM_MAP: Dict[str, Dict[str, Any]] = {
         ),
     },
 
+    "CognitiveValueFlowSystem": {
+        "theoretical_meaning": (
+            "The machine-native value layer of Life++ — a cognitive-economic "
+            "accounting and settlement architecture that treats LIFE++ as a "
+            "scarce coordination asset, not a speculative token. Structurally "
+            "aligns participation, collaboration, and well-being through six "
+            "distinct account types and POC-linked value attribution."
+        ),
+        "system_abstraction": (
+            "CognitiveValueFlowSystem facade unifying: AdmissionGate, "
+            "CollaborationCostEngine, TransferEngine, MerchantSettlementService, "
+            "TreasuryService, AntiSpamPolicy, PriceOracle"
+        ),
+        "runtime_behavior": (
+            "1. AdmissionGate checks stake ≥ 10 USDT equivalent → locks capital_stake. "
+            "2. CollaborationCostEngine deducts min(0.00001 USDT equiv, 1 LIFEPP) per interaction. "
+            "3. TransferEngine executes atomic agent-to-agent micro-payments. "
+            "4. POCService + LedgerService record cognitive contribution credits. "
+            "5. SettlementService distributes LIFEPP proportional to contribution_credit. "
+            "6. MerchantSettlementService settles edge receipts to merchant nodes. "
+            "7. TreasuryService manages public-good allocations. "
+            "8. AntiSpamPolicy enforces rate limits, zombie strike escalation, cooldowns."
+        ),
+        "data_structure": (
+            "Six distinct account types per node (NEVER collapsed): "
+            "capital_stake, payment_balance, contribution_credit, "
+            "trust_weight, settlement_claim, locked_participation. "
+            "All backed by append-only JournalEntryORM."
+        ),
+        "event_type": "ValueFlowEvent (all seven flow types)",
+        "incentive_logic": (
+            "LIFE++ is fixed-supply on Solana — no inflation. "
+            "Admission requires economic commitment (capital_stake). "
+            "Collaboration costs create anti-spam friction. "
+            "Settlement rewards cognitive contribution, not capital. "
+            "Treasury funds public goods transparently."
+        ),
+        "governance_rule": (
+            "AntiSpamPolicy: escalating penalties (warning → block → revocation). "
+            "TreasuryService: governed disbursement with audit trail. "
+            "All mutations are idempotent, append-only, and event-sourced."
+        ),
+        "audit_replay": (
+            "Every value movement emits a ValueFlowEvent. "
+            "All journal entries carry idempotency_key and spontaneous_time_order. "
+            "Settlement batches include audit_hash. "
+            "Treasury disbursements are logged with reason and authorization."
+        ),
+        "must_not_implement_as": (
+            "Do NOT model as PoW or PoS. "
+            "Do NOT collapse the six account types into a single balance. "
+            "Do NOT treat LIFE++ as an inflationary reward token. "
+            "Do NOT remove the anti-spam/anti-zombie constraints."
+        ),
+    },
+
     "ContinuousSpectrumTopology": {
         "theoretical_meaning": (
             "Nodes are connected across a spectrum of trust intensities, "
