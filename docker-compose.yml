@@ -74,5 +74,29 @@ services:
         condition: service_healthy
     command: python apps/settlement_worker/main.py
 
+  # ----------------------------------------------------------------
+  # Life++ Lite Edge Terminal — embodied cognition and settlement node
+  # ----------------------------------------------------------------
+  edge_terminal:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://lifepp:lifepp@postgres:5432/lifepp
+      - REDIS_URL=redis://redis:6379/0
+      - EDGE_TERMINAL_ID=${EDGE_TERMINAL_ID:-edge-terminal-01}
+      - EDGE_MERCHANT_NODE_ID=${EDGE_MERCHANT_NODE_ID:-merchant-01}
+      - EDGE_TERMINAL_LOCATION=${EDGE_TERMINAL_LOCATION:-default-location}
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn apps.edge_terminal.main:app --host 0.0.0.0 --port 8001 --reload
+
 volumes:
   postgres_data:
