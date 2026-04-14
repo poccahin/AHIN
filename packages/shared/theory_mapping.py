@@ -249,6 +249,57 @@ THEORY_TO_SYSTEM_MAP: Dict[str, Dict[str, Any]] = {
         ),
     },
 
+    "LifePlusLiteEdgeTerminal": {
+        "theoretical_meaning": (
+            "The Life++ Lite Edge Terminal is the embodied locus where user intention "
+            "meets operational reality.  It is NOT a mere payment terminal.  "
+            "It is a cognition-and-settlement node where local interaction generates "
+            "grounded cognitive events, agent collaboration is operationally anchored, "
+            "and payment becomes part of trust-confirmed action."
+        ),
+        "system_abstraction": (
+            "EdgeRuntime + CognitiveInteractionHandler + TrustAnchorService + "
+            "AgentParticipationTracker + DayCloseHandler"
+        ),
+        "runtime_behavior": (
+            "1. Local contextual interaction: captures user intention with grounding_context. "
+            "2. Durable transaction objectification: produces ObjectificationReceipts. "
+            "3. Trust-anchored interaction events: AHIN association events at the edge. "
+            "4. LIFE++ / hybrid payment acceptance: online or offline-first. "
+            "5. Local buffering and delayed synchronization: OfflineSyncManager. "
+            "6. Day-end reconciliation: DayCloseHandler triggers settlement. "
+            "7. Agent participation auditability: AgentParticipationTracker logs contributions."
+        ),
+        "data_structure": (
+            "EdgeTerminalEvent, ObjectificationReceiptORM, SpontaneousTimeOrder, "
+            "AssociationEvent (PROACTIVE/ACCEPTANCE at edge)"
+        ),
+        "event_type": "EdgeTerminalEvent (contextual_interaction | payment_acceptance | agent_collaboration | trust_anchor | day_close_reconciliation)",
+        "incentive_logic": (
+            "Edge interactions contribute to POC evidence via grounding_context. "
+            "Agent collaboration at the edge earns contribution_credit. "
+            "Trust anchoring at the edge reinforces directional trust weights."
+        ),
+        "governance_rule": (
+            "Coordination does NOT rely solely on global consensus. "
+            "Local trust anchoring via AHIN directional interaction records. "
+            "Temporal ordering via Spontaneous Time Order (hash-chained, no central clock). "
+            "POC at edge must distinguish grounded cognitive work from zombie output."
+        ),
+        "audit_replay": (
+            "EdgeTerminalEvent logged to event bus with full grounding_context. "
+            "ObjectificationReceipts are hash-chained and tamper-evident. "
+            "Agent participation records enable post-hoc auditability. "
+            "DayCloseHandler produces reconciliation audit trail."
+        ),
+        "must_not_implement_as": (
+            "Do NOT implement as a dumb payment POS terminal. "
+            "Do NOT rely on global consensus for local interaction ordering. "
+            "Do NOT treat edge transactions as isolated payments — they are "
+            "cognitive objectification events with trust anchoring."
+        ),
+    },
+
     "ContinuousSpectrumTopology": {
         "theoretical_meaning": (
             "Nodes are connected across a spectrum of trust intensities, "

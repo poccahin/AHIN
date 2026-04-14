@@ -215,3 +215,62 @@ class TrustEvent(BaseEvent):
     new_trust_weight: float
     triggering_association_event_id: Optional[str] = None
     evidence: Dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# EdgeTerminalEvent
+# ---------------------------------------------------------------------------
+
+class EdgeTerminalEvent(BaseEvent):
+    """
+    Records a cognitive objectification event at a Life++ Lite Edge Terminal.
+
+    This event captures the full lifecycle of embodied interaction at the edge:
+      - Local contextual interaction (user intention captured in real context)
+      - Grounding context anchoring (Tactile Brain Hypothesis)
+      - Agent collaboration participation
+      - Trust-anchored payment and settlement
+
+    Every edge terminal interaction IS a cognitive objectification event:
+    user intention → operational interaction → durable receipt → trust anchor.
+    """
+    event_name: str = "edge_terminal_event"
+    terminal_node_id: str
+    interaction_type: str = Field(
+        ...,
+        description=(
+            "Type of edge interaction: 'contextual_interaction', "
+            "'payment_acceptance', 'agent_collaboration', "
+            "'trust_anchor', 'day_close_reconciliation'"
+        ),
+    )
+    customer_node_id: Optional[str] = None
+    merchant_node_id: Optional[str] = None
+    receipt_id: Optional[str] = None
+    receipt_hash: Optional[str] = None
+    artifact_id: Optional[str] = None
+    amount_lifepp: Optional[float] = None
+    amount_fiat: Optional[float] = None
+    fiat_currency: Optional[str] = None
+    grounding_context: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Operational context anchoring this interaction (Tactile Brain Hypothesis). "
+            "Includes device context, location, user modality, operational resistance."
+        ),
+    )
+    agent_participation: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "Record of agent collaboration at this edge terminal. "
+            "Maps agent_node_id → contribution summary for auditability."
+        ),
+    )
+    trust_anchors: Dict[str, Any] = Field(
+        default_factory=dict,
+        description=(
+            "AHIN trust anchoring data: association events, trust deltas, "
+            "and interaction hashes generated at this edge interaction."
+        ),
+    )
+    is_offline: bool = False
