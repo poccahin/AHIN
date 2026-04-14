@@ -25,24 +25,34 @@ THEORY_TO_SYSTEM_MAP: Dict[str, Dict[str, Any]] = {
             "The objectification and solidification of subjective intentionality "
             "through physical or operational interaction."
         ),
-        "system_abstraction": "CanxianArtifact",
+        "system_abstraction": "CanxianArtifact + CanxianValidationPipeline",
         "runtime_behavior": (
             "An agent executes a CognitiveTask and produces a CanxianArtifact. "
-            "The artifact passes through validation levels: "
-            "RAW_OUTPUT → GROUNDED → VALIDATED_CANXIAN → PAYABLE."
+            "The artifact passes through the CanxianValidationPipeline — "
+            "a 4-stage promotion pipeline: "
+            "RAW_OUTPUT → GROUNDED (GroundingAssessor) "
+            "→ VALIDATED_CANXIAN (POC-lite / zombie detection) "
+            "→ PAYABLE (PayabilityGate)."
         ),
-        "data_structure": "CanxianArtifactORM (packages/shared/models.py)",
-        "event_type": "ArtifactValidationEvent",
+        "data_structure": (
+            "CanxianArtifactORM (packages/shared/models.py), "
+            "CanxianValidationPipeline (packages/canxian_pipeline/)"
+        ),
+        "event_type": "ArtifactValidationEvent (one per stage transition)",
         "incentive_logic": (
-            "Only VALIDATED_CANXIAN artifacts earn contribution_credit in the ledger. "
-            "RAW_OUTPUT is not eligible for VirtueWellbeing settlement."
+            "Only PAYABLE artifacts earn contribution_credit in the ledger. "
+            "RAW_OUTPUT and GROUNDED artifacts are not eligible for "
+            "VirtueWellbeing settlement."
         ),
         "governance_rule": (
             "POC validation required before settlement. "
-            "Zombie-flagged artifacts are blocked from settlement."
+            "Zombie-flagged artifacts are blocked from settlement. "
+            "PayabilityGate enforces AHIN admission, policy compliance, "
+            "and minimum cognitive score."
         ),
         "audit_replay": (
-            "ArtifactValidationEvent logged to event bus. "
+            "ArtifactValidationEvent emitted at each pipeline stage. "
+            "PipelineResult.events provides the full audit trail. "
             "POCRecordORM persisted with evidence dict. "
             "Replayable via EventBus.replay('artifact_validation_event')."
         ),
@@ -57,20 +67,30 @@ THEORY_TO_SYSTEM_MAP: Dict[str, Dict[str, Any]] = {
             "Cognition must be grounded in real interaction and resistance — "
             "embodied execution anchors intelligence."
         ),
-        "system_abstraction": "EdgeRuntime + DeviceContext (grounding_context field)",
-        "runtime_behavior": (
-            "CanxianArtifacts produced at edge terminals carry a non-empty "
-            "grounding_context dict encoding the physical/operational context. "
-            "Artifacts without grounding_context are classified as RAW_OUTPUT."
+        "system_abstraction": (
+            "GroundingAssessor (packages/canxian_pipeline/) + "
+            "EdgeRuntime + DeviceContext (grounding_context field)"
         ),
-        "data_structure": "CanxianArtifactORM.grounding_context (JSONB)",
+        "runtime_behavior": (
+            "GroundingAssessor evaluates every artifact at pipeline Stage 1. "
+            "It checks for non-empty grounding_context, context references, "
+            "and causal chain entries. Artifacts without grounding remain "
+            "RAW_OUTPUT and are excluded from POC validation."
+        ),
+        "data_structure": (
+            "CanxianArtifactORM.grounding_context (JSONB), "
+            "GroundingResult (packages/canxian_pipeline/grounding_assessor.py)"
+        ),
         "event_type": "ArtifactValidationEvent (from_status=RAW_OUTPUT → to_status=GROUNDED)",
         "incentive_logic": (
-            "Grounded artifacts score higher in POCService._compute_cognitive_score(). "
+            "Grounded artifacts score higher in cognitive_score computation. "
             "Ungrounded artifacts cannot pass POC validation."
         ),
         "governance_rule": "grounding_context must be non-empty for VALIDATED_CANXIAN.",
-        "audit_replay": "EdgeRuntime stores ObjectificationReceiptORM with grounding evidence.",
+        "audit_replay": (
+            "GroundingResult recorded in ArtifactValidationEvent.validation_evidence. "
+            "EdgeRuntime stores ObjectificationReceiptORM with grounding evidence."
+        ),
         "must_not_implement_as": (
             "Do NOT classify cloud-only LLM responses as grounded. "
             "Grounding requires real operational context from the device or user interaction."
@@ -82,11 +102,16 @@ THEORY_TO_SYSTEM_MAP: Dict[str, Dict[str, Any]] = {
             "Intelligence = active reconstruction of causal chains, "
             "not statistical inference."
         ),
-        "system_abstraction": "BaseAgent.verify_causation() + POCService zombie detection",
+        "system_abstraction": (
+            "BaseAgent.verify_causation() + CanxianValidationPipeline "
+            "zombie detection (Stage 2) + POCService"
+        ),
         "runtime_behavior": (
             "After every task execution, AgentKernel calls verify_causation(). "
             "If False → artifact classified as RAW_OUTPUT + zombie flag. "
-            "POCService._detect_zombie_output() flags high-confidence/no-evidence outputs."
+            "CanxianValidationPipeline._detect_zombie_output() flags "
+            "high-confidence/no-evidence outputs at Stage 2. "
+            "POCService._detect_zombie_output() provides the DB-backed variant."
         ),
         "data_structure": "POCRecordORM.is_zombie_output + evidence.causal_chain",
         "event_type": "ArtifactValidationEvent(is_zombie_flagged=True)",
@@ -275,6 +300,53 @@ THEORY_TO_SYSTEM_MAP: Dict[str, Dict[str, Any]] = {
             "Do NOT use binary trusted/untrusted membership. "
             "Do NOT use a centralized trust authority. "
             "Trust MUST be directional and interaction-derived."
+        ),
+    },
+
+    "CanxianLayer": {
+        "theoretical_meaning": (
+            "The Canxian Layer is the structural embodiment of the core "
+            "epistemic question: how does the system distinguish mere model output "
+            "from validated, payable cognitive contribution? It implements the "
+            "4-stage objectification pipeline that is the defining property of "
+            "the Life++ Agent OS."
+        ),
+        "system_abstraction": (
+            "CanxianValidationPipeline (packages/canxian_pipeline/) orchestrating "
+            "GroundingAssessor (Stage 1), POC-lite / zombie detection (Stage 2), "
+            "and PayabilityGate (Stage 3)"
+        ),
+        "runtime_behavior": (
+            "Every CanxianArtifact enters the pipeline at RAW_OUTPUT. "
+            "Stage 1 (GroundingAssessor) checks Tactile Brain Hypothesis grounding. "
+            "Stage 2 computes cognitive_score and runs zombie detection. "
+            "Stage 3 (PayabilityGate) verifies AHIN admission, policy compliance, "
+            "and minimum score. Only artifacts reaching PAYABLE participate in "
+            "VirtueWellbeing settlement."
+        ),
+        "data_structure": (
+            "CanxianValidationPipeline, GroundingAssessor, PayabilityGate, "
+            "PipelineResult, GroundingResult, PayabilityResult"
+        ),
+        "event_type": "ArtifactValidationEvent (one per stage transition)",
+        "incentive_logic": (
+            "Only PAYABLE artifacts enter settlement. "
+            "Cognitive score determines contribution_credit share. "
+            "Zombie-flagged outputs earn zero."
+        ),
+        "governance_rule": (
+            "No pipeline stage can be skipped. "
+            "PayabilityGate enforces AHIN admission and policy blocklist. "
+            "Zombie strikes accumulate in PolicyEngine."
+        ),
+        "audit_replay": (
+            "PipelineResult.events contains the full audit trail of stage transitions. "
+            "Each ArtifactValidationEvent includes validation_evidence for replay."
+        ),
+        "must_not_implement_as": (
+            "Do NOT bypass the pipeline by writing PAYABLE directly. "
+            "Do NOT skip grounding assessment. "
+            "Do NOT treat all validated artifacts as payable without PayabilityGate."
         ),
     },
 }

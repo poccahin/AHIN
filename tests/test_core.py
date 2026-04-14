@@ -468,6 +468,7 @@ class TestTheoryMapping:
             "ProofOfCognitiveCanxian",
             "AlignedVirtueAndWellbeing",
             "ContinuousSpectrumTopology",
+            "CanxianLayer",
         ]
         for concept in required:
             assert concept in THEORY_TO_SYSTEM_MAP, f"Missing mapping: {concept}"
