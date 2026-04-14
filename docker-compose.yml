@@ -1,0 +1,78 @@
+version: "3.9"
+
+services:
+  # ----------------------------------------------------------------
+  # PostgreSQL — Cognitive Value Ledger persistence
+  # ----------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: lifepp
+      POSTGRES_USER: lifepp
+      POSTGRES_PASSWORD: lifepp
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lifepp"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ----------------------------------------------------------------
+  # Redis — event bus and rate-limit cache
+  # ----------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ----------------------------------------------------------------
+  # Control Plane API — Life++ Agent OS kernel
+  # ----------------------------------------------------------------
+  control_plane:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://lifepp:lifepp@postgres:5432/lifepp
+      - REDIS_URL=redis://redis:6379/0
+      - APP_ENV=development
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn apps.control_plane_api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # ----------------------------------------------------------------
+  # Settlement Worker — VirtueWellbeing day-close cron
+  # ----------------------------------------------------------------
+  settlement_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://lifepp:lifepp@postgres:5432/lifepp
+      - REDIS_URL=redis://redis:6379/0
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python apps/settlement_worker/main.py
+
+volumes:
+  postgres_data:
