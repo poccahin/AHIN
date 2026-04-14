@@ -42,6 +42,20 @@ logger = logging.getLogger(__name__)
 # Minimum cognitive score for POC validation (mirrors POCService)
 _MIN_COGNITIVE_SCORE = 0.3
 
+# Cognitive score weights — tuneable parameters for contribution scoring.
+# Each factor contributes up to its cap; the total is clamped to [0, 1].
+_CAUSATION_WEIGHT_PER_STEP = 0.1    # score per causal chain step
+_CAUSATION_MAX = 0.4                 # cap from causation evidence
+_GROUNDING_WEIGHT_PER_REF = 0.05    # score per context reference
+_GROUNDING_MAX = 0.3                 # cap from grounding references
+_NOVELTY_WEIGHT = 0.3               # multiplier for novelty_score
+_NOVELTY_MAX = 0.3                   # cap from novelty
+_GROUNDING_BONUS = 0.1              # bonus for having grounding_context
+
+# Zombie detection thresholds
+_ZOMBIE_CONFIDENCE_THRESHOLD = 0.8   # confidence above this with no evidence = zombie
+_ZOMBIE_LOW_SCORE_THRESHOLD = 0.1    # cognitive score below this with no chain = zombie
+
 
 class CanxianValidationPipeline:
     """
@@ -279,11 +293,11 @@ class CanxianValidationPipeline:
         context_refs = len(evidence.get("context_references", []))
         novelty = float(evidence.get("novelty_score", 0.0))
 
-        score += min(causal_steps * 0.1, 0.4)   # max 0.4 from causation
-        score += min(context_refs * 0.05, 0.3)   # max 0.3 from grounding
-        score += min(novelty * 0.3, 0.3)         # max 0.3 from novelty
+        score += min(causal_steps * _CAUSATION_WEIGHT_PER_STEP, _CAUSATION_MAX)
+        score += min(context_refs * _GROUNDING_WEIGHT_PER_REF, _GROUNDING_MAX)
+        score += min(novelty * _NOVELTY_WEIGHT, _NOVELTY_MAX)
         if has_grounding:
-            score = min(score + 0.1, 1.0)
+            score = min(score + _GROUNDING_BONUS, 1.0)
 
         return round(min(score, 1.0), 4)
 
@@ -303,11 +317,15 @@ class CanxianValidationPipeline:
         confidence = float(causation_evidence.get("confidence", 0.0))
 
         # High confidence with no supporting evidence is a zombie indicator
-        if confidence > 0.8 and len(causal_chain) == 0 and len(context_refs) == 0:
+        if (
+            confidence > _ZOMBIE_CONFIDENCE_THRESHOLD
+            and len(causal_chain) == 0
+            and len(context_refs) == 0
+        ):
             return True
 
         # Very low cognitive score with no grounding
-        if cognitive_score < 0.1 and len(causal_chain) == 0:
+        if cognitive_score < _ZOMBIE_LOW_SCORE_THRESHOLD and len(causal_chain) == 0:
             return True
 
         return False

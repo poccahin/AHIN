@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from packages.settlement.settlement_service import SettlementService
 
 
-def __getattr__(name: str):  # noqa: N807
+def __getattr__(name: str):
     if name == "SettlementService":
         from packages.settlement.settlement_service import SettlementService
         return SettlementService

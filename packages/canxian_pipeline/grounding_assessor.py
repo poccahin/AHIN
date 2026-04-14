@@ -2,7 +2,7 @@
 GroundingAssessor — Tactile Brain Hypothesis grounding check.
 
 Determines whether a cognitive output is operationally grounded in real
-context and resistance, or is merely a statistical artefact with no
+context and resistance, or is merely a statistical artifact with no
 embodied anchor.
 
 This is the gate from RAW_OUTPUT → OPERATIONALLY_GROUNDED.
