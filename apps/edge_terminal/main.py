@@ -227,7 +227,7 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
         "apps.edge_terminal.main:app",
-        host=os.getenv("EDGE_HOST", "0.0.0.0"),
+        host=os.getenv("EDGE_HOST", "127.0.0.1"),
         port=int(os.getenv("EDGE_PORT", "8001")),
         reload=True,
     )

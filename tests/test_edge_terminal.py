@@ -191,10 +191,13 @@ class TestAgentParticipationTracker:
 
     def test_contribution_summary(self):
         tracker = self._make_tracker()
-        tracker.record_participation("a1", "int-1", "executor", "X",
-                                     grounding_evidence={"ctx": True})
-        tracker.record_participation("a1", "int-2", "advisor", "Y")
-        tracker.record_participation("a2", "int-1", "validator", "Z")
+        tracker.record_participation("a1", "int-1", "executor",
+                                     "Translated purchase request from EN to ZH",
+                                     grounding_evidence={"source_doc": "invoice-42"})
+        tracker.record_participation("a1", "int-2", "advisor",
+                                     "Recommended optimal payment routing")
+        tracker.record_participation("a2", "int-1", "validator",
+                                     "Verified translation accuracy against source")
         summary = tracker.get_contribution_summary()
         assert summary["a1"]["participation_count"] == 2
         assert "executor" in summary["a1"]["roles"]

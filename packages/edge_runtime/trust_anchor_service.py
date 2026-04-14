@@ -93,7 +93,11 @@ class TrustAnchorService:
             task_id=task_id,
             payload=interaction_context,
         )
-        # Override trust_delta with the caller's specification
+        # Override trust_delta with the caller's specification.
+        # propose_association() uses a default delta; the caller may specify
+        # a context-appropriate delta (e.g. smaller for payments, larger for
+        # validated cognitive collaboration).  The event's trust_delta is a
+        # mutable metadata field, not a validated invariant.
         event.trust_delta = trust_delta
 
         self._graph.record_event(event)
