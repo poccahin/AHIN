@@ -657,6 +657,45 @@ Example output excerpt:
 }
 ```
 
+## Phase 8.2.2: Candidate Quality Gate Hardening
+
+Phase 8.2.2 prevents weak research decisions from becoming audit-only candidates or simulated paper fills. Candidate pressure now measures only candidates that pass every quality and safety invariant.
+
+Candidate generation requires all of:
+
+- `SignalGrade::APlus`
+- `final_strength >= 85`
+- `edge_after_cost_ratio >= 3.0`
+- `RiskBudgetDecision.risk_allowed=true`
+- `audit_only=true`, `executable=false`, and `real_order_id=null`
+
+Rejected weak signals remain visible in `rejection_breakdown_by_reason` with order-level reasons such as:
+
+- `order.signal_grade_too_low`
+- `order.signal_strength_too_low`
+- `order.edge_after_cost_too_low`
+
+Paper fills are created only when `OrderCandidateDecision.candidate_generated=true` and the candidate satisfies the audit-only invariant. If a paper fill appears without a valid generated candidate, the soak report emits the blocker `invalid_paper_fill_without_candidate`.
+
+Short smoke runs in ordinary C-grade or low-edge market conditions should now show:
+
+```json
+{
+  "candidate_decisions_evaluated": 3,
+  "candidate_generated_count": 0,
+  "candidate_pressure_ratio": "0",
+  "paper_trades_count": 0,
+  "warnings": [
+    {
+      "code": "zero_paper_trades",
+      "message": "paper soak completed with zero paper trades"
+    }
+  ],
+  "blockers": [],
+  "soak_passed": true
+}
+```
+
 ## Phase Roadmap
 
 1. Workspace skeleton, strict domain types, safe config, mock exchange, dry-run CLI health check.

@@ -53,7 +53,9 @@ pub fn replay_events(events: &[MarketEvent], config: &BacktestConfig) -> AppResu
         let exit_idx = idx
             .saturating_add(config.exit_horizon_events)
             .min(events.len() - 1);
-        let trade = match candidate_decision.candidate.as_ref() {
+        let trade = match candidate_decision.candidate.as_ref().filter(|candidate| {
+            candidate_decision.candidate_generated && candidate.invariant_safe()
+        }) {
             Some(candidate) => Some(simulated_fill::simulate_trade(
                 candidate,
                 event,

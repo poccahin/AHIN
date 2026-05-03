@@ -45,14 +45,20 @@ pub fn run_snapshots(
                 let state_mutated = before != StateStructuralFingerprint::from_state(&state);
                 let state_mutated_without_candidate_or_fill =
                     state_mutated && !safe_candidate_generated && outcome.trade.is_none();
-                metrics.record_decision(
-                    &outcome.signal_decision,
-                    &outcome.risk_decision,
-                    &outcome.candidate_decision,
-                    outcome.trade.is_some(),
+                metrics.record_decision(soak_report::PaperSoakDecisionInput {
+                    signal_decision: &outcome.signal_decision,
+                    risk_decision: &outcome.risk_decision,
+                    candidate_decision: &outcome.candidate_decision,
+                    edge_after_cost_ratio: Some(
+                        execution_engine::candidate_decision::edge_after_cost_ratio(
+                            snapshot,
+                            &outcome.signal_decision,
+                        ),
+                    ),
+                    paper_fill_generated: outcome.trade.is_some(),
                     state_mutated,
                     state_mutated_without_candidate_or_fill,
-                );
+                });
             }
             Err(_) => errors_count += 1,
         }
@@ -165,6 +171,37 @@ mod tests {
         cleanup(&config);
     }
 
+    #[test]
+    fn low_quality_smoke_report_generates_zero_candidates() {
+        let config = config("low_quality_smoke");
+        let report = run_snapshots(
+            &[
+                rejected_snapshot(dec!(100)),
+                rejected_snapshot(dec!(100.2)),
+                rejected_snapshot(dec!(99.8)),
+            ],
+            &config,
+        )
+        .unwrap();
+
+        assert!(report.soak_passed);
+        assert_eq!(report.ticks_processed, 3);
+        assert_eq!(report.candidate_decisions_evaluated, 3);
+        assert_eq!(report.candidate_generated_count, 0);
+        assert_eq!(report.candidate_pressure_ratio, dec!(0));
+        assert_eq!(report.paper_trades_count, 0);
+        assert_eq!(report.open_positions_count, 0);
+        assert!(report.blockers.is_empty());
+        assert!(!report.rejection_breakdown_by_reason.is_empty());
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.code == "zero_paper_trades")
+        );
+        cleanup(&config);
+    }
+
     fn passing_snapshot(mark_price: rust_decimal::Decimal) -> FeatureSnapshot {
         FeatureSnapshot {
             exchange: "test".to_string(),
@@ -173,8 +210,8 @@ mod tests {
             index_price: Price::new(mark_price - dec!(1)).unwrap(),
             premium: dec!(1),
             premium_bps: dec!(100),
-            funding_rate: dec!(0),
-            funding_regime: FundingRegime::Neutral,
+            funding_rate: dec!(0.0006),
+            funding_regime: FundingRegime::StronglyPositive,
             open_interest: Quantity::new(dec!(1000)).unwrap(),
             liquidity: LiquidityMetrics {
                 spread_bps: dec!(2),
@@ -198,6 +235,8 @@ mod tests {
         FeatureSnapshot {
             premium: dec!(0),
             premium_bps: dec!(0),
+            funding_rate: dec!(0),
+            funding_regime: FundingRegime::Neutral,
             ..passing_snapshot(mark_price)
         }
     }

@@ -1,9 +1,9 @@
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use domain::{
-    AccountRiskState, AppError, AppResult, CandidateSizingConfig, ExposureState, FeatureSnapshot,
-    OrderCandidateDecision, PaperEngineState, PaperRunConfig, PaperRunReport, PaperTick,
-    PaperTrade, RiskBudgetConfig, RiskBudgetDecision, SignalDecision,
+    AccountRiskState, AppError, AppResult, CandidateSizingConfig, DryRunOrderCandidate,
+    ExposureState, FeatureSnapshot, OrderCandidateDecision, PaperEngineState, PaperRunConfig,
+    PaperRunReport, PaperTick, PaperTrade, RiskBudgetConfig, RiskBudgetDecision, SignalDecision,
 };
 use execution_engine::candidate_decision;
 use risk_engine::risk_decision;
@@ -72,6 +72,7 @@ pub fn process_snapshot(
         risk_decision.clone(),
         CandidateSizingConfig::default(),
     );
+    let valid_candidate = valid_generated_candidate(&candidate_decision);
 
     let tick = PaperTick {
         tick_id: state.ticks_processed + 1,
@@ -81,10 +82,10 @@ pub fn process_snapshot(
         mark_price: snapshot.mark_price.as_decimal(),
         signal_allowed: signal_decision.signal_allowed,
         risk_allowed: risk_decision.risk_allowed,
-        candidate_generated: candidate_decision.candidate_generated,
+        candidate_generated: valid_candidate.is_some(),
     };
 
-    let trade = match candidate_decision.candidate.as_ref() {
+    let trade = match valid_candidate {
         Some(candidate)
             if !paper_state::has_open_position(state, &candidate.symbol, candidate.direction) =>
         {
@@ -106,6 +107,16 @@ pub fn process_snapshot(
         risk_decision,
         candidate_decision,
     })
+}
+
+fn valid_generated_candidate(decision: &OrderCandidateDecision) -> Option<&DryRunOrderCandidate> {
+    if !decision.candidate_generated {
+        return None;
+    }
+    decision
+        .candidate
+        .as_ref()
+        .filter(|candidate| candidate.invariant_safe())
 }
 
 fn account_risk_state(state: &PaperEngineState) -> AccountRiskState {
@@ -172,10 +183,21 @@ mod tests {
     }
 
     #[test]
+    fn paper_fill_is_not_created_when_candidate_generated_false() {
+        let mut state = PaperEngineState::default();
+        let outcome = process_snapshot(&mut state, &rejected_snapshot(dec!(100))).unwrap();
+
+        assert!(!outcome.tick.candidate_generated);
+        assert!(!outcome.candidate_decision.candidate_generated);
+        assert!(outcome.trade.is_none());
+        assert!(state.positions.is_empty());
+    }
+
+    #[test]
     fn paper_pnl_updates_deterministically() {
         let config = config("deterministic_pnl");
         let report = run_snapshots(
-            &[passing_snapshot(dec!(100)), rejected_snapshot(dec!(101))],
+            &[passing_snapshot(dec!(100)), rejected_snapshot(dec!(99))],
             &config,
         )
         .unwrap();
@@ -197,8 +219,8 @@ mod tests {
             index_price: Price::new(mark_price - dec!(1)).unwrap(),
             premium: dec!(1),
             premium_bps: dec!(100),
-            funding_rate: dec!(0),
-            funding_regime: FundingRegime::Neutral,
+            funding_rate: dec!(0.0006),
+            funding_regime: FundingRegime::StronglyPositive,
             open_interest: Quantity::new(dec!(1000)).unwrap(),
             liquidity: LiquidityMetrics {
                 spread_bps: dec!(2),

@@ -24,30 +24,34 @@ pub struct PaperSoakRunMetrics {
 }
 
 impl PaperSoakRunMetrics {
-    pub fn record_decision(
-        &mut self,
-        signal_decision: &SignalDecision,
-        risk_decision: &RiskBudgetDecision,
-        candidate_decision: &OrderCandidateDecision,
-        paper_fill_generated: bool,
-        state_mutated: bool,
-        state_mutated_without_candidate_or_fill: bool,
-    ) {
-        if state_mutated {
+    pub fn record_decision(&mut self, input: PaperSoakDecisionInput<'_>) {
+        if input.state_mutated {
             self.state_mutation_count += 1;
         }
-        if state_mutated_without_candidate_or_fill {
+        if input.state_mutated_without_candidate_or_fill {
             self.state_mutation_without_candidate_or_fill_count += 1;
         }
         self.decisions.push(PaperSoakDecisionRecord {
-            signal_decision: signal_decision.clone(),
-            risk_decision: risk_decision.clone(),
-            candidate_decision: candidate_decision.clone(),
-            paper_fill_generated,
-            state_mutated,
-            state_mutated_without_candidate_or_fill,
+            signal_decision: input.signal_decision.clone(),
+            risk_decision: input.risk_decision.clone(),
+            candidate_decision: input.candidate_decision.clone(),
+            edge_after_cost_ratio: input.edge_after_cost_ratio,
+            paper_fill_generated: input.paper_fill_generated,
+            state_mutated: input.state_mutated,
+            state_mutated_without_candidate_or_fill: input.state_mutated_without_candidate_or_fill,
         });
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PaperSoakDecisionInput<'a> {
+    pub signal_decision: &'a SignalDecision,
+    pub risk_decision: &'a RiskBudgetDecision,
+    pub candidate_decision: &'a OrderCandidateDecision,
+    pub edge_after_cost_ratio: Option<Decimal>,
+    pub paper_fill_generated: bool,
+    pub state_mutated: bool,
+    pub state_mutated_without_candidate_or_fill: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -55,16 +59,18 @@ pub struct PaperSoakDecisionRecord {
     pub signal_decision: SignalDecision,
     pub risk_decision: RiskBudgetDecision,
     pub candidate_decision: OrderCandidateDecision,
+    pub edge_after_cost_ratio: Option<Decimal>,
     pub paper_fill_generated: bool,
     pub state_mutated: bool,
     pub state_mutated_without_candidate_or_fill: bool,
 }
 
 pub fn is_audit_only_candidate_generated(decision: &OrderCandidateDecision) -> bool {
-    decision
-        .candidate
-        .as_ref()
-        .is_some_and(DryRunOrderCandidate::invariant_safe)
+    decision.candidate_generated
+        && decision
+            .candidate
+            .as_ref()
+            .is_some_and(DryRunOrderCandidate::invariant_safe)
 }
 
 pub fn build_soak_report(
@@ -392,6 +398,23 @@ fn add_quality_findings(
             ),
         ));
     }
+
+    let invalid_fills_without_candidate = metrics
+        .decisions
+        .iter()
+        .filter(|record| {
+            record.paper_fill_generated
+                && !is_audit_only_candidate_generated(&record.candidate_decision)
+        })
+        .count();
+    if invalid_fills_without_candidate > 0 {
+        blockers.push(blocker(
+            "invalid_paper_fill_without_candidate",
+            format!(
+                "{invalid_fills_without_candidate} paper fills occurred without a valid generated audit-only candidate"
+            ),
+        ));
+    }
 }
 
 fn quality_metrics(
@@ -406,6 +429,7 @@ fn quality_metrics(
     let mut total_signal_strength = Decimal::ZERO;
     let mut max_signal_strength = Decimal::ZERO;
     let mut total_edge_after_cost_ratio = Decimal::ZERO;
+    let mut edge_after_cost_ratio_count = 0_u64;
     let candidate_decisions_evaluated = metrics.decisions.len() as u64;
     let safe_candidate_generated_count = if metrics.decisions.is_empty() {
         candidate_generated_count
@@ -428,8 +452,10 @@ fn quality_metrics(
         );
         total_signal_strength += record.signal_decision.packet.final_strength;
         max_signal_strength = max_signal_strength.max(record.signal_decision.packet.final_strength);
-        total_edge_after_cost_ratio +=
-            record.signal_decision.packet.cost_score / Decimal::from(100);
+        if let Some(edge_after_cost_ratio) = record.edge_after_cost_ratio {
+            total_edge_after_cost_ratio += edge_after_cost_ratio;
+            edge_after_cost_ratio_count += 1;
+        }
 
         if !record.candidate_decision.candidate_generated {
             for reason in &record.signal_decision.reasons {
@@ -461,10 +487,10 @@ fn quality_metrics(
     } else {
         total_signal_strength / decisions_count
     };
-    let avg_edge_after_cost_ratio = if metrics.decisions.is_empty() {
+    let avg_edge_after_cost_ratio = if edge_after_cost_ratio_count == 0 {
         None
     } else {
-        Some(total_edge_after_cost_ratio / decisions_count)
+        Some(total_edge_after_cost_ratio / Decimal::from(edge_after_cost_ratio_count))
     };
 
     ComputedQualityMetrics {
@@ -566,6 +592,9 @@ fn order_candidate_reason_key(reason: OrderCandidateReason) -> &'static str {
         OrderCandidateReason::SignalRejected => "order.signal_rejected",
         OrderCandidateReason::RiskRejected => "order.risk_rejected",
         OrderCandidateReason::ResearchOnlyMode => "order.research_only_mode",
+        OrderCandidateReason::SignalGradeTooLow => "order.signal_grade_too_low",
+        OrderCandidateReason::SignalStrengthTooLow => "order.signal_strength_too_low",
+        OrderCandidateReason::EdgeAfterCostTooLow => "order.edge_after_cost_too_low",
         OrderCandidateReason::AuditOnly => "order.audit_only",
         OrderCandidateReason::SizingCappedByInitialNotional => {
             "order.sizing_capped_by_initial_notional"
@@ -720,18 +749,24 @@ mod tests {
         write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
         write_log(&paths.log, &[trade(false, false)]);
         let run_metrics = metrics(vec![
-            record(SignalGrade::C, SignalDirection::Short, dec!(62), true, true),
             record(
-                SignalGrade::C,
+                SignalGrade::APlus,
                 SignalDirection::Short,
-                dec!(63),
+                dec!(92),
+                true,
+                true,
+            ),
+            record(
+                SignalGrade::APlus,
+                SignalDirection::Short,
+                dec!(93),
                 true,
                 false,
             ),
             record(
-                SignalGrade::C,
+                SignalGrade::APlus,
                 SignalDirection::Short,
-                dec!(64),
+                dec!(94),
                 true,
                 false,
             ),
@@ -758,9 +793,9 @@ mod tests {
         let mut records = Vec::new();
         for _ in 0..11 {
             records.push(record(
-                SignalGrade::C,
+                SignalGrade::APlus,
                 SignalDirection::Short,
-                dec!(62),
+                dec!(92),
                 true,
                 false,
             ));
@@ -787,9 +822,9 @@ mod tests {
         let mut records = Vec::new();
         for _ in 0..30 {
             records.push(record(
-                SignalGrade::C,
+                SignalGrade::APlus,
                 SignalDirection::Short,
-                dec!(62),
+                dec!(92),
                 true,
                 false,
             ));
@@ -835,17 +870,17 @@ mod tests {
         write_log(&paths.log, &[trade(false, false)]);
         let run_metrics = metrics(vec![
             record(
-                SignalGrade::C,
+                SignalGrade::APlus,
                 SignalDirection::Short,
-                dec!(62),
+                dec!(92),
                 true,
                 false,
             ),
             rejected_record(),
             record(
-                SignalGrade::C,
+                SignalGrade::APlus,
                 SignalDirection::Short,
-                dec!(63),
+                dec!(93),
                 true,
                 false,
             ),
@@ -922,6 +957,36 @@ mod tests {
             first.rejection_breakdown_by_reason["order.signal_rejected"],
             1
         );
+        assert_eq!(
+            first.rejection_breakdown_by_reason["order.signal_grade_too_low"],
+            1
+        );
+        assert_eq!(
+            first.rejection_breakdown_by_reason["order.signal_strength_too_low"],
+            1
+        );
+        assert_eq!(
+            first.rejection_breakdown_by_reason["order.edge_after_cost_too_low"],
+            1
+        );
+        assert!(!first.rejection_breakdown_by_reason.is_empty());
+        paths.cleanup();
+    }
+
+    #[test]
+    fn low_edge_rejection_breakdown_is_counted() {
+        let paths = FixturePaths::new("low_edge_rejection_breakdown");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        write_log(&paths.log, &[trade(false, false)]);
+        let metrics = metrics(vec![low_edge_rejected_record()]);
+
+        let report = build_soak_report_with_metrics(&paths.config(), 1, 0, 0, &metrics);
+
+        assert_eq!(report.candidate_generated_count, 0);
+        assert_eq!(
+            report.rejection_breakdown_by_reason["order.edge_after_cost_too_low"],
+            1
+        );
         paths.cleanup();
     }
 
@@ -985,6 +1050,23 @@ mod tests {
             &report,
             "state_mutation_without_candidate_or_fill"
         ));
+        paths.cleanup();
+    }
+
+    #[test]
+    fn invalid_paper_fill_without_candidate_blocks_soak() {
+        let paths = FixturePaths::new("invalid_fill_without_candidate");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        write_log(&paths.log, &[trade(false, false)]);
+        let mut invalid_record = rejected_record();
+        invalid_record.paper_fill_generated = true;
+        invalid_record.state_mutated = true;
+        let run_metrics = metrics(vec![invalid_record]);
+
+        let report = build_soak_report_with_metrics(&paths.config(), 1, 0, 0, &run_metrics);
+
+        assert!(!report.soak_passed);
+        assert!(has_blocker(&report, "invalid_paper_fill_without_candidate"));
         paths.cleanup();
     }
 
@@ -1120,6 +1202,9 @@ mod tests {
                 OrderCandidateReason::SignalRejected,
                 OrderCandidateReason::RiskRejected,
                 OrderCandidateReason::ResearchOnlyMode,
+                OrderCandidateReason::SignalGradeTooLow,
+                OrderCandidateReason::SignalStrengthTooLow,
+                OrderCandidateReason::EdgeAfterCostTooLow,
                 OrderCandidateReason::NoExecutableOrderGenerated,
             ]
         };
@@ -1133,6 +1218,7 @@ mod tests {
             signal_decision,
             risk_decision,
             candidate_decision,
+            edge_after_cost_ratio: Some(strength / dec!(10)),
             paper_fill_generated,
             state_mutated: paper_fill_generated,
             state_mutated_without_candidate_or_fill: false,
@@ -1169,6 +1255,9 @@ mod tests {
                 OrderCandidateReason::SignalRejected,
                 OrderCandidateReason::RiskRejected,
                 OrderCandidateReason::ResearchOnlyMode,
+                OrderCandidateReason::SignalGradeTooLow,
+                OrderCandidateReason::SignalStrengthTooLow,
+                OrderCandidateReason::EdgeAfterCostTooLow,
                 OrderCandidateReason::NoExecutableOrderGenerated,
             ],
         );
@@ -1176,6 +1265,45 @@ mod tests {
             signal_decision,
             risk_decision,
             candidate_decision,
+            edge_after_cost_ratio: Some(dec!(2)),
+            paper_fill_generated: false,
+            state_mutated: false,
+            state_mutated_without_candidate_or_fill: false,
+        }
+    }
+
+    fn low_edge_rejected_record() -> PaperSoakDecisionRecord {
+        let signal_decision = signal_decision(
+            SignalGrade::APlus,
+            SignalDirection::Short,
+            dec!(92),
+            true,
+            vec![DecisionReason::ResearchOnlyMode],
+        );
+        let risk_decision = risk_decision(
+            true,
+            signal_decision.clone(),
+            vec![
+                RiskDecisionReason::ResearchOnlyMode,
+                RiskDecisionReason::NoExecutableOrderGenerated,
+                RiskDecisionReason::RiskChecksPassed,
+            ],
+        );
+        let candidate_decision = order_candidate_decision(
+            false,
+            signal_decision.clone(),
+            risk_decision.clone(),
+            vec![
+                OrderCandidateReason::ResearchOnlyMode,
+                OrderCandidateReason::EdgeAfterCostTooLow,
+                OrderCandidateReason::NoExecutableOrderGenerated,
+            ],
+        );
+        PaperSoakDecisionRecord {
+            signal_decision,
+            risk_decision,
+            candidate_decision,
+            edge_after_cost_ratio: Some(dec!(2.5)),
             paper_fill_generated: false,
             state_mutated: false,
             state_mutated_without_candidate_or_fill: false,

@@ -305,6 +305,9 @@ fn order_candidate_reason_key(reason: OrderCandidateReason) -> &'static str {
         OrderCandidateReason::SignalRejected => "order.signal_rejected",
         OrderCandidateReason::RiskRejected => "order.risk_rejected",
         OrderCandidateReason::ResearchOnlyMode => "order.research_only_mode",
+        OrderCandidateReason::SignalGradeTooLow => "order.signal_grade_too_low",
+        OrderCandidateReason::SignalStrengthTooLow => "order.signal_strength_too_low",
+        OrderCandidateReason::EdgeAfterCostTooLow => "order.edge_after_cost_too_low",
         OrderCandidateReason::AuditOnly => "order.audit_only",
         OrderCandidateReason::SizingCappedByInitialNotional => {
             "order.sizing_capped_by_initial_notional"
@@ -463,7 +466,7 @@ mod tests {
             symbol: Symbol::new("BTCUSDT").unwrap(),
             mark_price,
             index_price,
-            funding_rate: dec!(0.0002),
+            funding_rate: dec!(0.0006),
             open_interest: dec!(1000),
             bid_levels: vec![MarketEventLevel {
                 price: mark_price - dec!(0.01),

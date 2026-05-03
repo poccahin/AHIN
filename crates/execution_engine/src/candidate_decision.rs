@@ -1,9 +1,13 @@
 use domain::{
     CandidateSizingConfig, FeatureSnapshot, OrderCandidateDecision, OrderCandidateReason,
-    RiskBudgetDecision, SignalDecision,
+    RiskBudgetDecision, SignalDecision, SignalGrade,
 };
+use rust_decimal::Decimal;
 
 use crate::{dry_run_candidate, order_candidate};
+
+const MIN_CANDIDATE_SIGNAL_STRENGTH: i64 = 85;
+const MIN_EDGE_AFTER_COST_RATIO: i64 = 3;
 
 pub fn evaluate_order_candidate(
     feature_snapshot: &FeatureSnapshot,
@@ -12,8 +16,9 @@ pub fn evaluate_order_candidate(
     sizing_config: CandidateSizingConfig,
 ) -> OrderCandidateDecision {
     let mut reasons = order_candidate::base_rejection_reasons(&signal_decision, &risk_decision);
+    add_quality_gate_reasons(feature_snapshot, &signal_decision, &mut reasons);
 
-    if !signal_decision.signal_allowed || !risk_decision.risk_allowed {
+    if has_candidate_blocking_reason(&reasons) {
         return OrderCandidateDecision {
             candidate_generated: false,
             candidate: None,
@@ -35,6 +40,18 @@ pub fn evaluate_order_candidate(
         order_candidate::push_reason(&mut reasons, *reason);
     }
 
+    if !candidate.invariant_safe() {
+        return OrderCandidateDecision {
+            candidate_generated: false,
+            candidate: None,
+            reasons,
+            signal_decision,
+            risk_decision,
+            sizing_config,
+            summary: "dry-run candidate rejected because audit-only invariants failed".to_string(),
+        };
+    }
+
     OrderCandidateDecision {
         candidate_generated: true,
         candidate: Some(candidate),
@@ -45,6 +62,48 @@ pub fn evaluate_order_candidate(
         summary: "audit-only dry-run order candidate generated; no executable order exists"
             .to_string(),
     }
+}
+
+pub fn edge_after_cost_ratio(
+    feature_snapshot: &FeatureSnapshot,
+    signal_decision: &SignalDecision,
+) -> Decimal {
+    let cost_bps = feature_snapshot.cost.estimated_total_cost_bps;
+    if cost_bps <= Decimal::ZERO {
+        return Decimal::from(100);
+    }
+    signal_decision.packet.final_strength / cost_bps
+}
+
+fn add_quality_gate_reasons(
+    feature_snapshot: &FeatureSnapshot,
+    signal_decision: &SignalDecision,
+    reasons: &mut Vec<OrderCandidateReason>,
+) {
+    if signal_decision.packet.grade != SignalGrade::APlus {
+        order_candidate::push_reason(reasons, OrderCandidateReason::SignalGradeTooLow);
+    }
+    if signal_decision.packet.final_strength < Decimal::from(MIN_CANDIDATE_SIGNAL_STRENGTH) {
+        order_candidate::push_reason(reasons, OrderCandidateReason::SignalStrengthTooLow);
+    }
+    if edge_after_cost_ratio(feature_snapshot, signal_decision)
+        < Decimal::from(MIN_EDGE_AFTER_COST_RATIO)
+    {
+        order_candidate::push_reason(reasons, OrderCandidateReason::EdgeAfterCostTooLow);
+    }
+}
+
+fn has_candidate_blocking_reason(reasons: &[OrderCandidateReason]) -> bool {
+    reasons.iter().any(|reason| {
+        matches!(
+            reason,
+            OrderCandidateReason::SignalRejected
+                | OrderCandidateReason::RiskRejected
+                | OrderCandidateReason::SignalGradeTooLow
+                | OrderCandidateReason::SignalStrengthTooLow
+                | OrderCandidateReason::EdgeAfterCostTooLow
+        )
+    })
 }
 
 #[allow(dead_code)]
@@ -97,6 +156,66 @@ mod tests {
     }
 
     #[test]
+    fn c_grade_signal_produces_no_candidate() {
+        let signal = signal_decision_with_grade(true, dec!(62), SignalGrade::C);
+        let risk = risk_decision(true, signal.clone(), dec!(0));
+
+        let decision =
+            evaluate_order_candidate(&snapshot(), signal, risk, CandidateSizingConfig::default());
+
+        assert!(!decision.candidate_generated);
+        assert!(decision.candidate.is_none());
+        assert!(
+            decision
+                .reasons
+                .contains(&OrderCandidateReason::SignalGradeTooLow)
+        );
+        assert!(
+            decision
+                .reasons
+                .contains(&OrderCandidateReason::SignalStrengthTooLow)
+        );
+    }
+
+    #[test]
+    fn final_strength_below_threshold_produces_no_candidate() {
+        let signal = signal_decision(true, dec!(84.99));
+        let risk = risk_decision(true, signal.clone(), dec!(0));
+
+        let decision =
+            evaluate_order_candidate(&snapshot(), signal, risk, CandidateSizingConfig::default());
+
+        assert!(!decision.candidate_generated);
+        assert!(decision.candidate.is_none());
+        assert!(
+            decision
+                .reasons
+                .contains(&OrderCandidateReason::SignalStrengthTooLow)
+        );
+    }
+
+    #[test]
+    fn low_edge_after_cost_ratio_produces_no_candidate() {
+        let signal = signal_decision(true, dec!(92));
+        let risk = risk_decision(true, signal.clone(), dec!(0));
+
+        let decision = evaluate_order_candidate(
+            &snapshot_with_total_cost(dec!(40)),
+            signal,
+            risk,
+            CandidateSizingConfig::default(),
+        );
+
+        assert!(!decision.candidate_generated);
+        assert!(decision.candidate.is_none());
+        assert!(
+            decision
+                .reasons
+                .contains(&OrderCandidateReason::EdgeAfterCostTooLow)
+        );
+    }
+
+    #[test]
     fn a_plus_signal_and_passing_risk_produces_audit_only_candidate() {
         let signal = signal_decision(true, dec!(92));
         let risk = risk_decision(true, signal.clone(), dec!(0));
@@ -145,6 +264,10 @@ mod tests {
     }
 
     fn snapshot() -> FeatureSnapshot {
+        snapshot_with_total_cost(dec!(10))
+    }
+
+    fn snapshot_with_total_cost(total_cost_bps: rust_decimal::Decimal) -> FeatureSnapshot {
         FeatureSnapshot {
             exchange: "test".to_string(),
             symbol: Symbol::new("BTCUSDT").unwrap(),
@@ -168,12 +291,20 @@ mod tests {
                 round_trip_fee_bps: dec!(8),
                 spread_bps: dec!(2),
                 slippage_bps: dec!(0),
-                estimated_total_cost_bps: dec!(10),
+                estimated_total_cost_bps: total_cost_bps,
             },
         }
     }
 
     fn signal_decision(signal_allowed: bool, strength: rust_decimal::Decimal) -> SignalDecision {
+        signal_decision_with_grade(signal_allowed, strength, SignalGrade::APlus)
+    }
+
+    fn signal_decision_with_grade(
+        signal_allowed: bool,
+        strength: rust_decimal::Decimal,
+        grade: SignalGrade,
+    ) -> SignalDecision {
         SignalDecision {
             packet: SignalPacket {
                 exchange: "test".to_string(),
@@ -186,7 +317,7 @@ mod tests {
                 liquidity_score: strength,
                 cost_score: strength,
                 final_strength: strength,
-                grade: SignalGrade::APlus,
+                grade,
                 reasons: Vec::new(),
             },
             signal_allowed,

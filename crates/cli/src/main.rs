@@ -665,12 +665,20 @@ async fn paper_cli(
                                     && !safe_candidate_generated
                                     && outcome.trade.is_none();
                                 metrics.record_decision(
-                                    &outcome.signal_decision,
-                                    &outcome.risk_decision,
-                                    &outcome.candidate_decision,
-                                    outcome.trade.is_some(),
-                                    state_mutated,
-                                    state_mutated_without_candidate_or_fill,
+                                    paper_engine::soak_report::PaperSoakDecisionInput {
+                                        signal_decision: &outcome.signal_decision,
+                                        risk_decision: &outcome.risk_decision,
+                                        candidate_decision: &outcome.candidate_decision,
+                                        edge_after_cost_ratio: Some(
+                                            candidate_decision::edge_after_cost_ratio(
+                                                &feature_snapshot,
+                                                &outcome.signal_decision,
+                                            ),
+                                        ),
+                                        paper_fill_generated: outcome.trade.is_some(),
+                                        state_mutated,
+                                        state_mutated_without_candidate_or_fill,
+                                    },
                                 );
                             }
                             Err(_) => errors_count += 1,
