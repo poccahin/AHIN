@@ -2,7 +2,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use domain::{
     AccountRiskState, AppError, AppResult, CandidateSizingConfig, ExposureState, FeatureSnapshot,
-    PaperEngineState, PaperRunConfig, PaperRunReport, PaperTick, PaperTrade, RiskBudgetConfig,
+    OrderCandidateDecision, PaperEngineState, PaperRunConfig, PaperRunReport, PaperTick,
+    PaperTrade, RiskBudgetConfig, RiskBudgetDecision, SignalDecision,
 };
 use execution_engine::candidate_decision;
 use risk_engine::risk_decision;
@@ -15,6 +16,9 @@ use crate::{paper_fill, paper_report, paper_state};
 pub struct PaperTickOutcome {
     pub tick: PaperTick,
     pub trade: Option<PaperTrade>,
+    pub signal_decision: SignalDecision,
+    pub risk_decision: RiskBudgetDecision,
+    pub candidate_decision: OrderCandidateDecision,
 }
 
 pub fn run_snapshots(
@@ -95,7 +99,13 @@ pub fn process_snapshot(
     state.ticks_processed = tick.tick_id;
     state.last_tick = Some(tick.clone());
 
-    Ok(PaperTickOutcome { tick, trade })
+    Ok(PaperTickOutcome {
+        tick,
+        trade,
+        signal_decision,
+        risk_decision,
+        candidate_decision,
+    })
 }
 
 fn account_risk_state(state: &PaperEngineState) -> AccountRiskState {

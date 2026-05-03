@@ -534,7 +534,7 @@ Soak warnings:
 
 - zero paper trades
 - zero processed ticks
-- high candidate-generation ratio above `0.80`; the `0.95` hard blocker applies once at least 20 ticks have been processed
+- high candidate-pressure ratio above `0.25`; above `0.50` becomes a blocker
 
 Example output shape:
 
@@ -558,6 +558,85 @@ Example output shape:
     }
   ],
   "blockers": [],
+  "soak_passed": true
+}
+```
+
+## Phase 8.2: Long Soak Report & Decision Quality Metrics
+
+Phase 8.2 extends the paper soak report with decision-quality diagnostics for longer local simulated sessions. The command still uses only Binance public read-only market data plus local paper state/log files. It does not place orders, call signed/private endpoints, read API keys, change leverage, execute withdrawals, or enable live trading.
+
+```sh
+cargo run -p cli -- paper soak \
+  --exchange binance \
+  --symbol BTCUSDT \
+  --depth 100 \
+  --ticks 240 \
+  --interval-seconds 15 \
+  --report-path data/paper/soak_report.json
+```
+
+Additional report fields:
+
+- `signal_grade_distribution`
+- `signal_direction_distribution`
+- `rejection_breakdown_by_reason`
+- `candidate_pressure_ratio`
+- `avg_signal_strength`
+- `max_signal_strength`
+- `avg_edge_after_cost_ratio`
+- `state_mutation_count`
+- `paper_equity_start`
+- `paper_equity_end`
+- `paper_equity_drift`
+- `duration_seconds`
+- `ticks_per_minute`
+
+Decision tracking flow:
+
+```text
+FeatureSnapshot
+-> SignalDecision
+-> RiskBudgetDecision
+-> OrderCandidateDecision
+-> PaperSoakReport metrics
+```
+
+Phase 8.2 guardrails:
+
+- `candidate_pressure_ratio > 0.25` emits `candidate_pressure_high`.
+- `candidate_pressure_ratio > 0.50` emits `candidate_pressure_excessive` and blocks soak pass.
+- repeated A+ signals without paper fills emit `repeated_a_plus_without_paper_fills`.
+- structural state mutation without a candidate or fill emits `state_mutation_without_candidate_or_fill` and blocks soak pass.
+- an invalid or unwritable `--report-path` emits `soak_report_path_unreadable` and blocks soak pass.
+- zero trades remains a warning, not a blocker.
+
+Example output excerpt:
+
+```json
+{
+  "candidate_pressure_ratio": "0.125",
+  "avg_signal_strength": "61.4",
+  "max_signal_strength": "92.1",
+  "avg_edge_after_cost_ratio": "0.84",
+  "signal_grade_distribution": {
+    "a_plus": 2,
+    "c": 10
+  },
+  "signal_direction_distribution": {
+    "long": 4,
+    "neutral": 8
+  },
+  "rejection_breakdown_by_reason": {
+    "signal.neutral_signal": 8,
+    "risk.weak_signal": 8,
+    "order.signal_rejected": 8
+  },
+  "paper_equity_start": "200",
+  "paper_equity_end": "199.92",
+  "paper_equity_drift": "-0.08",
+  "duration_seconds": 3600,
+  "ticks_per_minute": "4",
   "soak_passed": true
 }
 ```

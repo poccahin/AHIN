@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use domain::{AppResult, FeatureSnapshot, PaperSoakConfig, PaperSoakReport};
+use domain::{AppResult, FeatureSnapshot, PaperEngineState, PaperSoakConfig, PaperSoakReport};
 
 use crate::{paper_loop, paper_state, soak_report};
 
@@ -13,12 +13,18 @@ pub fn run_snapshots(
     let mut state = paper_state::load_or_default(&config.state_path)?;
     paper_state::ensure_trade_log(&config.log_path)?;
     paper_state::persist_state(&config.state_path, &state)?;
+    let mut metrics = soak_report::PaperSoakRunMetrics {
+        paper_equity_start: state.account_equity_usdt,
+        paper_equity_end: state.account_equity_usdt,
+        ..Default::default()
+    };
 
-    let mut ticks_processed = 0;
-    let mut candidate_generated_count = 0;
-    let mut errors_count = 0;
+    let mut ticks_processed = 0_u64;
+    let mut candidate_generated_count = 0_u64;
+    let mut errors_count = 0_u64;
 
     for snapshot in snapshots.iter().take(config.ticks as usize) {
+        let before = StateStructuralFingerprint::from_state(&state);
         match paper_loop::process_snapshot(&mut state, snapshot) {
             Ok(outcome) => {
                 ticks_processed += 1;
@@ -34,16 +40,32 @@ pub fn run_snapshots(
                 if paper_state::persist_state(&config.state_path, &state).is_err() {
                     errors_count += 1;
                 }
+                let state_mutated = before != StateStructuralFingerprint::from_state(&state);
+                let state_mutated_without_candidate_or_fill =
+                    state_mutated && !outcome.tick.candidate_generated && outcome.trade.is_none();
+                metrics.record_decision(
+                    &outcome.signal_decision,
+                    &outcome.risk_decision,
+                    &outcome.candidate_decision,
+                    outcome.trade.is_some(),
+                    state_mutated,
+                    state_mutated_without_candidate_or_fill,
+                );
             }
             Err(_) => errors_count += 1,
         }
     }
+    metrics.paper_equity_end = state.account_equity_usdt;
+    metrics.duration_seconds = config
+        .interval_seconds
+        .saturating_mul(ticks_processed.saturating_sub(1));
 
-    Ok(finalize_report(
+    Ok(finalize_report_with_metrics(
         config,
         ticks_processed,
         candidate_generated_count,
         errors_count,
+        metrics,
     ))
 }
 
@@ -53,12 +75,64 @@ pub fn finalize_report(
     candidate_generated_count: u64,
     errors_count: u64,
 ) -> PaperSoakReport {
-    soak_report::build_soak_report(
+    finalize_report_with_metrics(
         config,
         ticks_processed,
         candidate_generated_count,
         errors_count,
+        soak_report::PaperSoakRunMetrics::default(),
     )
+}
+
+pub fn finalize_report_with_metrics(
+    config: &PaperSoakConfig,
+    ticks_processed: u64,
+    candidate_generated_count: u64,
+    errors_count: u64,
+    metrics: soak_report::PaperSoakRunMetrics,
+) -> PaperSoakReport {
+    let report = soak_report::build_soak_report_with_metrics(
+        config,
+        ticks_processed,
+        candidate_generated_count,
+        errors_count,
+        &metrics,
+    );
+    soak_report::persist_report_if_configured(config, report)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StateStructuralFingerprint {
+    trades_count: u64,
+    positions: Vec<String>,
+    realized_pnl_usdt: String,
+    total_fees_usdt: String,
+}
+
+impl StateStructuralFingerprint {
+    pub fn from_state(state: &PaperEngineState) -> Self {
+        Self {
+            trades_count: state.trades_count,
+            positions: state
+                .positions
+                .iter()
+                .map(|position| {
+                    format!(
+                        "{}::{}::{:?}::{}::{}::{}::{}",
+                        position.position_id,
+                        position.symbol.as_str(),
+                        position.direction,
+                        position.entry_price,
+                        position.notional,
+                        position.quantity,
+                        position.opened_at_tick
+                    )
+                })
+                .collect(),
+            realized_pnl_usdt: state.realized_pnl_usdt.to_string(),
+            total_fees_usdt: state.total_fees_usdt.to_string(),
+        }
+    }
 }
 
 #[cfg(test)]

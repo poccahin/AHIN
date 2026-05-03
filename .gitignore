@@ -1,6 +1,7 @@
 /target/
 /data/paper/paper_state.json
 /data/paper/paper_trades.jsonl
+/data/paper/soak_report.json
 **/*.rs.bk
 .DS_Store
 .env

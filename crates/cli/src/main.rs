@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Instant};
 
 use backtest::{event_loader, event_replay};
 use canary_engine::readiness::{self, CanaryReadinessInputs};
@@ -203,6 +203,9 @@ struct PaperSoakArgs {
 
     #[arg(long)]
     log_path: Option<PathBuf>,
+
+    #[arg(long)]
+    report_path: Option<PathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -603,6 +606,7 @@ async fn paper_cli(
                     .unwrap_or(default_log_path)
                     .display()
                     .to_string(),
+                report_path: args.report_path.map(|path| path.display().to_string()),
                 ..defaults
             };
             paper_state::ensure_local_file_path(std::path::Path::new(&soak_config.state_path))?;
@@ -611,11 +615,18 @@ async fn paper_cli(
             let mut state = paper_state::load_or_default(&soak_config.state_path)?;
             paper_state::ensure_trade_log(&soak_config.log_path)?;
             paper_state::persist_state(&soak_config.state_path, &state)?;
+            let started_at = Instant::now();
+            let mut metrics = paper_engine::soak_report::PaperSoakRunMetrics {
+                paper_equity_start: state.account_equity_usdt,
+                paper_equity_end: state.account_equity_usdt,
+                ..Default::default()
+            };
             let mut ticks_processed = 0;
             let mut candidate_generated_count = 0;
             let mut errors_count = 0;
 
             for tick_idx in 0..soak_config.ticks {
+                let before = paper_soak::StateStructuralFingerprint::from_state(&state);
                 match fetch_feature_snapshot(
                     FeatureSnapshotArgs {
                         exchange: args.exchange,
@@ -644,6 +655,19 @@ async fn paper_cli(
                                 {
                                     errors_count += 1;
                                 }
+                                let state_mutated = before
+                                    != paper_soak::StateStructuralFingerprint::from_state(&state);
+                                let state_mutated_without_candidate_or_fill = state_mutated
+                                    && !outcome.tick.candidate_generated
+                                    && outcome.trade.is_none();
+                                metrics.record_decision(
+                                    &outcome.signal_decision,
+                                    &outcome.risk_decision,
+                                    &outcome.candidate_decision,
+                                    outcome.trade.is_some(),
+                                    state_mutated,
+                                    state_mutated_without_candidate_or_fill,
+                                );
                             }
                             Err(_) => errors_count += 1,
                         }
@@ -658,12 +682,15 @@ async fn paper_cli(
                     .await;
                 }
             }
+            metrics.paper_equity_end = state.account_equity_usdt;
+            metrics.duration_seconds = started_at.elapsed().as_secs();
 
-            let report = paper_soak::finalize_report(
+            let report = paper_soak::finalize_report_with_metrics(
                 &soak_config,
                 ticks_processed,
                 candidate_generated_count,
                 errors_count,
+                metrics,
             );
             print_json(serde_json::to_value(report).map_err(|err| {
                 domain::AppError::Config(format!("failed to render paper soak report: {err}"))
