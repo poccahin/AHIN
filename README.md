@@ -696,6 +696,44 @@ Short smoke runs in ordinary C-grade or low-edge market conditions should now sh
 }
 ```
 
+## Phase 8.3: Paper Soak Report Comparison
+
+Phase 8.3 compares two local `PaperSoakReport` JSON files and summarizes stability regressions. The command only reads local files; it does not fetch market data, place orders, call signed endpoints, read API keys, change leverage, or enable live trading.
+
+```sh
+cargo run -p cli -- paper compare-reports \
+  --baseline data/paper/soak_report_1h.json \
+  --candidate data/paper/soak_report_24h.json
+```
+
+The comparison report includes:
+
+- metric deltas for `soak_passed`, blocker/warning counts, candidate pressure, candidates, paper trades, open positions, signal strength, edge-after-cost, and paper equity drift
+- distribution deltas for rejection reasons, signal grades, and signal directions
+- warnings for materially higher candidate pressure, zero trades in both reports, worse equity drift, or materially changed rejection mix
+- blockers for unreadable report files, candidate report blockers, `soak_passed=false`, pressure above the blocker threshold, or executable/real-order-id evidence
+
+Example output shape:
+
+```json
+{
+  "comparison_passed": true,
+  "metric_deltas": [
+    {
+      "metric": "candidate_pressure_ratio",
+      "baseline": "0.1",
+      "candidate": "0.12",
+      "delta": "0.02"
+    }
+  ],
+  "rejection_breakdown_delta": {
+    "order.signal_grade_too_low": -4
+  },
+  "warnings": [],
+  "blockers": []
+}
+```
+
 ## Phase Roadmap
 
 1. Workspace skeleton, strict domain types, safe config, mock exchange, dry-run CLI health check.

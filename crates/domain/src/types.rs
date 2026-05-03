@@ -536,6 +536,40 @@ pub struct PaperSoakReport {
     pub soak_passed: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PaperSoakMetricDelta {
+    pub metric: String,
+    pub baseline: String,
+    pub candidate: String,
+    pub delta: Option<Decimal>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaperSoakComparisonWarning {
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaperSoakComparisonBlocker {
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PaperSoakComparisonReport {
+    pub baseline_path: String,
+    pub candidate_path: String,
+    pub comparison_passed: bool,
+    pub metric_deltas: Vec<PaperSoakMetricDelta>,
+    pub rejection_breakdown_delta: BTreeMap<String, i64>,
+    pub signal_grade_distribution_delta: BTreeMap<String, i64>,
+    pub signal_direction_distribution_delta: BTreeMap<String, i64>,
+    pub warnings: Vec<PaperSoakComparisonWarning>,
+    pub blockers: Vec<PaperSoakComparisonBlocker>,
+    pub summary: String,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CanaryCheckStatus {

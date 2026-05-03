@@ -17,8 +17,9 @@ pub use types::{
     FeatureSnapshot, FundingRate, FundingRegime, LiquidityMetrics, MarketEvent, MarketEventLevel,
     MarketRegime, OpenInterest, OrderBook, OrderBookLevel, OrderCandidate, OrderCandidateDecision,
     OrderCandidateReason, OrderRequest, PaperEngineState, PaperPosition, PaperRunConfig,
-    PaperRunReport, PaperSoakBlocker, PaperSoakConfig, PaperSoakReport, PaperSoakWarning,
-    PaperTick, PaperTrade, Position, ReplayDecision, RiskBudget, RiskBudgetConfig,
-    RiskBudgetDecision, RiskDecisionReason, Side, SignalDecision, SignalDirection, SignalGrade,
-    SignalPacket, SimulatedTrade, Symbol,
+    PaperRunReport, PaperSoakBlocker, PaperSoakComparisonBlocker, PaperSoakComparisonReport,
+    PaperSoakComparisonWarning, PaperSoakConfig, PaperSoakMetricDelta, PaperSoakReport,
+    PaperSoakWarning, PaperTick, PaperTrade, Position, ReplayDecision, RiskBudget,
+    RiskBudgetConfig, RiskBudgetDecision, RiskDecisionReason, Side, SignalDecision,
+    SignalDirection, SignalGrade, SignalPacket, SimulatedTrade, Symbol,
 };

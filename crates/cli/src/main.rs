@@ -14,7 +14,7 @@ use domain::{
 use exchange::{BinanceReadonly, ExchangeAdapter, MockExchange};
 use execution_engine::{candidate_decision, dry_run_router, order_candidate};
 use feature_engine::snapshot;
-use paper_engine::{paper_loop, paper_report, paper_soak, paper_state};
+use paper_engine::{paper_loop, paper_report, paper_soak, paper_state, report_compare};
 use risk_engine::{risk_budget, risk_decision, tail_event_simulator};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -111,6 +111,7 @@ enum BacktestCommand {
 enum PaperCommand {
     Run(PaperRunArgs),
     Soak(PaperSoakArgs),
+    CompareReports(PaperCompareReportsArgs),
 }
 
 #[derive(Debug, Subcommand)]
@@ -206,6 +207,15 @@ struct PaperSoakArgs {
 
     #[arg(long)]
     report_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+struct PaperCompareReportsArgs {
+    #[arg(long)]
+    baseline: PathBuf,
+
+    #[arg(long)]
+    candidate: PathBuf,
 }
 
 #[derive(Debug, Args)]
@@ -522,11 +532,10 @@ async fn paper_cli(
     binance_base_url: Option<String>,
     command: PaperCommand,
 ) -> AppResult<()> {
-    let config = EngineConfig::load_from_path(config_path)?;
-    config.validate_safety()?;
-
     match command {
         PaperCommand::Run(args) => {
+            let config = EngineConfig::load_from_path(config_path)?;
+            config.validate_safety()?;
             let defaults = domain::PaperRunConfig::default();
             let run_config = domain::PaperRunConfig {
                 ticks: args.ticks,
@@ -590,6 +599,8 @@ async fn paper_cli(
             })?)
         }
         PaperCommand::Soak(args) => {
+            let config = EngineConfig::load_from_path(config_path)?;
+            config.validate_safety()?;
             let defaults = domain::PaperSoakConfig::default();
             let default_state_path = PathBuf::from(defaults.state_path.clone());
             let default_log_path = PathBuf::from(defaults.log_path.clone());
@@ -706,6 +717,14 @@ async fn paper_cli(
             );
             print_json(serde_json::to_value(report).map_err(|err| {
                 domain::AppError::Config(format!("failed to render paper soak report: {err}"))
+            })?)
+        }
+        PaperCommand::CompareReports(args) => {
+            let report = report_compare::compare_report_files(&args.baseline, &args.candidate);
+            print_json(serde_json::to_value(report).map_err(|err| {
+                domain::AppError::Config(format!(
+                    "failed to render paper soak comparison report: {err}"
+                ))
             })?)
         }
     }
