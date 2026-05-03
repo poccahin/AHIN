@@ -11,6 +11,7 @@ pub use errors::{AppError, AppResult};
 pub use money::{Leverage, Notional, Price, Quantity};
 pub use time::{Timestamp, now_utc};
 pub use types::{
-    EngineMode, ExchangeInfo, FundingRate, OpenInterest, OrderBook, OrderCandidate, OrderRequest,
+    CostEstimate, EngineMode, ExchangeInfo, FeatureSnapshot, FundingRate, FundingRegime,
+    LiquidityMetrics, OpenInterest, OrderBook, OrderBookLevel, OrderCandidate, OrderRequest,
     Position, RiskBudget, Side, SignalPacket, Symbol,
 };

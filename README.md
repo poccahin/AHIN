@@ -48,6 +48,74 @@ Expected health check behavior:
 - Constructs the mock exchange.
 - Runs dry-run routing and state reconciliation checks.
 
+## Phase 1: Read-Only Binance Market Data
+
+Phase 1 adds Binance USD-M Futures public market-data ingestion only. The client uses unsigned public `GET` endpoints under `https://fapi.binance.com` and does not read API keys, signed parameters, private account data, leverage settings, order endpoints, or withdrawal endpoints.
+
+```sh
+cargo run -p cli -- market snapshot --exchange binance --symbol BTCUSDT
+cargo run -p cli -- market funding --exchange binance --symbol BTCUSDT
+cargo run -p cli -- market mark-price --exchange binance --symbol BTCUSDT
+cargo run -p cli -- market open-interest --exchange binance --symbol BTCUSDT
+cargo run -p cli -- market orderbook --exchange binance --symbol BTCUSDT --depth 20
+```
+
+Supported Binance USD-M public endpoints:
+
+- `GET /fapi/v1/exchangeInfo`
+- `GET /fapi/v1/premiumIndex`
+- `GET /fapi/v1/fundingRate`
+- `GET /fapi/v1/openInterest`
+- `GET /fapi/v1/depth`
+
+The adapter has request timeout, bounded retry for transient HTTP/network failures, and structured `AppError` variants for request, status, and parse failures.
+
+## Phase 2: Derivatives Feature Snapshot
+
+Phase 2 transforms read-only Binance market data into normalized research features. It does not score `SignalPacket`s, create strategies, place orders, read secrets, or touch private endpoints.
+
+```sh
+cargo run -p cli -- features snapshot --exchange binance --symbol BTCUSDT --depth 100
+```
+
+The snapshot combines:
+
+- mark price and index price from `GET /fapi/v1/premiumIndex`
+- latest funding rate from `GET /fapi/v1/fundingRate`
+- open interest from `GET /fapi/v1/openInterest`
+- orderbook depth from `GET /fapi/v1/depth`
+
+Example output shape:
+
+```json
+{
+  "exchange": "binance",
+  "symbol": "BTCUSDT",
+  "mark_price": "101.00",
+  "index_price": "100.00",
+  "premium": "1.00",
+  "premium_bps": "100.00",
+  "funding_rate": "0.00020000",
+  "funding_regime": "positive",
+  "open_interest": "1234.5",
+  "liquidity": {
+    "spread_bps": "9.995002498750624687656171914",
+    "bid_depth_5bps": "10000.00",
+    "ask_depth_5bps": "10010.00",
+    "bid_depth_10bps": "29996.00",
+    "ask_depth_10bps": "30034.00",
+    "imbalance": "-0.000633016824920872897551224388",
+    "liquidity_score": "1.0000000000000000000000000000"
+  },
+  "cost": {
+    "round_trip_fee_bps": "8",
+    "spread_bps": "9.995002498750624687656171914",
+    "slippage_bps": "0E-27",
+    "estimated_total_cost_bps": "17.995002498750624687656171914"
+  }
+}
+```
+
 ## Phase Roadmap
 
 1. Workspace skeleton, strict domain types, safe config, mock exchange, dry-run CLI health check.

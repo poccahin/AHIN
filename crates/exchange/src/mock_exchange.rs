@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use domain::{
     AppError, AppResult, EngineMode, ExchangeInfo, FundingRate, Leverage, Notional, OpenInterest,
-    OrderBook, OrderCandidate, OrderRequest, Position, Price, Quantity, Symbol,
+    OrderBook, OrderBookLevel, OrderCandidate, OrderRequest, Position, Price, Quantity, Symbol,
 };
 use rust_decimal::Decimal;
 
@@ -62,13 +62,15 @@ impl ExchangeAdapter for MockExchange {
 
     async fn fetch_orderbook(&self, symbol: &str) -> AppResult<OrderBook> {
         ensure_connected(self.websocket_connected)?;
-        Ok(OrderBook {
-            symbol: ensure_symbol(symbol)?,
-            bid: Price::new(Decimal::from(99))?,
-            ask: Price::new(Decimal::from(101))?,
-            bid_quantity: Quantity::new(Decimal::from(10))?,
-            ask_quantity: Quantity::new(Decimal::from(10))?,
-        })
+        let bids = vec![OrderBookLevel {
+            price: Price::new(Decimal::from(99))?,
+            quantity: Quantity::new(Decimal::from(10))?,
+        }];
+        let asks = vec![OrderBookLevel {
+            price: Price::new(Decimal::from(101))?,
+            quantity: Quantity::new(Decimal::from(10))?,
+        }];
+        OrderBook::from_levels(ensure_symbol(symbol)?, bids, asks)
     }
 
     async fn fetch_funding_rate(&self, symbol: &str) -> AppResult<FundingRate> {

@@ -162,7 +162,12 @@ pub fn one_way_fee(notional: Decimal, config: V11Config) -> Decimal {
     notional * config.taker_fee_rate
 }
 
-pub fn take_profit_hit(side: HedgeSide, entry_price: Decimal, current_price: Decimal, config: V11Config) -> bool {
+pub fn take_profit_hit(
+    side: HedgeSide,
+    entry_price: Decimal,
+    current_price: Decimal,
+    config: V11Config,
+) -> bool {
     if entry_price <= Decimal::ZERO {
         return false;
     }
@@ -271,9 +276,18 @@ mod tests {
     fn scenario_c_stage_base_advances_with_realized_profit() {
         let config = V11Config::default();
 
-        assert_eq!(stage_base_for_realized_profit(dec!(999.99), config), dec!(200));
-        assert_eq!(stage_base_for_realized_profit(dec!(1000), config), dec!(1000));
-        assert_eq!(stage_base_for_realized_profit(dec!(10000), config), dec!(10000));
+        assert_eq!(
+            stage_base_for_realized_profit(dec!(999.99), config),
+            dec!(200)
+        );
+        assert_eq!(
+            stage_base_for_realized_profit(dec!(1000), config),
+            dec!(1000)
+        );
+        assert_eq!(
+            stage_base_for_realized_profit(dec!(10000), config),
+            dec!(10000)
+        );
     }
 
     #[test]
@@ -291,10 +305,32 @@ mod tests {
     fn exit_rules_match_v11_parameters() {
         let config = V11Config::default();
 
-        assert!(take_profit_hit(HedgeSide::Long, dec!(100), dec!(105), config));
-        assert!(take_profit_hit(HedgeSide::Short, dec!(100), dec!(95), config));
-        assert!(atr_stop_hit(HedgeSide::Long, dec!(100), dec!(91), dec!(3), config));
-        assert!(atr_stop_hit(HedgeSide::Short, dec!(100), dec!(109), dec!(3), config));
+        assert!(take_profit_hit(
+            HedgeSide::Long,
+            dec!(100),
+            dec!(105),
+            config
+        ));
+        assert!(take_profit_hit(
+            HedgeSide::Short,
+            dec!(100),
+            dec!(95),
+            config
+        ));
+        assert!(atr_stop_hit(
+            HedgeSide::Long,
+            dec!(100),
+            dec!(91),
+            dec!(3),
+            config
+        ));
+        assert!(atr_stop_hit(
+            HedgeSide::Short,
+            dec!(100),
+            dec!(109),
+            dec!(3),
+            config
+        ));
         assert!(should_expire_loss(0, 168, dec!(-1), config));
         assert!(!should_expire_loss(0, 168, dec!(1), config));
     }

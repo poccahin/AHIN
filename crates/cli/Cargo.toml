@@ -11,9 +11,13 @@ cost_engine = { path = "../cost_engine" }
 domain = { path = "../domain" }
 exchange = { path = "../exchange" }
 execution_engine = { path = "../execution_engine" }
+feature_engine = { path = "../feature_engine" }
 risk_engine = { path = "../risk_engine" }
 rust_decimal.workspace = true
 rust_decimal_macros.workspace = true
+serde_json.workspace = true
 state_engine = { path = "../state_engine" }
 tokio.workspace = true
 
+[dev-dependencies]
+wiremock.workspace = true

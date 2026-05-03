@@ -22,6 +22,28 @@ pub enum AppError {
     #[error("exchange error: {0}")]
     Exchange(String),
 
+    #[error("{exchange} HTTP request failed at {endpoint}: {reason}")]
+    HttpRequest {
+        exchange: String,
+        endpoint: String,
+        reason: String,
+    },
+
+    #[error("{exchange} HTTP status {status} at {endpoint}: {body}")]
+    HttpStatus {
+        exchange: String,
+        endpoint: String,
+        status: u16,
+        body: String,
+    },
+
+    #[error("{exchange} response parse failed at {endpoint}: {reason}")]
+    ResponseParse {
+        exchange: String,
+        endpoint: String,
+        reason: String,
+    },
+
     #[error("state reconciliation error: {0}")]
     Reconciliation(String),
 

@@ -133,15 +133,50 @@ pub struct Position {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OrderBookLevel {
+    pub price: Price,
+    pub quantity: Quantity,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OrderBook {
     pub symbol: Symbol,
     pub bid: Price,
     pub ask: Price,
     pub bid_quantity: Quantity,
     pub ask_quantity: Quantity,
+    pub bids: Vec<OrderBookLevel>,
+    pub asks: Vec<OrderBookLevel>,
 }
 
 impl OrderBook {
+    pub fn from_levels(
+        symbol: Symbol,
+        bids: Vec<OrderBookLevel>,
+        asks: Vec<OrderBookLevel>,
+    ) -> AppResult<Self> {
+        let best_bid = bids.first().ok_or_else(|| AppError::ResponseParse {
+            exchange: "domain".to_string(),
+            endpoint: "orderbook".to_string(),
+            reason: "missing bid levels".to_string(),
+        })?;
+        let best_ask = asks.first().ok_or_else(|| AppError::ResponseParse {
+            exchange: "domain".to_string(),
+            endpoint: "orderbook".to_string(),
+            reason: "missing ask levels".to_string(),
+        })?;
+
+        Ok(Self {
+            symbol,
+            bid: best_bid.price,
+            ask: best_ask.price,
+            bid_quantity: best_bid.quantity,
+            ask_quantity: best_ask.quantity,
+            bids,
+            asks,
+        })
+    }
+
     pub fn spread_bps(&self) -> Decimal {
         let mid = (self.bid.as_decimal() + self.ask.as_decimal()) / Decimal::from(2);
         if mid <= Decimal::ZERO {
@@ -169,6 +204,50 @@ pub struct ExchangeInfo {
     pub symbols: Vec<Symbol>,
     pub min_notional: Notional,
     pub max_leverage: Leverage,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FundingRegime {
+    StronglyNegative,
+    Negative,
+    Neutral,
+    Positive,
+    StronglyPositive,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LiquidityMetrics {
+    pub spread_bps: Decimal,
+    pub bid_depth_5bps: Decimal,
+    pub ask_depth_5bps: Decimal,
+    pub bid_depth_10bps: Decimal,
+    pub ask_depth_10bps: Decimal,
+    pub imbalance: Decimal,
+    pub liquidity_score: Decimal,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CostEstimate {
+    pub round_trip_fee_bps: Decimal,
+    pub spread_bps: Decimal,
+    pub slippage_bps: Decimal,
+    pub estimated_total_cost_bps: Decimal,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FeatureSnapshot {
+    pub exchange: String,
+    pub symbol: Symbol,
+    pub mark_price: Price,
+    pub index_price: Price,
+    pub premium: Decimal,
+    pub premium_bps: Decimal,
+    pub funding_rate: Decimal,
+    pub funding_regime: FundingRegime,
+    pub open_interest: Quantity,
+    pub liquidity: LiquidityMetrics,
+    pub cost: CostEstimate,
 }
 
 #[cfg(test)]
