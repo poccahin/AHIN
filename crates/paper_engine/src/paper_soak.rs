@@ -28,7 +28,9 @@ pub fn run_snapshots(
         match paper_loop::process_snapshot(&mut state, snapshot) {
             Ok(outcome) => {
                 ticks_processed += 1;
-                if outcome.tick.candidate_generated {
+                let safe_candidate_generated =
+                    soak_report::is_audit_only_candidate_generated(&outcome.candidate_decision);
+                if safe_candidate_generated {
                     candidate_generated_count += 1;
                 }
                 let append_failed = outcome.trade.as_ref().is_some_and(|trade| {
@@ -42,7 +44,7 @@ pub fn run_snapshots(
                 }
                 let state_mutated = before != StateStructuralFingerprint::from_state(&state);
                 let state_mutated_without_candidate_or_fill =
-                    state_mutated && !outcome.tick.candidate_generated && outcome.trade.is_none();
+                    state_mutated && !safe_candidate_generated && outcome.trade.is_none();
                 metrics.record_decision(
                     &outcome.signal_decision,
                     &outcome.risk_decision,

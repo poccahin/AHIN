@@ -578,10 +578,13 @@ cargo run -p cli -- paper soak \
 
 Additional report fields:
 
+- `candidate_decisions_evaluated`
+- `candidate_generated_count`
 - `signal_grade_distribution`
 - `signal_direction_distribution`
 - `rejection_breakdown_by_reason`
 - `candidate_pressure_ratio`
+- `min_ticks_for_candidate_pressure_blocker`
 - `avg_signal_strength`
 - `max_signal_strength`
 - `avg_edge_after_cost_ratio`
@@ -604,18 +607,31 @@ FeatureSnapshot
 
 Phase 8.2 guardrails:
 
-- `candidate_pressure_ratio > 0.25` emits `candidate_pressure_high`.
-- `candidate_pressure_ratio > 0.50` emits `candidate_pressure_excessive` and blocks soak pass.
+- `candidate_decisions_evaluated` counts every tick where `OrderCandidateDecision` was evaluated.
+- `candidate_generated_count` counts only actual audit-only candidates with `audit_only=true`, `executable=false`, and `real_order_id=null`.
+- `candidate_pressure_ratio = candidate_generated_count / ticks_processed`.
 - repeated A+ signals without paper fills emit `repeated_a_plus_without_paper_fills`.
 - structural state mutation without a candidate or fill emits `state_mutation_without_candidate_or_fill` and blocks soak pass.
 - an invalid or unwritable `--report-path` emits `soak_report_path_unreadable` and blocks soak pass.
 - zero trades remains a warning, not a blocker.
 
+## Phase 8.2.1: Candidate Pressure Calibration
+
+Phase 8.2.1 keeps short smoke tests useful without masking long-soak pressure problems:
+
+- If `ticks_processed < 20`, `candidate_pressure_ratio > 0.50` emits `candidate_pressure_excessive_short_sample` as a warning only.
+- If `ticks_processed >= 20`, `candidate_pressure_ratio > 0.50` emits `candidate_pressure_excessive` and blocks soak pass.
+- If `ticks_processed >= 100`, `candidate_pressure_ratio > 0.25` emits `candidate_pressure_high` as a warning.
+- zero trades still emits a warning only.
+
 Example output excerpt:
 
 ```json
 {
+  "candidate_decisions_evaluated": 240,
+  "candidate_generated_count": 30,
   "candidate_pressure_ratio": "0.125",
+  "min_ticks_for_candidate_pressure_blocker": 20,
   "avg_signal_strength": "61.4",
   "max_signal_strength": "92.1",
   "avg_edge_after_cost_ratio": "0.84",

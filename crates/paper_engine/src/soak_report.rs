@@ -1,14 +1,17 @@
 use std::{collections::BTreeMap, fs, path::Path};
 
 use domain::{
-    AppError, AppResult, DecisionReason, OrderCandidateDecision, OrderCandidateReason,
-    PaperEngineState, PaperSoakBlocker, PaperSoakConfig, PaperSoakReport, PaperSoakWarning,
-    PaperTrade, RiskBudgetDecision, RiskDecisionReason, SignalDecision, SignalDirection,
-    SignalGrade,
+    AppError, AppResult, DecisionReason, DryRunOrderCandidate, OrderCandidateDecision,
+    OrderCandidateReason, PaperEngineState, PaperSoakBlocker, PaperSoakConfig, PaperSoakReport,
+    PaperSoakWarning, PaperTrade, RiskBudgetDecision, RiskDecisionReason, SignalDecision,
+    SignalDirection, SignalGrade,
 };
 use rust_decimal::Decimal;
 
 use crate::paper_state;
+
+pub const MIN_TICKS_FOR_CANDIDATE_PRESSURE_BLOCKER: u64 = 20;
+pub const MIN_TICKS_FOR_CANDIDATE_PRESSURE_WARNING: u64 = 100;
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PaperSoakRunMetrics {
@@ -55,6 +58,13 @@ pub struct PaperSoakDecisionRecord {
     pub paper_fill_generated: bool,
     pub state_mutated: bool,
     pub state_mutated_without_candidate_or_fill: bool,
+}
+
+pub fn is_audit_only_candidate_generated(decision: &OrderCandidateDecision) -> bool {
+    decision
+        .candidate
+        .as_ref()
+        .is_some_and(DryRunOrderCandidate::invariant_safe)
 }
 
 pub fn build_soak_report(
@@ -157,7 +167,9 @@ pub fn build_soak_report_with_metrics(
         state_valid,
         paper_log_valid,
         duplicate_positions_count,
-        candidate_generated_count,
+        candidate_decisions_evaluated: quality.candidate_decisions_evaluated,
+        candidate_generated_count: quality.candidate_generated_count,
+        min_ticks_for_candidate_pressure_blocker: MIN_TICKS_FOR_CANDIDATE_PRESSURE_BLOCKER,
         paper_trades_count,
         open_positions_count,
         realized_pnl_usdt,
@@ -336,11 +348,20 @@ fn add_quality_findings(
     }
 
     if quality.candidate_pressure_ratio > quality.candidate_blocker_ratio {
-        blockers.push(blocker(
-            "candidate_pressure_excessive",
-            "candidate pressure ratio exceeded blocker threshold",
-        ));
-    } else if quality.candidate_pressure_ratio > quality.candidate_warning_ratio {
+        if quality.ticks_processed >= MIN_TICKS_FOR_CANDIDATE_PRESSURE_BLOCKER {
+            blockers.push(blocker(
+                "candidate_pressure_excessive",
+                "candidate pressure ratio exceeded blocker threshold",
+            ));
+        } else {
+            warnings.push(warning(
+                "candidate_pressure_excessive_short_sample",
+                "candidate pressure ratio exceeded blocker threshold, but sample is too short to block",
+            ));
+        }
+    } else if quality.ticks_processed >= MIN_TICKS_FOR_CANDIDATE_PRESSURE_WARNING
+        && quality.candidate_pressure_ratio > quality.candidate_warning_ratio
+    {
         warnings.push(warning(
             "candidate_pressure_high",
             "candidate pressure ratio exceeded warning threshold",
@@ -385,6 +406,16 @@ fn quality_metrics(
     let mut total_signal_strength = Decimal::ZERO;
     let mut max_signal_strength = Decimal::ZERO;
     let mut total_edge_after_cost_ratio = Decimal::ZERO;
+    let candidate_decisions_evaluated = metrics.decisions.len() as u64;
+    let safe_candidate_generated_count = if metrics.decisions.is_empty() {
+        candidate_generated_count
+    } else {
+        metrics
+            .decisions
+            .iter()
+            .filter(|record| is_audit_only_candidate_generated(&record.candidate_decision))
+            .count() as u64
+    };
 
     for record in &metrics.decisions {
         increment(
@@ -423,7 +454,7 @@ fn quality_metrics(
     let candidate_pressure_ratio = if ticks_processed == 0 {
         Decimal::ZERO
     } else {
-        Decimal::from(candidate_generated_count) / Decimal::from(ticks_processed)
+        Decimal::from(safe_candidate_generated_count) / Decimal::from(ticks_processed)
     };
     let avg_signal_strength = if metrics.decisions.is_empty() {
         Decimal::ZERO
@@ -438,7 +469,8 @@ fn quality_metrics(
 
     ComputedQualityMetrics {
         ticks_processed,
-        candidate_generated_count,
+        candidate_decisions_evaluated,
+        candidate_generated_count: safe_candidate_generated_count,
         candidate_warning_ratio: config.candidate_warning_ratio,
         candidate_blocker_ratio: config.candidate_blocker_ratio,
         signal_grade_distribution,
@@ -454,6 +486,7 @@ fn quality_metrics(
 #[derive(Debug, Clone, PartialEq)]
 struct ComputedQualityMetrics {
     ticks_processed: u64,
+    candidate_decisions_evaluated: u64,
     candidate_generated_count: u64,
     candidate_warning_ratio: Decimal,
     candidate_blocker_ratio: Decimal,
@@ -592,10 +625,10 @@ mod tests {
     use std::{fs, path::PathBuf};
 
     use domain::{
-        AccountRiskState, CandidateSizingConfig, DecisionReason, MarketRegime,
-        OrderCandidateDecision, OrderCandidateReason, PaperEngineState, PaperPosition, PaperTrade,
-        RiskBudgetConfig, RiskBudgetDecision, RiskDecisionReason, SignalDecision, SignalDirection,
-        SignalGrade, SignalPacket, Symbol,
+        AccountRiskState, CandidateSizingConfig, DecisionReason, DryRunOrderCandidate,
+        MarketRegime, OrderCandidateDecision, OrderCandidateReason, PaperEngineState,
+        PaperPosition, PaperTrade, Price, RiskBudgetConfig, RiskBudgetDecision, RiskDecisionReason,
+        SignalDecision, SignalDirection, SignalGrade, SignalPacket, Symbol,
     };
     use rust_decimal_macros::dec;
 
@@ -682,34 +715,151 @@ mod tests {
     }
 
     #[test]
-    fn high_candidate_generation_warns_only() {
-        let paths = FixturePaths::new("candidate_warning");
+    fn three_ticks_with_full_candidate_pressure_warns_only() {
+        let paths = FixturePaths::new("short_candidate_pressure");
         write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
         write_log(&paths.log, &[trade(false, false)]);
-        let mut config = paths.config();
-        config.candidate_warning_ratio = dec!(0.50);
-        config.candidate_blocker_ratio = dec!(0.90);
+        let run_metrics = metrics(vec![
+            record(SignalGrade::C, SignalDirection::Short, dec!(62), true, true),
+            record(
+                SignalGrade::C,
+                SignalDirection::Short,
+                dec!(63),
+                true,
+                false,
+            ),
+            record(
+                SignalGrade::C,
+                SignalDirection::Short,
+                dec!(64),
+                true,
+                false,
+            ),
+        ]);
 
-        let report = build_soak_report(&config, 4, 3, 0);
+        let report = build_soak_report_with_metrics(&paths.config(), 3, 0, 0, &run_metrics);
 
         assert!(report.soak_passed);
+        assert_eq!(report.candidate_decisions_evaluated, 3);
+        assert_eq!(report.candidate_generated_count, 3);
+        assert_eq!(report.candidate_pressure_ratio, dec!(1));
+        assert!(has_warning(
+            &report,
+            "candidate_pressure_excessive_short_sample"
+        ));
+        paths.cleanup();
+    }
+
+    #[test]
+    fn twenty_ticks_with_excessive_candidate_pressure_blocks_soak() {
+        let paths = FixturePaths::new("twenty_tick_candidate_blocker");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        write_log(&paths.log, &[trade(false, false)]);
+        let mut records = Vec::new();
+        for _ in 0..11 {
+            records.push(record(
+                SignalGrade::C,
+                SignalDirection::Short,
+                dec!(62),
+                true,
+                false,
+            ));
+        }
+        for _ in 0..9 {
+            records.push(rejected_record());
+        }
+        let run_metrics = metrics(records);
+
+        let report = build_soak_report_with_metrics(&paths.config(), 20, 0, 0, &run_metrics);
+
+        assert!(!report.soak_passed);
+        assert_eq!(report.candidate_generated_count, 11);
+        assert_eq!(report.candidate_pressure_ratio, dec!(0.55));
+        assert!(has_blocker(&report, "candidate_pressure_excessive"));
+        paths.cleanup();
+    }
+
+    #[test]
+    fn one_hundred_ticks_with_elevated_candidate_pressure_warns() {
+        let paths = FixturePaths::new("hundred_tick_candidate_warning");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        write_log(&paths.log, &[trade(false, false)]);
+        let mut records = Vec::new();
+        for _ in 0..30 {
+            records.push(record(
+                SignalGrade::C,
+                SignalDirection::Short,
+                dec!(62),
+                true,
+                false,
+            ));
+        }
+        for _ in 0..70 {
+            records.push(rejected_record());
+        }
+        let run_metrics = metrics(records);
+
+        let report = build_soak_report_with_metrics(&paths.config(), 100, 0, 0, &run_metrics);
+
+        assert!(report.soak_passed);
+        assert_eq!(report.candidate_generated_count, 30);
+        assert_eq!(report.candidate_pressure_ratio, dec!(0.3));
         assert!(has_warning(&report, "candidate_pressure_high"));
         paths.cleanup();
     }
 
     #[test]
-    fn excessive_candidate_generation_blocks_soak() {
-        let paths = FixturePaths::new("candidate_blocker");
+    fn evaluated_decisions_without_generated_candidate_do_not_increment_generated_count() {
+        let paths = FixturePaths::new("evaluated_without_candidate");
         write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
         write_log(&paths.log, &[trade(false, false)]);
-        let mut config = paths.config();
-        config.candidate_warning_ratio = dec!(0.50);
-        config.candidate_blocker_ratio = dec!(0.75);
+        let run_metrics = metrics(vec![
+            rejected_record(),
+            rejected_record(),
+            rejected_record(),
+        ]);
 
-        let report = build_soak_report(&config, 4, 4, 0);
+        let report = build_soak_report_with_metrics(&paths.config(), 3, 3, 0, &run_metrics);
 
-        assert!(!report.soak_passed);
-        assert!(has_blocker(&report, "candidate_pressure_excessive"));
+        assert_eq!(report.candidate_decisions_evaluated, 3);
+        assert_eq!(report.candidate_generated_count, 0);
+        assert_eq!(report.candidate_pressure_ratio, dec!(0));
+        assert!(report.soak_passed);
+        paths.cleanup();
+    }
+
+    #[test]
+    fn candidate_pressure_ratio_is_deterministic() {
+        let paths = FixturePaths::new("candidate_ratio_deterministic");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        write_log(&paths.log, &[trade(false, false)]);
+        let run_metrics = metrics(vec![
+            record(
+                SignalGrade::C,
+                SignalDirection::Short,
+                dec!(62),
+                true,
+                false,
+            ),
+            rejected_record(),
+            record(
+                SignalGrade::C,
+                SignalDirection::Short,
+                dec!(63),
+                true,
+                false,
+            ),
+            rejected_record(),
+        ]);
+
+        let first = build_soak_report_with_metrics(&paths.config(), 4, 0, 0, &run_metrics);
+        let second = build_soak_report_with_metrics(&paths.config(), 4, 0, 0, &run_metrics);
+
+        assert_eq!(
+            first.candidate_pressure_ratio,
+            second.candidate_pressure_ratio
+        );
+        assert_eq!(first.candidate_pressure_ratio, dec!(0.5));
         paths.cleanup();
     }
 
@@ -1087,9 +1237,25 @@ mod tests {
         risk_decision: RiskBudgetDecision,
         reasons: Vec<OrderCandidateReason>,
     ) -> OrderCandidateDecision {
+        let candidate = candidate_generated.then(|| DryRunOrderCandidate {
+            candidate_id: "audit-test".to_string(),
+            exchange: "test".to_string(),
+            symbol: Symbol::new("BTCUSDT").unwrap(),
+            direction: signal_decision.packet.direction,
+            reference_price: Price::new(dec!(100)).unwrap(),
+            notional: dec!(60),
+            margin_required: dec!(30),
+            leverage: dec!(2),
+            assumed_stop_distance_pct: dec!(0.005),
+            max_loss_usdt: dec!(0.8),
+            executable: false,
+            real_order_id: None,
+            audit_only: true,
+            reasons: reasons.clone(),
+        });
         OrderCandidateDecision {
             candidate_generated,
-            candidate: None,
+            candidate,
             reasons,
             signal_decision,
             risk_decision,
