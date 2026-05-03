@@ -307,6 +307,54 @@ The report includes:
 
 Simulated fills are conservative and deterministic: they use mark price, deduct estimated costs, exit after a configurable event horizon, and always keep `executable=false` with `real_order_id=null`.
 
+## Phase 6.1: Backtest Report Hardening
+
+Phase 6.1 adds diagnostics that explain why a replay is not producing usable research outcomes. The report now separates signal, risk, cost, and order-candidate rejection reasons while keeping the replay fully offline and non-executable.
+
+Additional report fields:
+
+- `avg_net_pnl_per_trade`
+- `median_net_pnl_per_trade`
+- `max_win_usdt`
+- `max_loss_usdt`
+- `avg_fee_per_trade`
+- `fee_to_gross_profit_ratio`
+- `expectancy_usdt`
+- `avg_r_multiple`
+- `max_consecutive_losses`
+- `rejection_breakdown_by_reason`
+
+Rejection reasons are aggregated from:
+
+- `SignalDecision.reasons`
+- `RiskBudgetDecision.reasons`
+- `OrderCandidateDecision.reasons`
+
+Example output excerpt:
+
+```json
+{
+  "events_processed": 3,
+  "simulated_trades": 2,
+  "avg_net_pnl_per_trade": "-0.0028902467336683417085427134",
+  "median_net_pnl_per_trade": "-0.0028902467336683417085427134",
+  "max_win_usdt": "0.23759820",
+  "max_loss_usdt": "-0.2433786934673366834170854269",
+  "avg_fee_per_trade": "0.0624379854271356783919597994",
+  "fee_to_gross_profit_ratio": "0.4162532361809045226130653297",
+  "expectancy_usdt": "-0.0028902467336683417085427134",
+  "avg_r_multiple": "-0.0036128084170854271356783918",
+  "max_consecutive_losses": 1,
+  "rejection_breakdown_by_reason": {
+    "order.signal_rejected": 1,
+    "risk.signal_not_allowed": 1,
+    "signal.neutral_signal": 1
+  }
+}
+```
+
+If no simulated trades are produced, numeric diagnostics return safe zero values and `rejection_breakdown_by_reason` remains an empty object unless a rejected replay decision supplied reasons.
+
 ## Phase Roadmap
 
 1. Workspace skeleton, strict domain types, safe config, mock exchange, dry-run CLI health check.

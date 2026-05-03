@@ -18,3 +18,11 @@ pub fn gross_pnl(
     };
     notional * move_pct
 }
+
+pub fn r_multiple(net_pnl_usdt: Decimal, risk_usdt: Decimal) -> Decimal {
+    if risk_usdt <= Decimal::ZERO {
+        return Decimal::ZERO;
+    }
+
+    net_pnl_usdt / risk_usdt
+}

@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
@@ -327,6 +329,16 @@ pub struct BacktestReport {
     pub max_drawdown_usdt: Decimal,
     pub win_rate: Decimal,
     pub profit_factor: Decimal,
+    pub avg_net_pnl_per_trade: Decimal,
+    pub median_net_pnl_per_trade: Decimal,
+    pub max_win_usdt: Decimal,
+    pub max_loss_usdt: Decimal,
+    pub avg_fee_per_trade: Decimal,
+    pub fee_to_gross_profit_ratio: Decimal,
+    pub expectancy_usdt: Decimal,
+    pub avg_r_multiple: Decimal,
+    pub max_consecutive_losses: u64,
+    pub rejection_breakdown_by_reason: BTreeMap<String, u64>,
     pub rejected_by_signal: u64,
     pub rejected_by_risk: u64,
     pub rejected_by_cost: u64,
