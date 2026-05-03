@@ -45,32 +45,6 @@ impl EngineMode {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SignalPacket {
-    pub symbol: Symbol,
-    pub side: Side,
-    pub confidence: Decimal,
-    pub regime_score: Decimal,
-    pub edge_after_cost: Decimal,
-    pub execution_quality: Decimal,
-    pub risk_budget_fraction: Decimal,
-    pub convexity_score: Decimal,
-    pub valid: bool,
-    pub reason: Option<String>,
-}
-
-impl SignalPacket {
-    pub fn is_tradeable(&self) -> bool {
-        self.valid
-            && self.confidence > Decimal::ZERO
-            && self.regime_score > Decimal::ZERO
-            && self.edge_after_cost > Decimal::ZERO
-            && self.execution_quality > Decimal::ZERO
-            && self.risk_budget_fraction > Decimal::ZERO
-            && self.convexity_score > Decimal::ZERO
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OrderRequest {
     pub symbol: Symbol,
     pub side: Side,
@@ -117,6 +91,181 @@ pub struct RiskBudget {
     pub max_position_notional: Notional,
     pub max_daily_loss: Notional,
     pub max_leverage: Leverage,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RiskBudgetConfig {
+    pub one_r_usdt: Decimal,
+    pub max_loss_per_signal_usdt: Decimal,
+    pub daily_soft_stop_usdt: Decimal,
+    pub daily_hard_stop_usdt: Decimal,
+    pub weekly_stop_usdt: Decimal,
+    pub disable_trend_below_equity: Decimal,
+    pub paper_mode_below_equity: Decimal,
+    pub max_gross_notional: Decimal,
+    pub min_signal_strength: Decimal,
+    pub min_liquidation_buffer_bps: Decimal,
+}
+
+impl Default for RiskBudgetConfig {
+    fn default() -> Self {
+        Self {
+            one_r_usdt: Decimal::new(8, 1),
+            max_loss_per_signal_usdt: Decimal::ONE,
+            daily_soft_stop_usdt: Decimal::from(2),
+            daily_hard_stop_usdt: Decimal::from(3),
+            weekly_stop_usdt: Decimal::from(6),
+            disable_trend_below_equity: Decimal::from(190),
+            paper_mode_below_equity: Decimal::from(180),
+            max_gross_notional: Decimal::from(360),
+            min_signal_strength: Decimal::from(55),
+            min_liquidation_buffer_bps: Decimal::from(100),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ExposureState {
+    pub gross_notional: Decimal,
+    pub liquidation_buffer_bps: Option<Decimal>,
+}
+
+impl Default for ExposureState {
+    fn default() -> Self {
+        Self {
+            gross_notional: Decimal::ZERO,
+            liquidation_buffer_bps: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct AccountRiskState {
+    pub equity: Decimal,
+    pub realized_pnl_today: Decimal,
+    pub realized_pnl_week: Decimal,
+    pub exposure: ExposureState,
+    pub research_only: bool,
+}
+
+impl Default for AccountRiskState {
+    fn default() -> Self {
+        Self {
+            equity: Decimal::from(200),
+            realized_pnl_today: Decimal::ZERO,
+            realized_pnl_week: Decimal::ZERO,
+            exposure: ExposureState::default(),
+            research_only: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RiskDecisionReason {
+    ResearchOnlyMode,
+    SignalNotAllowed,
+    WeakSignal,
+    DailySoftStop,
+    DailyHardStop,
+    WeeklyStop,
+    TrendDisabledBelowEquity,
+    PaperModeBelowEquity,
+    GrossNotionalCapExceeded,
+    LiquidationBufferTooSmall,
+    RiskChecksPassed,
+    MaxLossPerSignalCapped,
+    NoExecutableOrderGenerated,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct RiskBudgetDecision {
+    pub symbol: Symbol,
+    pub risk_allowed: bool,
+    pub executable_trading_allowed: bool,
+    pub risk_budget_usdt: Decimal,
+    pub effective_one_r_usdt: Decimal,
+    pub max_loss_per_signal_usdt: Decimal,
+    pub account: AccountRiskState,
+    pub config: RiskBudgetConfig,
+    pub reasons: Vec<RiskDecisionReason>,
+    pub signal_decision: SignalDecision,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CandidateSizingConfig {
+    pub one_r_usdt: Decimal,
+    pub max_loss_per_signal_usdt: Decimal,
+    pub default_leverage: Decimal,
+    pub max_leverage: Decimal,
+    pub assumed_stop_distance_pct: Decimal,
+    pub max_initial_signal_notional: Decimal,
+    pub max_gross_notional: Decimal,
+}
+
+impl Default for CandidateSizingConfig {
+    fn default() -> Self {
+        Self {
+            one_r_usdt: Decimal::new(8, 1),
+            max_loss_per_signal_usdt: Decimal::ONE,
+            default_leverage: Decimal::from(2),
+            max_leverage: Decimal::from(3),
+            assumed_stop_distance_pct: Decimal::new(5, 3),
+            max_initial_signal_notional: Decimal::from(60),
+            max_gross_notional: Decimal::from(360),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OrderCandidateReason {
+    DryRunOnly,
+    NoExecutableOrderGenerated,
+    SignalRejected,
+    RiskRejected,
+    ResearchOnlyMode,
+    AuditOnly,
+    SizingCappedByInitialNotional,
+    SizingCappedByGrossNotional,
+    SizingCappedByMaxLoss,
+    CandidateGenerated,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DryRunOrderCandidate {
+    pub candidate_id: String,
+    pub exchange: String,
+    pub symbol: Symbol,
+    pub direction: SignalDirection,
+    pub reference_price: Price,
+    pub notional: Decimal,
+    pub margin_required: Decimal,
+    pub leverage: Decimal,
+    pub assumed_stop_distance_pct: Decimal,
+    pub max_loss_usdt: Decimal,
+    pub executable: bool,
+    pub real_order_id: Option<String>,
+    pub audit_only: bool,
+    pub reasons: Vec<OrderCandidateReason>,
+}
+
+impl DryRunOrderCandidate {
+    pub fn invariant_safe(&self) -> bool {
+        !self.executable && self.real_order_id.is_none() && self.audit_only
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OrderCandidateDecision {
+    pub candidate_generated: bool,
+    pub candidate: Option<DryRunOrderCandidate>,
+    pub reasons: Vec<OrderCandidateReason>,
+    pub signal_decision: SignalDecision,
+    pub risk_decision: RiskBudgetDecision,
+    pub sizing_config: CandidateSizingConfig,
+    pub summary: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -250,6 +399,80 @@ pub struct FeatureSnapshot {
     pub cost: CostEstimate,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SignalDirection {
+    Long,
+    Short,
+    Neutral,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MarketRegime {
+    CrowdedLong,
+    CrowdedShort,
+    PositivePremium,
+    NegativePremium,
+    Neutral,
+    Illiquid,
+    HighCost,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SignalGrade {
+    APlus,
+    A,
+    B,
+    C,
+    D,
+    F,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DecisionReason {
+    ResearchOnlyMode,
+    HighCost,
+    LowLiquidity,
+    NeutralSignal,
+    InsufficientStrength,
+    CrowdedLong,
+    CrowdedShort,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SignalPacket {
+    pub exchange: String,
+    pub symbol: Symbol,
+    pub direction: SignalDirection,
+    pub market_regime: MarketRegime,
+    pub price_structure_score: Decimal,
+    pub derivatives_score: Decimal,
+    pub funding_score: Decimal,
+    pub liquidity_score: Decimal,
+    pub cost_score: Decimal,
+    pub final_strength: Decimal,
+    pub grade: SignalGrade,
+    pub reasons: Vec<DecisionReason>,
+}
+
+impl SignalPacket {
+    pub fn is_tradeable(&self) -> bool {
+        false
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SignalDecision {
+    pub packet: SignalPacket,
+    pub signal_allowed: bool,
+    pub trade_allowed: bool,
+    pub reasons: Vec<DecisionReason>,
+    pub summary: String,
+}
+
 #[cfg(test)]
 mod tests {
     use rust_decimal_macros::dec;
@@ -257,18 +480,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn signal_packet_requires_all_trade_terms() {
+    fn phase_three_signal_packet_is_never_tradeable() {
         let packet = SignalPacket {
+            exchange: "test".to_string(),
             symbol: Symbol::new("btcusdt").unwrap(),
-            side: Side::Buy,
-            confidence: dec!(1),
-            regime_score: dec!(1),
-            edge_after_cost: dec!(0),
-            execution_quality: dec!(1),
-            risk_budget_fraction: dec!(1),
-            convexity_score: dec!(1),
-            valid: true,
-            reason: None,
+            direction: SignalDirection::Long,
+            market_regime: MarketRegime::PositivePremium,
+            price_structure_score: dec!(100),
+            derivatives_score: dec!(100),
+            funding_score: dec!(100),
+            liquidity_score: dec!(100),
+            cost_score: dec!(100),
+            final_strength: dec!(100),
+            grade: SignalGrade::APlus,
+            reasons: vec![DecisionReason::ResearchOnlyMode],
         };
 
         assert!(!packet.is_tradeable());

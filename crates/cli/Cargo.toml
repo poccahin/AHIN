@@ -13,6 +13,7 @@ exchange = { path = "../exchange" }
 execution_engine = { path = "../execution_engine" }
 feature_engine = { path = "../feature_engine" }
 risk_engine = { path = "../risk_engine" }
+signal_engine = { path = "../signal_engine" }
 rust_decimal.workspace = true
 rust_decimal_macros.workspace = true
 serde_json.workspace = true

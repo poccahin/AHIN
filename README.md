@@ -116,6 +116,149 @@ Example output shape:
 }
 ```
 
+## Phase 3: SignalPacket Evaluation
+
+Phase 3 transforms a `FeatureSnapshot` into a deterministic research-only `SignalPacket` and `SignalDecision`. It still does not create executable orders, paper trades, live trades, leverage changes, private API calls, or withdrawals.
+
+```sh
+cargo run -p cli -- signal evaluate --exchange binance --symbol BTCUSDT --depth 100
+```
+
+The evaluator combines:
+
+- placeholder price-structure score from premium, funding, and liquidity
+- derivatives score from funding regime, premium bps, open interest presence, and liquidity
+- funding score from `FundingRegime`
+- liquidity score from `FeatureSnapshot.liquidity`
+- cost score from `estimated_total_cost_bps`
+
+All scores are clamped to `0..100`. The output always keeps `trade_allowed=false` in Phase 3 because risk budget checks and execution candidates are intentionally not implemented yet.
+
+Example output shape:
+
+```json
+{
+  "packet": {
+    "exchange": "binance",
+    "symbol": "BTCUSDT",
+    "direction": "short",
+    "market_regime": "crowded_long",
+    "price_structure_score": "95.0",
+    "derivatives_score": "95.0",
+    "funding_score": "90",
+    "liquidity_score": "100.0",
+    "cost_score": "97",
+    "final_strength": "95.3",
+    "grade": "a_plus",
+    "reasons": ["crowded_long"]
+  },
+  "signal_allowed": true,
+  "trade_allowed": false,
+  "reasons": ["crowded_long", "research_only_mode"],
+  "summary": "research signal only; trade execution is disabled in phase 3"
+}
+```
+
+## Phase 4: Risk Budget Decision
+
+Phase 4 evaluates whether a `SignalDecision` may pass deterministic research risk-budget gates. It still does not produce order candidates, paper trades, live trades, private API calls, leverage changes, or withdrawals.
+
+```sh
+cargo run -p cli -- risk evaluate --exchange binance --symbol BTCUSDT --depth 100
+```
+
+Default risk-budget constants:
+
+- `one_r_usdt = 0.8`
+- `max_loss_per_signal_usdt = 1.0`
+- `daily_soft_stop_usdt = 2.0`
+- `daily_hard_stop_usdt = 3.0`
+- `weekly_stop_usdt = 6.0`
+- `disable_trend_below_equity = 190.0`
+- `paper_mode_below_equity = 180.0`
+- `max_gross_notional = 360.0`
+
+The output separates internal research approval from execution:
+
+- `risk_allowed=true` means deterministic risk gates passed.
+- `executable_trading_allowed=false` is always enforced in Phase 4.
+- reasons always include `research_only_mode` and `no_executable_order_generated`.
+
+Example output shape:
+
+```json
+{
+  "symbol": "BTCUSDT",
+  "risk_allowed": true,
+  "executable_trading_allowed": false,
+  "risk_budget_usdt": "0.8",
+  "effective_one_r_usdt": "0.8",
+  "max_loss_per_signal_usdt": "1",
+  "reasons": [
+    "research_only_mode",
+    "no_executable_order_generated",
+    "risk_checks_passed"
+  ],
+  "summary": "risk checks passed for research budgeting; executable trading remains disabled"
+}
+```
+
+## Phase 5: Dry-Run Order Candidate
+
+Phase 5 converts `SignalDecision + RiskBudgetDecision` into an audit-only `DryRunOrderCandidate` when all research gates pass. It does not place orders, create executable exchange orders, call signed endpoints, read API keys, change leverage, paper trade, or withdraw funds.
+
+```sh
+cargo run -p cli -- order-candidate dry-run --exchange binance --symbol BTCUSDT --depth 100
+```
+
+Sizing defaults:
+
+- `one_r_usdt = 0.8`
+- `max_loss_per_signal_usdt = 1.0`
+- `default_leverage = 2`
+- `max_leverage = 3`
+- `assumed_stop_distance_pct = 0.005`
+- `max_initial_signal_notional = 60.0`
+- `max_gross_notional = 360.0`
+
+Safety invariants:
+
+- `candidate_generated=false` if the signal gate rejects.
+- `candidate_generated=false` if the risk gate rejects.
+- generated candidates are audit-only.
+- `executable=false` always.
+- `real_order_id=null` always.
+- reasons include `dry_run_only` and `no_executable_order_generated`.
+
+Example output shape:
+
+```json
+{
+  "candidate_generated": true,
+  "candidate": {
+    "candidate_id": "audit-binance-BTCUSDT",
+    "symbol": "BTCUSDT",
+    "direction": "long",
+    "reference_price": "100",
+    "notional": "60",
+    "margin_required": "30",
+    "leverage": "2",
+    "assumed_stop_distance_pct": "0.005",
+    "max_loss_usdt": "0.8",
+    "executable": false,
+    "real_order_id": null,
+    "audit_only": true,
+    "reasons": [
+      "dry_run_only",
+      "no_executable_order_generated",
+      "research_only_mode",
+      "audit_only",
+      "candidate_generated"
+    ]
+  }
+}
+```
+
 ## Phase Roadmap
 
 1. Workspace skeleton, strict domain types, safe config, mock exchange, dry-run CLI health check.

@@ -5,16 +5,17 @@ use std::path::PathBuf;
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use cost_engine::{edge_after_cost, fee_model};
 use domain::{
-    AppResult, EngineConfig, FeatureSnapshot, Leverage, Notional, OrderRequest, Price, Quantity,
-    RiskBudget, Side, Symbol,
+    AccountRiskState, AppResult, CandidateSizingConfig, EngineConfig, FeatureSnapshot, Leverage,
+    Notional, OrderRequest, Price, Quantity, RiskBudget, RiskBudgetConfig, Side, Symbol,
 };
 use exchange::{BinanceReadonly, ExchangeAdapter, MockExchange};
-use execution_engine::{dry_run_router, order_candidate};
+use execution_engine::{candidate_decision, dry_run_router, order_candidate};
 use feature_engine::snapshot;
-use risk_engine::{risk_budget, tail_event_simulator};
+use risk_engine::{risk_budget, risk_decision, tail_event_simulator};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use serde_json::{Value, json};
+use signal_engine::signal_decision;
 use state_engine::{EngineState, ReconciliationOutcome, reconcile_positions};
 
 #[derive(Debug, Parser)]
@@ -42,6 +43,18 @@ enum Command {
         #[command(subcommand)]
         command: FeaturesCommand,
     },
+    Signal {
+        #[command(subcommand)]
+        command: SignalCommand,
+    },
+    Risk {
+        #[command(subcommand)]
+        command: RiskCommand,
+    },
+    OrderCandidate {
+        #[command(subcommand)]
+        command: OrderCandidateCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -56,6 +69,21 @@ enum MarketCommand {
 #[derive(Debug, Subcommand)]
 enum FeaturesCommand {
     Snapshot(FeatureSnapshotArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum SignalCommand {
+    Evaluate(FeatureSnapshotArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum RiskCommand {
+    Evaluate(FeatureSnapshotArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum OrderCandidateCommand {
+    DryRun(FeatureSnapshotArgs),
 }
 
 #[derive(Debug, Args)]
@@ -115,6 +143,11 @@ async fn run() -> AppResult<()> {
         Command::HealthCheck => health_check(config).await,
         Command::Market { command } => market(config, binance_base_url, command).await,
         Command::Features { command } => features(config, binance_base_url, command).await,
+        Command::Signal { command } => signal(config, binance_base_url, command).await,
+        Command::Risk { command } => risk(config, binance_base_url, command).await,
+        Command::OrderCandidate { command } => {
+            order_candidate_cli(config, binance_base_url, command).await
+        }
     }
 }
 
@@ -279,27 +312,114 @@ async fn features(
 
     match command {
         FeaturesCommand::Snapshot(args) => {
-            let adapter = market_adapter(args.exchange, binance_base_url.as_deref())?;
-            let symbol = Symbol::new(&args.symbol)?;
-            let ((mark_price, index_price), funding_rate, open_interest, orderbook) = tokio::try_join!(
-                adapter.fetch_mark_index_prices(&args.symbol),
-                adapter.fetch_funding_rate(&args.symbol),
-                adapter.fetch_open_interest(&args.symbol),
-                adapter.fetch_orderbook_depth(&args.symbol, args.depth)
-            )?;
-            let feature_snapshot = snapshot::build_feature_snapshot(
-                "binance",
-                symbol,
-                mark_price,
-                index_price,
-                funding_rate,
-                open_interest,
-                orderbook,
-            )?;
+            let feature_snapshot =
+                fetch_feature_snapshot(args, binance_base_url.as_deref()).await?;
 
             print_feature_snapshot(&feature_snapshot)
         }
     }
+}
+
+async fn signal(
+    config_path: PathBuf,
+    binance_base_url: Option<String>,
+    command: SignalCommand,
+) -> AppResult<()> {
+    let config = EngineConfig::load_from_path(config_path)?;
+    config.validate_safety()?;
+
+    match command {
+        SignalCommand::Evaluate(args) => {
+            let feature_snapshot =
+                fetch_feature_snapshot(args, binance_base_url.as_deref()).await?;
+            let decision = signal_decision::evaluate_snapshot(&feature_snapshot);
+            print_json(serde_json::to_value(decision).map_err(|err| {
+                domain::AppError::Config(format!("failed to render signal decision: {err}"))
+            })?)
+        }
+    }
+}
+
+async fn risk(
+    config_path: PathBuf,
+    binance_base_url: Option<String>,
+    command: RiskCommand,
+) -> AppResult<()> {
+    let config = EngineConfig::load_from_path(config_path)?;
+    config.validate_safety()?;
+
+    match command {
+        RiskCommand::Evaluate(args) => {
+            let feature_snapshot =
+                fetch_feature_snapshot(args, binance_base_url.as_deref()).await?;
+            let signal_decision = signal_decision::evaluate_snapshot(&feature_snapshot);
+            let risk_decision = risk_decision::evaluate_risk_budget(
+                signal_decision,
+                AccountRiskState::default(),
+                RiskBudgetConfig::default(),
+            );
+            print_json(serde_json::to_value(risk_decision).map_err(|err| {
+                domain::AppError::Config(format!("failed to render risk decision: {err}"))
+            })?)
+        }
+    }
+}
+
+async fn order_candidate_cli(
+    config_path: PathBuf,
+    binance_base_url: Option<String>,
+    command: OrderCandidateCommand,
+) -> AppResult<()> {
+    let config = EngineConfig::load_from_path(config_path)?;
+    config.validate_safety()?;
+
+    match command {
+        OrderCandidateCommand::DryRun(args) => {
+            let feature_snapshot =
+                fetch_feature_snapshot(args, binance_base_url.as_deref()).await?;
+            let signal_decision = signal_decision::evaluate_snapshot(&feature_snapshot);
+            let risk_decision = risk_decision::evaluate_risk_budget(
+                signal_decision.clone(),
+                AccountRiskState::default(),
+                RiskBudgetConfig::default(),
+            );
+            let candidate_decision = candidate_decision::evaluate_order_candidate(
+                &feature_snapshot,
+                signal_decision,
+                risk_decision,
+                CandidateSizingConfig::default(),
+            );
+            print_json(serde_json::to_value(candidate_decision).map_err(|err| {
+                domain::AppError::Config(format!(
+                    "failed to render order candidate decision: {err}"
+                ))
+            })?)
+        }
+    }
+}
+
+async fn fetch_feature_snapshot(
+    args: FeatureSnapshotArgs,
+    binance_base_url: Option<&str>,
+) -> AppResult<FeatureSnapshot> {
+    let adapter = market_adapter(args.exchange, binance_base_url)?;
+    let symbol = Symbol::new(&args.symbol)?;
+    let ((mark_price, index_price), funding_rate, open_interest, orderbook) = tokio::try_join!(
+        adapter.fetch_mark_index_prices(&args.symbol),
+        adapter.fetch_funding_rate(&args.symbol),
+        adapter.fetch_open_interest(&args.symbol),
+        adapter.fetch_orderbook_depth(&args.symbol, args.depth)
+    )?;
+
+    snapshot::build_feature_snapshot(
+        "binance",
+        symbol,
+        mark_price,
+        index_price,
+        funding_rate,
+        open_interest,
+        orderbook,
+    )
 }
 
 fn market_adapter(

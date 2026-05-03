@@ -1,4 +1,4 @@
-use domain::{AppError, AppResult, Notional};
+use domain::{AppError, AppResult, ExposureState, Notional, RiskBudgetConfig, RiskDecisionReason};
 
 pub fn ensure_gross_notional_within_cap(
     current_gross: Notional,
@@ -13,4 +13,15 @@ pub fn ensure_gross_notional_within_cap(
         )));
     }
     Ok(())
+}
+
+pub fn gross_notional_reason(
+    exposure: &ExposureState,
+    config: &RiskBudgetConfig,
+) -> Option<RiskDecisionReason> {
+    if exposure.gross_notional > config.max_gross_notional {
+        Some(RiskDecisionReason::GrossNotionalCapExceeded)
+    } else {
+        None
+    }
 }
