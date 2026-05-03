@@ -1,1 +1,10 @@
-target/
+/target/
+**/*.rs.bk
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log
+coverage/
+.idea/
+.vscode/
