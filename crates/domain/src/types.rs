@@ -269,6 +269,86 @@ pub struct OrderCandidateDecision {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MarketEventLevel {
+    pub price: Decimal,
+    pub quantity: Decimal,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MarketEvent {
+    pub sequence: u64,
+    pub timestamp_ms: u64,
+    pub exchange: String,
+    pub symbol: Symbol,
+    pub mark_price: Decimal,
+    pub index_price: Decimal,
+    pub funding_rate: Decimal,
+    pub open_interest: Decimal,
+    pub bid_levels: Vec<MarketEventLevel>,
+    pub ask_levels: Vec<MarketEventLevel>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SimulatedTrade {
+    pub entry_sequence: u64,
+    pub exit_sequence: u64,
+    pub symbol: Symbol,
+    pub direction: SignalDirection,
+    pub entry_price: Decimal,
+    pub exit_price: Decimal,
+    pub notional: Decimal,
+    pub gross_pnl_usdt: Decimal,
+    pub fees_usdt: Decimal,
+    pub net_pnl_usdt: Decimal,
+    pub executable: bool,
+    pub real_order_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReplayDecision {
+    pub sequence: u64,
+    pub signal_allowed: bool,
+    pub risk_allowed: bool,
+    pub candidate_generated: bool,
+    pub simulated_trade: Option<SimulatedTrade>,
+    pub rejected_by_signal: bool,
+    pub rejected_by_risk: bool,
+    pub rejected_by_cost: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BacktestReport {
+    pub events_processed: u64,
+    pub candidates_generated: u64,
+    pub simulated_trades: u64,
+    pub gross_pnl_usdt: Decimal,
+    pub net_pnl_usdt: Decimal,
+    pub total_fees_usdt: Decimal,
+    pub max_drawdown_usdt: Decimal,
+    pub win_rate: Decimal,
+    pub profit_factor: Decimal,
+    pub rejected_by_signal: u64,
+    pub rejected_by_risk: u64,
+    pub rejected_by_cost: u64,
+    pub decisions: Vec<ReplayDecision>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BacktestConfig {
+    pub exit_horizon_events: usize,
+    pub starting_equity_usdt: Decimal,
+}
+
+impl Default for BacktestConfig {
+    fn default() -> Self {
+        Self {
+            exit_horizon_events: 1,
+            starting_equity_usdt: Decimal::from(200),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Position {
     pub symbol: Symbol,
     pub side: Side,

@@ -7,16 +7,17 @@ publish.workspace = true
 
 [dependencies]
 domain = { path = "../domain" }
+execution_engine = { path = "../execution_engine" }
+feature_engine = { path = "../feature_engine" }
+risk_engine = { path = "../risk_engine" }
 rust_decimal.workspace = true
+serde_json.workspace = true
+signal_engine = { path = "../signal_engine" }
 
 [dev-dependencies]
 cost_engine = { path = "../cost_engine" }
 exchange = { path = "../exchange" }
-execution_engine = { path = "../execution_engine" }
 market_data = { path = "../market_data" }
-risk_engine = { path = "../risk_engine" }
 rust_decimal_macros.workspace = true
-signal_engine = { path = "../signal_engine" }
 state_engine = { path = "../state_engine" }
 tokio.workspace = true
-

@@ -30,8 +30,8 @@ Trade = Signal x Regime x EdgeAfterCost x ExecutionQuality x RiskBudget x Convex
 - `execution_engine`: dry-run order candidate routing only
 - `state_engine`: engine state and state reconciliation guard
 - `withdrawal_engine`: high-watermark policy placeholders with no real withdrawals
-- `backtest`: event replay and simulation placeholders
-- `cli`: health-check command
+- `backtest`: offline JSONL event replay and deterministic simulation reports
+- `cli`: health-check, market-data, feature, signal, risk, dry-run candidate, and backtest commands
 
 ## Quick Start
 
@@ -258,6 +258,54 @@ Example output shape:
   }
 }
 ```
+
+## Phase 6: Backtest Event Replay
+
+Phase 6 replays local JSONL market events through the existing research pipeline:
+
+```text
+MarketEvent -> FeatureSnapshot -> SignalDecision -> RiskBudgetDecision -> OrderCandidateDecision -> SimulatedTrade -> BacktestReport
+```
+
+The backtest consumes only offline files. It does not connect to exchanges, place orders, create executable exchange orders, read API keys, call signed endpoints, change leverage, paper trade, or withdraw funds.
+
+```sh
+cargo run -p cli -- backtest replay --input data/replay/sample_events.jsonl
+```
+
+Each JSONL line is one `MarketEvent`:
+
+```json
+{
+  "sequence": 1,
+  "timestamp_ms": 1700000000000,
+  "exchange": "offline",
+  "symbol": "BTCUSDT",
+  "mark_price": "100.00",
+  "index_price": "100.20",
+  "funding_rate": "0.0002",
+  "open_interest": "1000",
+  "bid_levels": [{"price": "99.99", "quantity": "500"}],
+  "ask_levels": [{"price": "100.01", "quantity": "500"}]
+}
+```
+
+The report includes:
+
+- `events_processed`
+- `candidates_generated`
+- `simulated_trades`
+- `gross_pnl_usdt`
+- `net_pnl_usdt`
+- `total_fees_usdt`
+- `max_drawdown_usdt`
+- `win_rate`
+- `profit_factor`
+- `rejected_by_signal`
+- `rejected_by_risk`
+- `rejected_by_cost`
+
+Simulated fills are conservative and deterministic: they use mark price, deduct estimated costs, exit after a configurable event horizon, and always keep `executable=false` with `real_order_id=null`.
 
 ## Phase Roadmap
 

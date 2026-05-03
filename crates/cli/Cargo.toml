@@ -6,6 +6,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+backtest = { path = "../backtest" }
 clap.workspace = true
 cost_engine = { path = "../cost_engine" }
 domain = { path = "../domain" }

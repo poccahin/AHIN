@@ -2,11 +2,13 @@
 
 use std::path::PathBuf;
 
+use backtest::{event_loader, event_replay};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use cost_engine::{edge_after_cost, fee_model};
 use domain::{
-    AccountRiskState, AppResult, CandidateSizingConfig, EngineConfig, FeatureSnapshot, Leverage,
-    Notional, OrderRequest, Price, Quantity, RiskBudget, RiskBudgetConfig, Side, Symbol,
+    AccountRiskState, AppResult, BacktestConfig, CandidateSizingConfig, EngineConfig,
+    FeatureSnapshot, Leverage, Notional, OrderRequest, Price, Quantity, RiskBudget,
+    RiskBudgetConfig, Side, Symbol,
 };
 use exchange::{BinanceReadonly, ExchangeAdapter, MockExchange};
 use execution_engine::{candidate_decision, dry_run_router, order_candidate};
@@ -55,6 +57,10 @@ enum Command {
         #[command(subcommand)]
         command: OrderCandidateCommand,
     },
+    Backtest {
+        #[command(subcommand)]
+        command: BacktestCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -84,6 +90,11 @@ enum RiskCommand {
 #[derive(Debug, Subcommand)]
 enum OrderCandidateCommand {
     DryRun(FeatureSnapshotArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum BacktestCommand {
+    Replay(BacktestReplayArgs),
 }
 
 #[derive(Debug, Args)]
@@ -119,6 +130,12 @@ struct FeatureSnapshotArgs {
     depth: u16,
 }
 
+#[derive(Debug, Args)]
+struct BacktestReplayArgs {
+    #[arg(long)]
+    input: PathBuf,
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum ExchangeName {
     Binance,
@@ -148,6 +165,7 @@ async fn run() -> AppResult<()> {
         Command::OrderCandidate { command } => {
             order_candidate_cli(config, binance_base_url, command).await
         }
+        Command::Backtest { command } => backtest_cli(config, command).await,
     }
 }
 
@@ -393,6 +411,21 @@ async fn order_candidate_cli(
                 domain::AppError::Config(format!(
                     "failed to render order candidate decision: {err}"
                 ))
+            })?)
+        }
+    }
+}
+
+async fn backtest_cli(config_path: PathBuf, command: BacktestCommand) -> AppResult<()> {
+    let config = EngineConfig::load_from_path(config_path)?;
+    config.validate_safety()?;
+
+    match command {
+        BacktestCommand::Replay(args) => {
+            let events = event_loader::load_jsonl_events(&args.input)?;
+            let report = event_replay::replay_events(&events, &BacktestConfig::default())?;
+            print_json(serde_json::to_value(report).map_err(|err| {
+                domain::AppError::Config(format!("failed to render backtest report: {err}"))
             })?)
         }
     }
