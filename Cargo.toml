@@ -1,0 +1,35 @@
+[workspace]
+members = [
+    "crates/backtest",
+    "crates/cli",
+    "crates/cost_engine",
+    "crates/domain",
+    "crates/exchange",
+    "crates/execution_engine",
+    "crates/feature_engine",
+    "crates/market_data",
+    "crates/risk_engine",
+    "crates/signal_engine",
+    "crates/state_engine",
+    "crates/withdrawal_engine",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "UNLICENSED"
+publish = false
+
+[workspace.dependencies]
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4", features = ["derive"] }
+rust_decimal = { version = "1", features = ["serde"] }
+rust_decimal_macros = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+toml = "0.9"
+

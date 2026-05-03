@@ -1,0 +1,19 @@
+[package]
+name = "cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+clap.workspace = true
+cost_engine = { path = "../cost_engine" }
+domain = { path = "../domain" }
+exchange = { path = "../exchange" }
+execution_engine = { path = "../execution_engine" }
+risk_engine = { path = "../risk_engine" }
+rust_decimal.workspace = true
+rust_decimal_macros.workspace = true
+state_engine = { path = "../state_engine" }
+tokio.workspace = true
+

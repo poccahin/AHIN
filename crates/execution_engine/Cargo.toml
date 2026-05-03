@@ -1,0 +1,16 @@
+[package]
+name = "execution_engine"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+domain = { path = "../domain" }
+exchange = { path = "../exchange" }
+rust_decimal.workspace = true
+
+[dev-dependencies]
+rust_decimal_macros.workspace = true
+tokio.workspace = true
+

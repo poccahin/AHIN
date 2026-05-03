@@ -1,0 +1,17 @@
+[safety]
+allow_live_trading = false
+allow_live_100x = false
+max_leverage = 3
+max_order_notional = 15
+
+[account]
+starting_equity = 200
+risk_reserve = 80
+
+[execution]
+mode = "dry_run"
+min_notional = 5
+dry_run = true
+
+symbols = ["BTCUSDT", "ETHUSDT"]
+

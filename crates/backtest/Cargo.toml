@@ -1,0 +1,22 @@
+[package]
+name = "backtest"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+domain = { path = "../domain" }
+rust_decimal.workspace = true
+
+[dev-dependencies]
+cost_engine = { path = "../cost_engine" }
+exchange = { path = "../exchange" }
+execution_engine = { path = "../execution_engine" }
+market_data = { path = "../market_data" }
+risk_engine = { path = "../risk_engine" }
+rust_decimal_macros.workspace = true
+signal_engine = { path = "../signal_engine" }
+state_engine = { path = "../state_engine" }
+tokio.workspace = true
+
