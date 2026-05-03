@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/backtest",
+    "crates/canary_engine",
     "crates/cli",
     "crates/cost_engine",
     "crates/domain",
@@ -8,6 +9,7 @@ members = [
     "crates/execution_engine",
     "crates/feature_engine",
     "crates/market_data",
+    "crates/paper_engine",
     "crates/risk_engine",
     "crates/signal_engine",
     "crates/state_engine",

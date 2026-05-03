@@ -361,6 +361,233 @@ impl Default for BacktestConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PaperPosition {
+    pub position_id: String,
+    pub symbol: Symbol,
+    pub direction: SignalDirection,
+    pub entry_price: Decimal,
+    pub mark_price: Decimal,
+    pub notional: Decimal,
+    pub quantity: Decimal,
+    pub unrealized_pnl_usdt: Decimal,
+    pub opened_at_tick: u64,
+    pub candidate_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PaperTrade {
+    pub trade_id: String,
+    pub tick_id: u64,
+    pub timestamp_ms: u64,
+    pub symbol: Symbol,
+    pub direction: SignalDirection,
+    pub price: Decimal,
+    pub notional: Decimal,
+    pub quantity: Decimal,
+    pub fees_usdt: Decimal,
+    pub realized_pnl_usdt: Decimal,
+    pub executable: bool,
+    pub real_order_id: Option<String>,
+    pub candidate_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PaperTick {
+    pub tick_id: u64,
+    pub timestamp_ms: u64,
+    pub exchange: String,
+    pub symbol: Symbol,
+    pub mark_price: Decimal,
+    pub signal_allowed: bool,
+    pub risk_allowed: bool,
+    pub candidate_generated: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PaperEngineState {
+    pub starting_equity_usdt: Decimal,
+    pub account_equity_usdt: Decimal,
+    pub realized_pnl_usdt: Decimal,
+    pub unrealized_pnl_usdt: Decimal,
+    pub total_fees_usdt: Decimal,
+    pub ticks_processed: u64,
+    pub trades_count: u64,
+    pub positions: Vec<PaperPosition>,
+    pub last_tick: Option<PaperTick>,
+}
+
+impl Default for PaperEngineState {
+    fn default() -> Self {
+        Self {
+            starting_equity_usdt: Decimal::from(200),
+            account_equity_usdt: Decimal::from(200),
+            realized_pnl_usdt: Decimal::ZERO,
+            unrealized_pnl_usdt: Decimal::ZERO,
+            total_fees_usdt: Decimal::ZERO,
+            ticks_processed: 0,
+            trades_count: 0,
+            positions: Vec::new(),
+            last_tick: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaperRunConfig {
+    pub ticks: u64,
+    pub interval_seconds: u64,
+    pub state_path: String,
+    pub log_path: String,
+}
+
+impl Default for PaperRunConfig {
+    fn default() -> Self {
+        Self {
+            ticks: 10,
+            interval_seconds: 15,
+            state_path: "data/paper/paper_state.json".to_string(),
+            log_path: "data/paper/paper_trades.jsonl".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PaperRunReport {
+    pub ticks_requested: u64,
+    pub ticks_processed: u64,
+    pub fills_generated: u64,
+    pub rejected_candidates: u64,
+    pub open_positions: u64,
+    pub state_path: String,
+    pub log_path: String,
+    pub final_state: PaperEngineState,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PaperSoakConfig {
+    pub ticks: u64,
+    pub interval_seconds: u64,
+    pub state_path: String,
+    pub log_path: String,
+    pub candidate_warning_ratio: Decimal,
+    pub candidate_blocker_ratio: Decimal,
+}
+
+impl Default for PaperSoakConfig {
+    fn default() -> Self {
+        Self {
+            ticks: 240,
+            interval_seconds: 15,
+            state_path: "data/paper/paper_state.json".to_string(),
+            log_path: "data/paper/paper_trades.jsonl".to_string(),
+            candidate_warning_ratio: Decimal::new(8, 1),
+            candidate_blocker_ratio: Decimal::new(95, 2),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaperSoakWarning {
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaperSoakBlocker {
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PaperSoakReport {
+    pub ticks_requested: u64,
+    pub ticks_processed: u64,
+    pub state_valid: bool,
+    pub paper_log_valid: bool,
+    pub duplicate_positions_count: u64,
+    pub candidate_generated_count: u64,
+    pub paper_trades_count: u64,
+    pub open_positions_count: u64,
+    pub realized_pnl_usdt: Decimal,
+    pub unrealized_pnl_usdt: Decimal,
+    pub errors_count: u64,
+    pub warnings: Vec<PaperSoakWarning>,
+    pub blockers: Vec<PaperSoakBlocker>,
+    pub soak_passed: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CanaryCheckStatus {
+    Pass,
+    Warn,
+    Fail,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CanaryBlocker {
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CanaryCheckResult {
+    pub name: String,
+    pub status: CanaryCheckStatus,
+    pub blockers: Vec<CanaryBlocker>,
+    pub warnings: Vec<String>,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanaryReadinessConfig {
+    pub manual_live_gate_present: bool,
+    pub live_orders_enabled: bool,
+    pub withdrawal_enabled: bool,
+    pub max_allowed_leverage: Decimal,
+    pub workspace_root: String,
+    pub source_scan_paths: Vec<String>,
+}
+
+impl Default for CanaryReadinessConfig {
+    fn default() -> Self {
+        Self {
+            manual_live_gate_present: false,
+            live_orders_enabled: false,
+            withdrawal_enabled: false,
+            max_allowed_leverage: Decimal::from(5),
+            workspace_root: ".".to_string(),
+            source_scan_paths: vec![
+                "crates/backtest/src".to_string(),
+                "crates/cost_engine/src".to_string(),
+                "crates/domain/src".to_string(),
+                "crates/exchange/src".to_string(),
+                "crates/execution_engine/src".to_string(),
+                "crates/feature_engine/src".to_string(),
+                "crates/market_data/src".to_string(),
+                "crates/paper_engine/src".to_string(),
+                "crates/risk_engine/src".to_string(),
+                "crates/signal_engine/src".to_string(),
+                "crates/state_engine/src".to_string(),
+                "crates/withdrawal_engine/src".to_string(),
+                "crates/cli/src".to_string(),
+            ],
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CanaryReadinessReport {
+    pub ready: bool,
+    pub checks: Vec<CanaryCheckResult>,
+    pub blockers: Vec<CanaryBlocker>,
+    pub warnings: Vec<String>,
+    pub summary: String,
+    pub live_trading_allowed: bool,
+    pub executable_order_capability: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Position {
     pub symbol: Symbol,
     pub side: Side,

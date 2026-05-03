@@ -28,10 +28,11 @@ Trade = Signal x Regime x EdgeAfterCost x ExecutionQuality x RiskBudget x Convex
 - `cost_engine`: fee, spread, slippage, and cost attrition checks
 - `risk_engine`: risk budget, liquidation, notional, loss, and tail-event checks
 - `execution_engine`: dry-run order candidate routing only
+- `paper_engine`: local simulated paper account loop, soak checks, and persistence
 - `state_engine`: engine state and state reconciliation guard
 - `withdrawal_engine`: high-watermark policy placeholders with no real withdrawals
 - `backtest`: offline JSONL event replay and deterministic simulation reports
-- `cli`: health-check, market-data, feature, signal, risk, dry-run candidate, and backtest commands
+- `cli`: health-check, market-data, feature, signal, risk, dry-run candidate, backtest, paper, and canary commands
 
 ## Quick Start
 
@@ -355,6 +356,212 @@ Example output excerpt:
 
 If no simulated trades are produced, numeric diagnostics return safe zero values and `rejection_breakdown_by_reason` remains an empty object unless a rejected replay decision supplied reasons.
 
+## Phase 7: Paper Trading Loop
+
+Phase 7 repeatedly runs the existing research pipeline on Binance USD-M public read-only market snapshots and updates a local simulated paper account. It does not place orders, call signed/private endpoints, read API keys, change leverage, withdraw funds, or create executable exchange orders.
+
+```sh
+cargo run -p cli -- paper run --exchange binance --symbol BTCUSDT --depth 100 --ticks 10 --interval-seconds 15
+```
+
+Optional local persistence paths:
+
+```sh
+cargo run -p cli -- paper run \
+  --exchange binance \
+  --symbol BTCUSDT \
+  --depth 100 \
+  --ticks 2 \
+  --interval-seconds 1 \
+  --state-path data/paper/paper_state.json \
+  --log-path data/paper/paper_trades.jsonl
+```
+
+Default generated files:
+
+- `data/paper/paper_state.json`
+- `data/paper/paper_trades.jsonl`
+
+These files are local runtime artifacts and are ignored by git. They must never contain API keys, secrets, private account data, or real exchange order identifiers.
+
+Paper loop flow:
+
+```text
+Binance public market data
+-> FeatureSnapshot
+-> SignalDecision
+-> RiskBudgetDecision
+-> OrderCandidateDecision
+-> simulated PaperTrade if candidate_generated
+-> PaperEngineState update
+-> local state/log persistence
+```
+
+Paper safety invariants:
+
+- positions are simulated only.
+- `PaperTrade.executable=false` always.
+- `PaperTrade.real_order_id=null` always.
+- rejected candidates do not open paper positions.
+- state/log paths must be local file paths.
+
+Example report shape:
+
+```json
+{
+  "ticks_requested": 2,
+  "ticks_processed": 2,
+  "fills_generated": 1,
+  "rejected_candidates": 1,
+  "open_positions": 1,
+  "state_path": "data/paper/paper_state.json",
+  "log_path": "data/paper/paper_trades.jsonl",
+  "final_state": {
+    "account_equity_usdt": "199.94",
+    "ticks_processed": 2,
+    "trades_count": 1
+  }
+}
+```
+
+## Phase 8: Canary Readiness Check
+
+Phase 8 adds an audit-only readiness checker for a future manually gated micro-live canary review. It does not enable live trading, place orders, call signed/private endpoints, read API keys, change leverage, or execute withdrawals.
+
+```sh
+cargo run -p cli -- canary readiness \
+  --paper-state data/paper/paper_state.json \
+  --paper-log data/paper/paper_trades.jsonl \
+  --backtest-input data/replay/sample_events.jsonl
+```
+
+Readiness inputs are local files only:
+
+- engine config from `--config`, defaulting to `config/default.toml`
+- paper state JSON
+- paper trade log JSONL
+- backtest replay JSONL
+- source files scanned for obvious forbidden capability patterns
+- git hygiene for `target/`
+
+Checks performed:
+
+- `safety_config_check`: verifies live trading, live orders, live 100x, withdrawals, and leverage caps remain disabled or bounded.
+- `paper_state_check`: verifies local paper state exists, parses, has no negative equity, no duplicate open position, no executable trade marker, and no real order id.
+- `paper_log_check`: verifies local JSONL parses and every paper trade has `executable=false` and `real_order_id=null`.
+- `backtest_replay_check`: replays the local sample input and verifies simulated trades remain non-executable.
+- `forbidden_capability_scan`: scans selected source files for signed order endpoints, withdrawal endpoints, API key env names, leverage-changing endpoints, and real order id assignment.
+- `git_hygiene_check`: verifies `target/` is ignored and not tracked when git is available.
+
+Important Phase 8 behavior:
+
+- `ready=false` is expected unless every check passes and a future explicit manual live gate exists.
+- Phase 8 intentionally does not add that manual gate.
+- `live_trading_allowed=false` always.
+- `executable_order_capability=false` always.
+
+Example output shape:
+
+```json
+{
+  "ready": false,
+  "live_trading_allowed": false,
+  "executable_order_capability": false,
+  "blockers": [
+    {
+      "code": "manual_live_gate_absent",
+      "message": "Phase 8 intentionally has no manual live canary gate flag"
+    }
+  ],
+  "summary": "canary is not ready; audit-only readiness did not satisfy every gate"
+}
+```
+
+## Phase 8.1: Paper Soak Test & Stability Gate
+
+Phase 8.1 runs an extended paper loop over Binance USD-M public read-only market snapshots and then audits the resulting local paper state and trade log. It does not enable live trading, place orders, call signed/private endpoints, read API keys, change leverage, execute withdrawals, or create executable exchange orders.
+
+```sh
+cargo run -p cli -- paper soak --exchange binance --symbol BTCUSDT --depth 100 --ticks 240 --interval-seconds 15
+```
+
+Short validation run:
+
+```sh
+cargo run -p cli -- paper soak --exchange binance --symbol BTCUSDT --depth 100 --ticks 3 --interval-seconds 1
+```
+
+Optional local persistence paths:
+
+```sh
+cargo run -p cli -- paper soak \
+  --exchange binance \
+  --symbol BTCUSDT \
+  --depth 100 \
+  --ticks 3 \
+  --interval-seconds 1 \
+  --state-path data/paper/paper_state.json \
+  --log-path data/paper/paper_trades.jsonl
+```
+
+The soak report includes:
+
+- `ticks_processed`
+- `state_valid`
+- `paper_log_valid`
+- `duplicate_positions_count`
+- `candidate_generated_count`
+- `paper_trades_count`
+- `open_positions_count`
+- `realized_pnl_usdt`
+- `unrealized_pnl_usdt`
+- `errors_count`
+- `warnings`
+- `blockers`
+- `soak_passed`
+
+Soak blockers:
+
+- duplicate same-symbol and same-direction open paper positions
+- `executable=true` in the paper log
+- non-null `real_order_id` in the paper log
+- negative paper equity
+- unreadable or unparsable state/log files
+- loop errors while fetching public data or processing snapshots
+- candidate generation above hard safety thresholds
+
+Soak warnings:
+
+- zero paper trades
+- zero processed ticks
+- high candidate-generation ratio above `0.80`; the `0.95` hard blocker applies once at least 20 ticks have been processed
+
+Example output shape:
+
+```json
+{
+  "ticks_requested": 3,
+  "ticks_processed": 3,
+  "state_valid": true,
+  "paper_log_valid": true,
+  "duplicate_positions_count": 0,
+  "candidate_generated_count": 0,
+  "paper_trades_count": 0,
+  "open_positions_count": 0,
+  "realized_pnl_usdt": "0",
+  "unrealized_pnl_usdt": "0",
+  "errors_count": 0,
+  "warnings": [
+    {
+      "code": "zero_paper_trades",
+      "message": "paper soak completed with zero paper trades"
+    }
+  ],
+  "blockers": [],
+  "soak_passed": true
+}
+```
+
 ## Phase Roadmap
 
 1. Workspace skeleton, strict domain types, safe config, mock exchange, dry-run CLI health check.
@@ -365,8 +572,9 @@ If no simulated trades are produced, numeric diagnostics return safe zero values
 6. Dry-run execution router and state reconciliation guard hardening.
 7. Reproducible backtest harness with fee, slippage, funding, and reconnect simulations.
 8. Paper trading loop with no live order capability.
-9. Red-team test expansion and failure-mode reports.
-10. Future gated live-readiness review. Live execution remains out of scope until explicitly unlocked.
+9. Audit-only canary readiness and paper soak stability gates.
+10. Red-team test expansion and failure-mode reports.
+11. Future gated live-readiness review. Live execution remains out of scope until explicitly unlocked.
 
 ## Red-Team Scenarios
 

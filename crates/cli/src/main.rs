@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 
 use backtest::{event_loader, event_replay};
+use canary_engine::readiness::{self, CanaryReadinessInputs};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use cost_engine::{edge_after_cost, fee_model};
 use domain::{
@@ -13,6 +14,7 @@ use domain::{
 use exchange::{BinanceReadonly, ExchangeAdapter, MockExchange};
 use execution_engine::{candidate_decision, dry_run_router, order_candidate};
 use feature_engine::snapshot;
+use paper_engine::{paper_loop, paper_report, paper_soak, paper_state};
 use risk_engine::{risk_budget, risk_decision, tail_event_simulator};
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
@@ -61,6 +63,14 @@ enum Command {
         #[command(subcommand)]
         command: BacktestCommand,
     },
+    Paper {
+        #[command(subcommand)]
+        command: PaperCommand,
+    },
+    Canary {
+        #[command(subcommand)]
+        command: CanaryCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -95,6 +105,17 @@ enum OrderCandidateCommand {
 #[derive(Debug, Subcommand)]
 enum BacktestCommand {
     Replay(BacktestReplayArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum PaperCommand {
+    Run(PaperRunArgs),
+    Soak(PaperSoakArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum CanaryCommand {
+    Readiness(CanaryReadinessArgs),
 }
 
 #[derive(Debug, Args)]
@@ -136,6 +157,66 @@ struct BacktestReplayArgs {
     input: PathBuf,
 }
 
+#[derive(Debug, Args)]
+struct PaperRunArgs {
+    #[arg(long, value_enum)]
+    exchange: ExchangeName,
+
+    #[arg(long)]
+    symbol: String,
+
+    #[arg(long, default_value_t = 100)]
+    depth: u16,
+
+    #[arg(long, default_value_t = 10)]
+    ticks: u64,
+
+    #[arg(long, default_value_t = 15)]
+    interval_seconds: u64,
+
+    #[arg(long)]
+    state_path: Option<PathBuf>,
+
+    #[arg(long)]
+    log_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+struct PaperSoakArgs {
+    #[arg(long, value_enum)]
+    exchange: ExchangeName,
+
+    #[arg(long)]
+    symbol: String,
+
+    #[arg(long, default_value_t = 100)]
+    depth: u16,
+
+    #[arg(long, default_value_t = 240)]
+    ticks: u64,
+
+    #[arg(long, default_value_t = 15)]
+    interval_seconds: u64,
+
+    #[arg(long)]
+    state_path: Option<PathBuf>,
+
+    #[arg(long)]
+    log_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Args)]
+struct CanaryReadinessArgs {
+    #[arg(long)]
+    paper_state: PathBuf,
+
+    #[arg(long)]
+    paper_log: PathBuf,
+
+    #[arg(long)]
+    backtest_input: PathBuf,
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum ExchangeName {
     Binance,
@@ -166,6 +247,8 @@ async fn run() -> AppResult<()> {
             order_candidate_cli(config, binance_base_url, command).await
         }
         Command::Backtest { command } => backtest_cli(config, command).await,
+        Command::Paper { command } => paper_cli(config, binance_base_url, command).await,
+        Command::Canary { command } => canary_cli(config, command).await,
     }
 }
 
@@ -426,6 +509,183 @@ async fn backtest_cli(config_path: PathBuf, command: BacktestCommand) -> AppResu
             let report = event_replay::replay_events(&events, &BacktestConfig::default())?;
             print_json(serde_json::to_value(report).map_err(|err| {
                 domain::AppError::Config(format!("failed to render backtest report: {err}"))
+            })?)
+        }
+    }
+}
+
+async fn paper_cli(
+    config_path: PathBuf,
+    binance_base_url: Option<String>,
+    command: PaperCommand,
+) -> AppResult<()> {
+    let config = EngineConfig::load_from_path(config_path)?;
+    config.validate_safety()?;
+
+    match command {
+        PaperCommand::Run(args) => {
+            let defaults = domain::PaperRunConfig::default();
+            let run_config = domain::PaperRunConfig {
+                ticks: args.ticks,
+                interval_seconds: args.interval_seconds,
+                state_path: args
+                    .state_path
+                    .unwrap_or_else(|| PathBuf::from(defaults.state_path))
+                    .display()
+                    .to_string(),
+                log_path: args
+                    .log_path
+                    .unwrap_or_else(|| PathBuf::from(defaults.log_path))
+                    .display()
+                    .to_string(),
+            };
+            paper_state::ensure_local_file_path(std::path::Path::new(&run_config.state_path))?;
+            paper_state::ensure_local_file_path(std::path::Path::new(&run_config.log_path))?;
+
+            let mut state = paper_state::load_or_default(&run_config.state_path)?;
+            paper_state::ensure_trade_log(&run_config.log_path)?;
+            let mut ticks_processed = 0;
+            let mut fills_generated = 0;
+            let mut rejected_candidates = 0;
+
+            for tick_idx in 0..run_config.ticks {
+                let feature_snapshot = fetch_feature_snapshot(
+                    FeatureSnapshotArgs {
+                        exchange: args.exchange,
+                        symbol: args.symbol.clone(),
+                        depth: args.depth,
+                    },
+                    binance_base_url.as_deref(),
+                )
+                .await?;
+                let outcome = paper_loop::process_snapshot(&mut state, &feature_snapshot)?;
+                ticks_processed += 1;
+
+                if let Some(trade) = &outcome.trade {
+                    paper_state::append_trade(&run_config.log_path, trade)?;
+                    fills_generated += 1;
+                } else {
+                    rejected_candidates += 1;
+                }
+                paper_state::persist_state(&run_config.state_path, &state)?;
+
+                if tick_idx + 1 < run_config.ticks && run_config.interval_seconds > 0 {
+                    tokio::time::sleep(std::time::Duration::from_secs(run_config.interval_seconds))
+                        .await;
+                }
+            }
+
+            let report = paper_report::build_report(
+                &run_config,
+                state,
+                ticks_processed,
+                fills_generated,
+                rejected_candidates,
+            );
+            print_json(serde_json::to_value(report).map_err(|err| {
+                domain::AppError::Config(format!("failed to render paper run report: {err}"))
+            })?)
+        }
+        PaperCommand::Soak(args) => {
+            let defaults = domain::PaperSoakConfig::default();
+            let default_state_path = PathBuf::from(defaults.state_path.clone());
+            let default_log_path = PathBuf::from(defaults.log_path.clone());
+            let soak_config = domain::PaperSoakConfig {
+                ticks: args.ticks,
+                interval_seconds: args.interval_seconds,
+                state_path: args
+                    .state_path
+                    .unwrap_or(default_state_path)
+                    .display()
+                    .to_string(),
+                log_path: args
+                    .log_path
+                    .unwrap_or(default_log_path)
+                    .display()
+                    .to_string(),
+                ..defaults
+            };
+            paper_state::ensure_local_file_path(std::path::Path::new(&soak_config.state_path))?;
+            paper_state::ensure_local_file_path(std::path::Path::new(&soak_config.log_path))?;
+
+            let mut state = paper_state::load_or_default(&soak_config.state_path)?;
+            paper_state::ensure_trade_log(&soak_config.log_path)?;
+            paper_state::persist_state(&soak_config.state_path, &state)?;
+            let mut ticks_processed = 0;
+            let mut candidate_generated_count = 0;
+            let mut errors_count = 0;
+
+            for tick_idx in 0..soak_config.ticks {
+                match fetch_feature_snapshot(
+                    FeatureSnapshotArgs {
+                        exchange: args.exchange,
+                        symbol: args.symbol.clone(),
+                        depth: args.depth,
+                    },
+                    binance_base_url.as_deref(),
+                )
+                .await
+                {
+                    Ok(feature_snapshot) => {
+                        match paper_loop::process_snapshot(&mut state, &feature_snapshot) {
+                            Ok(outcome) => {
+                                ticks_processed += 1;
+                                if outcome.tick.candidate_generated {
+                                    candidate_generated_count += 1;
+                                }
+                                let append_failed = outcome.trade.as_ref().is_some_and(|trade| {
+                                    paper_state::append_trade(&soak_config.log_path, trade).is_err()
+                                });
+                                if append_failed {
+                                    errors_count += 1;
+                                }
+                                if paper_state::persist_state(&soak_config.state_path, &state)
+                                    .is_err()
+                                {
+                                    errors_count += 1;
+                                }
+                            }
+                            Err(_) => errors_count += 1,
+                        }
+                    }
+                    Err(_) => errors_count += 1,
+                }
+
+                if tick_idx + 1 < soak_config.ticks && soak_config.interval_seconds > 0 {
+                    tokio::time::sleep(std::time::Duration::from_secs(
+                        soak_config.interval_seconds,
+                    ))
+                    .await;
+                }
+            }
+
+            let report = paper_soak::finalize_report(
+                &soak_config,
+                ticks_processed,
+                candidate_generated_count,
+                errors_count,
+            );
+            print_json(serde_json::to_value(report).map_err(|err| {
+                domain::AppError::Config(format!("failed to render paper soak report: {err}"))
+            })?)
+        }
+    }
+}
+
+async fn canary_cli(config_path: PathBuf, command: CanaryCommand) -> AppResult<()> {
+    let config = EngineConfig::load_from_path(config_path)?;
+
+    match command {
+        CanaryCommand::Readiness(args) => {
+            let readiness_config = domain::CanaryReadinessConfig::default();
+            let inputs = CanaryReadinessInputs {
+                paper_state_path: args.paper_state,
+                paper_log_path: args.paper_log,
+                backtest_input_path: args.backtest_input,
+            };
+            let report = readiness::evaluate_readiness(&config, &readiness_config, &inputs);
+            print_json(serde_json::to_value(report).map_err(|err| {
+                domain::AppError::Config(format!("failed to render canary readiness report: {err}"))
             })?)
         }
     }
