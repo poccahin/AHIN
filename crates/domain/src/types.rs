@@ -503,6 +503,39 @@ pub struct PaperSoakBlocker {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PaperSoakErrorReason {
+    TransientMarketDataError,
+    TimeoutError,
+    RateLimitError,
+    ParseError,
+    StatePersistenceError,
+    InvariantViolation,
+    ForbiddenCapabilityError,
+}
+
+impl PaperSoakErrorReason {
+    pub fn as_key(self) -> &'static str {
+        match self {
+            Self::TransientMarketDataError => "transient_market_data_error",
+            Self::TimeoutError => "timeout_error",
+            Self::RateLimitError => "rate_limit_error",
+            Self::ParseError => "parse_error",
+            Self::StatePersistenceError => "state_persistence_error",
+            Self::InvariantViolation => "invariant_violation",
+            Self::ForbiddenCapabilityError => "forbidden_capability_error",
+        }
+    }
+
+    pub fn is_fatal(self) -> bool {
+        matches!(
+            self,
+            Self::StatePersistenceError | Self::InvariantViolation | Self::ForbiddenCapabilityError
+        )
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct PaperSoakReport {
     pub ticks_requested: u64,
@@ -518,6 +551,18 @@ pub struct PaperSoakReport {
     pub realized_pnl_usdt: Decimal,
     pub unrealized_pnl_usdt: Decimal,
     pub errors_count: u64,
+    #[serde(default)]
+    pub error_rate: Decimal,
+    #[serde(default)]
+    pub max_consecutive_errors: u64,
+    #[serde(default)]
+    pub transient_error_count: u64,
+    #[serde(default)]
+    pub fatal_error_count: u64,
+    #[serde(default)]
+    pub error_breakdown_by_reason: BTreeMap<String, u64>,
+    #[serde(default)]
+    pub ticks_failed: u64,
     pub signal_grade_distribution: BTreeMap<String, u64>,
     pub signal_direction_distribution: BTreeMap<String, u64>,
     pub rejection_breakdown_by_reason: BTreeMap<String, u64>,

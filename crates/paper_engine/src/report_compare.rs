@@ -5,8 +5,8 @@ use std::{
 };
 
 use domain::{
-    PaperSoakComparisonBlocker, PaperSoakComparisonReport, PaperSoakComparisonWarning,
-    PaperSoakMetricDelta, PaperSoakReport,
+    PaperSoakBlocker, PaperSoakComparisonBlocker, PaperSoakComparisonReport,
+    PaperSoakComparisonWarning, PaperSoakErrorReason, PaperSoakMetricDelta, PaperSoakReport,
 };
 use rust_decimal::Decimal;
 
@@ -117,7 +117,10 @@ fn read_report(
     };
 
     match serde_json::from_str::<PaperSoakReport>(&raw) {
-        Ok(report) => Some(report),
+        Ok(mut report) => {
+            normalize_legacy_loop_error_fields(&mut report);
+            Some(report)
+        }
         Err(err) => {
             blockers.push(blocker(
                 format!("{label}_report_parse_failed"),
@@ -128,21 +131,60 @@ fn read_report(
     }
 }
 
+fn normalize_legacy_loop_error_fields(report: &mut PaperSoakReport) {
+    let ticks_failed = report.ticks_failed.max(report.errors_count);
+    if ticks_failed == 0 {
+        return;
+    }
+
+    if report.ticks_failed == 0 {
+        report.ticks_failed = ticks_failed;
+    }
+    if report.error_rate == Decimal::ZERO {
+        let denominator = report
+            .ticks_requested
+            .max(report.ticks_processed.saturating_add(ticks_failed))
+            .max(1);
+        report.error_rate = Decimal::from(ticks_failed) / Decimal::from(denominator);
+    }
+    if report.transient_error_count == 0 && report.fatal_error_count == 0 {
+        report.transient_error_count = ticks_failed;
+    }
+    if report.error_breakdown_by_reason.is_empty() {
+        report.error_breakdown_by_reason.insert(
+            PaperSoakErrorReason::TransientMarketDataError
+                .as_key()
+                .to_string(),
+            ticks_failed,
+        );
+    }
+}
+
 fn add_blockers(
     candidate: &PaperSoakReport,
     baseline: &PaperSoakReport,
     blockers: &mut Vec<PaperSoakComparisonBlocker>,
 ) {
-    if !candidate.blockers.is_empty() {
+    let untolerated_blockers = untolerated_candidate_blockers(candidate);
+    if !untolerated_blockers.is_empty() {
         blockers.push(blocker(
             "candidate_report_blockers",
             format!(
                 "candidate report contains {} soak blockers",
-                candidate.blockers.len()
+                untolerated_blockers.len()
             ),
         ));
     }
-    if !candidate.soak_passed {
+    if untolerated_blockers
+        .iter()
+        .any(|candidate_blocker| is_loop_error_blocker(&candidate_blocker.code))
+    {
+        blockers.push(blocker(
+            "candidate_loop_error_blocker",
+            "candidate report contains blocking loop error diagnostics",
+        ));
+    }
+    if !candidate.soak_passed && !candidate_has_only_tolerated_loop_blockers(candidate) {
         blockers.push(blocker(
             "candidate_soak_failed",
             "candidate report has soak_passed=false",
@@ -198,6 +240,80 @@ fn add_warnings(
             "candidate rejection breakdown changed materially",
         ));
     }
+    if candidate_has_tolerated_legacy_loop_blocker(candidate) {
+        warnings.push(warning(
+            "candidate_legacy_transient_loop_errors_tolerated",
+            "candidate report has legacy low-rate transient loop errors that were tolerated",
+        ));
+    }
+}
+
+fn untolerated_candidate_blockers(candidate: &PaperSoakReport) -> Vec<&PaperSoakBlocker> {
+    candidate
+        .blockers
+        .iter()
+        .filter(|candidate_blocker| !candidate_blocker_tolerated(candidate, candidate_blocker))
+        .collect()
+}
+
+fn candidate_has_only_tolerated_loop_blockers(candidate: &PaperSoakReport) -> bool {
+    !candidate.blockers.is_empty()
+        && candidate
+            .blockers
+            .iter()
+            .all(|candidate_blocker| candidate_blocker_tolerated(candidate, candidate_blocker))
+}
+
+fn candidate_has_tolerated_legacy_loop_blocker(candidate: &PaperSoakReport) -> bool {
+    candidate
+        .blockers
+        .iter()
+        .any(|candidate_blocker| candidate_blocker_tolerated(candidate, candidate_blocker))
+}
+
+fn candidate_blocker_tolerated(
+    candidate: &PaperSoakReport,
+    candidate_blocker: &PaperSoakBlocker,
+) -> bool {
+    candidate_blocker.code == "paper_loop_errors" && is_low_rate_transient_loop_report(candidate)
+}
+
+fn is_low_rate_transient_loop_report(candidate: &PaperSoakReport) -> bool {
+    let ticks_failed = candidate.ticks_failed.max(candidate.errors_count);
+    if ticks_failed == 0 {
+        return false;
+    }
+    let denominator = candidate
+        .ticks_requested
+        .max(candidate.ticks_processed.saturating_add(ticks_failed))
+        .max(1);
+    let inferred_error_rate = Decimal::from(ticks_failed) / Decimal::from(denominator);
+    let error_rate = if candidate.error_rate > Decimal::ZERO {
+        candidate.error_rate
+    } else {
+        inferred_error_rate
+    };
+
+    error_rate <= Decimal::new(1, 3)
+        && candidate.max_consecutive_errors <= 2
+        && candidate.fatal_error_count == 0
+        && candidate.candidate_generated_count == 0
+        && candidate.paper_trades_count == 0
+        && candidate.open_positions_count == 0
+        && candidate.state_mutation_count == 0
+        && !contains_live_order_evidence(candidate)
+}
+
+fn is_loop_error_blocker(code: &str) -> bool {
+    matches!(
+        code,
+        "paper_loop_errors"
+            | "loop_error_rate_excessive"
+            | "consecutive_loop_errors"
+            | "fatal_loop_error"
+            | "state_mutation_on_failed_tick"
+            | "forbidden_capability_error"
+    )
 }
 
 fn metric_deltas(
@@ -215,6 +331,32 @@ fn metric_deltas(
             "warnings_count",
             baseline.warnings.len() as u64,
             candidate.warnings.len() as u64,
+        ),
+        count_delta(
+            "errors_count",
+            baseline.errors_count,
+            candidate.errors_count,
+        ),
+        decimal_delta("error_rate", baseline.error_rate, candidate.error_rate),
+        count_delta(
+            "max_consecutive_errors",
+            baseline.max_consecutive_errors,
+            candidate.max_consecutive_errors,
+        ),
+        count_delta(
+            "transient_error_count",
+            baseline.transient_error_count,
+            candidate.transient_error_count,
+        ),
+        count_delta(
+            "fatal_error_count",
+            baseline.fatal_error_count,
+            candidate.fatal_error_count,
+        ),
+        count_delta(
+            "ticks_failed",
+            baseline.ticks_failed,
+            candidate.ticks_failed,
         ),
         decimal_delta(
             "candidate_pressure_ratio",
@@ -391,7 +533,7 @@ fn blocker(code: impl Into<String>, message: impl Into<String>) -> PaperSoakComp
 mod tests {
     use std::{fs, path::PathBuf};
 
-    use domain::{PaperSoakBlocker, PaperSoakWarning};
+    use domain::{PaperSoakBlocker, PaperSoakErrorReason, PaperSoakWarning};
     use rust_decimal_macros::dec;
 
     use super::*;
@@ -476,6 +618,81 @@ mod tests {
     }
 
     #[test]
+    fn low_rate_transient_loop_warnings_do_not_block_comparison() {
+        let paths = FixturePaths::new("low_rate_transient_warning");
+        write_report(&paths.baseline, &report(dec!(0), 0, 0, dec!(0)));
+        write_report(&paths.candidate, &low_rate_transient_warning_report());
+
+        let comparison = compare_report_files(&paths.baseline, &paths.candidate);
+
+        assert!(comparison.comparison_passed);
+        assert!(comparison.blockers.is_empty());
+        assert_eq!(metric_delta(&comparison, "ticks_failed"), Some(dec!(3)));
+        paths.cleanup();
+    }
+
+    #[test]
+    fn legacy_low_rate_paper_loop_error_blocker_is_tolerated() {
+        let paths = FixturePaths::new("legacy_low_rate_transient_blocker");
+        write_report(&paths.baseline, &report(dec!(0), 0, 0, dec!(0)));
+        let mut candidate = low_rate_transient_warning_report();
+        candidate.soak_passed = false;
+        candidate.error_rate = dec!(0);
+        candidate.max_consecutive_errors = 0;
+        candidate.transient_error_count = 0;
+        candidate.error_breakdown_by_reason.clear();
+        candidate.ticks_failed = 0;
+        candidate.blockers.push(PaperSoakBlocker {
+            code: "paper_loop_errors".to_string(),
+            message: "paper loop errors: 3".to_string(),
+        });
+        write_report(&paths.candidate, &candidate);
+
+        let comparison = compare_report_files(&paths.baseline, &paths.candidate);
+
+        assert!(comparison.comparison_passed);
+        assert!(!has_blocker(&comparison, "candidate_report_blockers"));
+        assert!(!has_blocker(&comparison, "candidate_soak_failed"));
+        assert_eq!(metric_delta(&comparison, "ticks_failed"), Some(dec!(3)));
+        assert!(metric_delta(&comparison, "error_rate").unwrap() > dec!(0));
+        assert!(has_warning(
+            &comparison,
+            "candidate_legacy_transient_loop_errors_tolerated"
+        ));
+        paths.cleanup();
+    }
+
+    #[test]
+    fn fatal_loop_blocker_blocks_comparison() {
+        let paths = FixturePaths::new("fatal_loop_blocker");
+        write_report(&paths.baseline, &report(dec!(0), 0, 0, dec!(0)));
+        let mut candidate = report(dec!(0), 0, 0, dec!(0));
+        candidate.soak_passed = false;
+        candidate.errors_count = 1;
+        candidate.ticks_failed = 1;
+        candidate.fatal_error_count = 1;
+        candidate.error_breakdown_by_reason.insert(
+            PaperSoakErrorReason::StatePersistenceError
+                .as_key()
+                .to_string(),
+            1,
+        );
+        candidate.blockers.push(PaperSoakBlocker {
+            code: "fatal_loop_error".to_string(),
+            message: "paper soak observed 1 fatal loop errors".to_string(),
+        });
+        write_report(&paths.candidate, &candidate);
+
+        let comparison = compare_report_files(&paths.baseline, &paths.candidate);
+
+        assert!(!comparison.comparison_passed);
+        assert!(has_blocker(&comparison, "candidate_report_blockers"));
+        assert!(has_blocker(&comparison, "candidate_loop_error_blocker"));
+        assert!(has_blocker(&comparison, "candidate_soak_failed"));
+        paths.cleanup();
+    }
+
+    #[test]
     fn deterministic_output() {
         let paths = FixturePaths::new("deterministic");
         write_report(&paths.baseline, &report(dec!(0.1), 1, 1, dec!(0)));
@@ -524,6 +741,12 @@ mod tests {
             realized_pnl_usdt: dec!(0),
             unrealized_pnl_usdt: dec!(0),
             errors_count: 0,
+            error_rate: dec!(0),
+            max_consecutive_errors: 0,
+            transient_error_count: 0,
+            fatal_error_count: 0,
+            error_breakdown_by_reason: BTreeMap::new(),
+            ticks_failed: 0,
             signal_grade_distribution: BTreeMap::from([
                 ("a_plus".to_string(), candidates),
                 ("c".to_string(), 10_u64.saturating_sub(candidates)),
@@ -557,6 +780,29 @@ mod tests {
             blockers: Vec::new(),
             soak_passed: true,
         }
+    }
+
+    fn low_rate_transient_warning_report() -> PaperSoakReport {
+        let mut report = report(dec!(0), 0, 0, dec!(0));
+        report.ticks_requested = 5_760;
+        report.ticks_processed = 5_757;
+        report.candidate_decisions_evaluated = 5_757;
+        report.errors_count = 3;
+        report.error_rate = dec!(0.0005208333333333333333333333);
+        report.max_consecutive_errors = 1;
+        report.transient_error_count = 3;
+        report.ticks_failed = 3;
+        report.error_breakdown_by_reason = BTreeMap::from([(
+            PaperSoakErrorReason::TransientMarketDataError
+                .as_key()
+                .to_string(),
+            3,
+        )]);
+        report.warnings.push(PaperSoakWarning {
+            code: "transient_loop_errors".to_string(),
+            message: "3 low-rate transient loop errors were tolerated".to_string(),
+        });
+        report
     }
 
     fn write_report(path: &Path, report: &PaperSoakReport) {

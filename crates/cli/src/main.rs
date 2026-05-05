@@ -652,6 +652,7 @@ async fn paper_cli(
                         match paper_loop::process_snapshot(&mut state, &feature_snapshot) {
                             Ok(outcome) => {
                                 ticks_processed += 1;
+                                let mut tick_had_error = false;
                                 let safe_candidate_generated =
                                     paper_engine::soak_report::is_audit_only_candidate_generated(
                                         &outcome.candidate_decision,
@@ -659,16 +660,34 @@ async fn paper_cli(
                                 if safe_candidate_generated {
                                     candidate_generated_count += 1;
                                 }
-                                let append_failed = outcome.trade.as_ref().is_some_and(|trade| {
-                                    paper_state::append_trade(&soak_config.log_path, trade).is_err()
-                                });
-                                if append_failed {
-                                    errors_count += 1;
-                                }
-                                if paper_state::persist_state(&soak_config.state_path, &state)
-                                    .is_err()
+                                if let Some(trade) = &outcome.trade
+                                    && let Err(err) =
+                                        paper_state::append_trade(&soak_config.log_path, trade)
                                 {
+                                    tick_had_error = true;
                                     errors_count += 1;
+                                    metrics.record_loop_error(
+                                        paper_engine::soak_report::PaperSoakLoopErrorInput {
+                                            reason: domain::PaperSoakErrorReason::StatePersistenceError,
+                                            message: err.to_string(),
+                                            state_mutated: before
+                                                != paper_soak::StateStructuralFingerprint::from_state(&state),
+                                        },
+                                    );
+                                }
+                                if let Err(err) =
+                                    paper_state::persist_state(&soak_config.state_path, &state)
+                                {
+                                    tick_had_error = true;
+                                    errors_count += 1;
+                                    metrics.record_loop_error(
+                                        paper_engine::soak_report::PaperSoakLoopErrorInput {
+                                            reason: domain::PaperSoakErrorReason::StatePersistenceError,
+                                            message: err.to_string(),
+                                            state_mutated: before
+                                                != paper_soak::StateStructuralFingerprint::from_state(&state),
+                                        },
+                                    );
                                 }
                                 let state_mutated = before
                                     != paper_soak::StateStructuralFingerprint::from_state(&state);
@@ -691,11 +710,38 @@ async fn paper_cli(
                                         state_mutated_without_candidate_or_fill,
                                     },
                                 );
+                                if !tick_had_error {
+                                    metrics.record_successful_tick();
+                                }
                             }
-                            Err(_) => errors_count += 1,
+                            Err(err) => {
+                                errors_count += 1;
+                                metrics.record_loop_error(
+                                    paper_engine::soak_report::PaperSoakLoopErrorInput {
+                                        reason: paper_engine::soak_report::classify_loop_error(
+                                            &err,
+                                        ),
+                                        message: err.to_string(),
+                                        state_mutated: before
+                                            != paper_soak::StateStructuralFingerprint::from_state(
+                                                &state,
+                                            ),
+                                    },
+                                );
+                            }
                         }
                     }
-                    Err(_) => errors_count += 1,
+                    Err(err) => {
+                        errors_count += 1;
+                        metrics.record_loop_error(
+                            paper_engine::soak_report::PaperSoakLoopErrorInput {
+                                reason: paper_engine::soak_report::classify_loop_error(&err),
+                                message: err.to_string(),
+                                state_mutated: before
+                                    != paper_soak::StateStructuralFingerprint::from_state(&state),
+                            },
+                        );
+                    }
                 }
 
                 if tick_idx + 1 < soak_config.ticks && soak_config.interval_seconds > 0 {

@@ -2,9 +2,9 @@ use std::{collections::BTreeMap, fs, path::Path};
 
 use domain::{
     AppError, AppResult, DecisionReason, DryRunOrderCandidate, OrderCandidateDecision,
-    OrderCandidateReason, PaperEngineState, PaperSoakBlocker, PaperSoakConfig, PaperSoakReport,
-    PaperSoakWarning, PaperTrade, RiskBudgetDecision, RiskDecisionReason, SignalDecision,
-    SignalDirection, SignalGrade,
+    OrderCandidateReason, PaperEngineState, PaperSoakBlocker, PaperSoakConfig,
+    PaperSoakErrorReason, PaperSoakReport, PaperSoakWarning, PaperTrade, RiskBudgetDecision,
+    RiskDecisionReason, SignalDecision, SignalDirection, SignalGrade,
 };
 use rust_decimal::Decimal;
 
@@ -16,14 +16,37 @@ pub const MIN_TICKS_FOR_CANDIDATE_PRESSURE_WARNING: u64 = 100;
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PaperSoakRunMetrics {
     pub decisions: Vec<PaperSoakDecisionRecord>,
+    pub loop_errors: Vec<PaperSoakErrorRecord>,
     pub paper_equity_start: Decimal,
     pub paper_equity_end: Decimal,
     pub duration_seconds: u64,
     pub state_mutation_count: u64,
     pub state_mutation_without_candidate_or_fill_count: u64,
+    pub state_mutation_on_failed_tick_count: u64,
+    pub max_consecutive_errors: u64,
+    pub current_consecutive_errors: u64,
 }
 
 impl PaperSoakRunMetrics {
+    pub fn record_successful_tick(&mut self) {
+        self.current_consecutive_errors = 0;
+    }
+
+    pub fn record_loop_error(&mut self, input: PaperSoakLoopErrorInput) {
+        if input.state_mutated {
+            self.state_mutation_on_failed_tick_count += 1;
+        }
+        self.current_consecutive_errors += 1;
+        self.max_consecutive_errors = self
+            .max_consecutive_errors
+            .max(self.current_consecutive_errors);
+        self.loop_errors.push(PaperSoakErrorRecord {
+            reason: input.reason,
+            message: input.message,
+            state_mutated: input.state_mutated,
+        });
+    }
+
     pub fn record_decision(&mut self, input: PaperSoakDecisionInput<'_>) {
         if input.state_mutated {
             self.state_mutation_count += 1;
@@ -41,6 +64,20 @@ impl PaperSoakRunMetrics {
             state_mutated_without_candidate_or_fill: input.state_mutated_without_candidate_or_fill,
         });
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PaperSoakErrorRecord {
+    pub reason: PaperSoakErrorReason,
+    pub message: String,
+    pub state_mutated: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PaperSoakLoopErrorInput {
+    pub reason: PaperSoakErrorReason,
+    pub message: String,
+    pub state_mutated: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -155,15 +192,10 @@ pub fn build_soak_report_with_metrics(
         Err(blocker) => blockers.push(blocker),
     }
 
-    if errors_count > 0 {
-        blockers.push(blocker(
-            "paper_loop_errors",
-            format!("paper soak observed {errors_count} loop errors"),
-        ));
-    }
-
     let quality = quality_metrics(config, ticks_processed, candidate_generated_count, metrics);
+    let loop_errors = loop_error_metrics(config, ticks_processed, errors_count, metrics);
     add_quality_findings(&quality, metrics, &mut warnings, &mut blockers);
+    add_loop_error_findings(&loop_errors, metrics, &mut warnings, &mut blockers);
 
     let soak_passed = blockers.is_empty();
 
@@ -180,7 +212,13 @@ pub fn build_soak_report_with_metrics(
         open_positions_count,
         realized_pnl_usdt,
         unrealized_pnl_usdt,
-        errors_count,
+        errors_count: loop_errors.ticks_failed,
+        error_rate: loop_errors.error_rate,
+        max_consecutive_errors: loop_errors.max_consecutive_errors,
+        transient_error_count: loop_errors.transient_error_count,
+        fatal_error_count: loop_errors.fatal_error_count,
+        error_breakdown_by_reason: loop_errors.error_breakdown_by_reason,
+        ticks_failed: loop_errors.ticks_failed,
         signal_grade_distribution: quality.signal_grade_distribution,
         signal_direction_distribution: quality.signal_direction_distribution,
         rejection_breakdown_by_reason: quality.rejection_breakdown_by_reason,
@@ -417,6 +455,81 @@ fn add_quality_findings(
     }
 }
 
+fn add_loop_error_findings(
+    loop_errors: &ComputedLoopErrorMetrics,
+    metrics: &PaperSoakRunMetrics,
+    warnings: &mut Vec<PaperSoakWarning>,
+    blockers: &mut Vec<PaperSoakBlocker>,
+) {
+    if loop_errors.ticks_failed == 0 {
+        return;
+    }
+
+    if loop_errors.fatal_error_count > 0 {
+        blockers.push(blocker(
+            "fatal_loop_error",
+            format!(
+                "paper soak observed {} fatal loop errors",
+                loop_errors.fatal_error_count
+            ),
+        ));
+    }
+    if loop_errors
+        .error_breakdown_by_reason
+        .contains_key(PaperSoakErrorReason::ForbiddenCapabilityError.as_key())
+    {
+        blockers.push(blocker(
+            "forbidden_capability_error",
+            "paper soak observed a forbidden capability error",
+        ));
+    }
+    if metrics.state_mutation_on_failed_tick_count > 0 {
+        blockers.push(blocker(
+            "state_mutation_on_failed_tick",
+            format!(
+                "{} failed ticks mutated structural paper state",
+                metrics.state_mutation_on_failed_tick_count
+            ),
+        ));
+    }
+    if loop_errors.error_rate > excessive_error_rate_threshold() {
+        blockers.push(blocker(
+            "loop_error_rate_excessive",
+            "paper soak loop error rate exceeded tolerance",
+        ));
+    }
+    if loop_errors.max_consecutive_errors >= 3 {
+        blockers.push(blocker(
+            "consecutive_loop_errors",
+            "paper soak observed three or more consecutive loop errors",
+        ));
+    }
+
+    let has_loop_blocker = blockers.iter().any(|blocker| {
+        matches!(
+            blocker.code.as_str(),
+            "fatal_loop_error"
+                | "forbidden_capability_error"
+                | "state_mutation_on_failed_tick"
+                | "loop_error_rate_excessive"
+                | "consecutive_loop_errors"
+        )
+    });
+    if !has_loop_blocker
+        && loop_errors.error_rate <= low_rate_transient_error_threshold()
+        && loop_errors.max_consecutive_errors <= 2
+        && loop_errors.fatal_error_count == 0
+    {
+        warnings.push(warning(
+            "transient_loop_errors",
+            format!(
+                "{} low-rate transient loop errors were tolerated",
+                loop_errors.ticks_failed
+            ),
+        ));
+    }
+}
+
 fn quality_metrics(
     config: &PaperSoakConfig,
     ticks_processed: u64,
@@ -509,6 +622,60 @@ fn quality_metrics(
     }
 }
 
+fn loop_error_metrics(
+    config: &PaperSoakConfig,
+    ticks_processed: u64,
+    errors_count: u64,
+    metrics: &PaperSoakRunMetrics,
+) -> ComputedLoopErrorMetrics {
+    let mut error_breakdown_by_reason = BTreeMap::new();
+    let mut fatal_error_count = 0_u64;
+
+    if metrics.loop_errors.is_empty() {
+        if errors_count > 0 {
+            error_breakdown_by_reason.insert(
+                PaperSoakErrorReason::TransientMarketDataError
+                    .as_key()
+                    .to_string(),
+                errors_count,
+            );
+        }
+    } else {
+        for error in &metrics.loop_errors {
+            increment(&mut error_breakdown_by_reason, error.reason.as_key());
+            if error.reason.is_fatal() {
+                fatal_error_count += 1;
+            }
+        }
+    }
+
+    let ticks_failed = if metrics.loop_errors.is_empty() {
+        errors_count
+    } else {
+        metrics.loop_errors.len() as u64
+    };
+    let denominator = config
+        .ticks
+        .max(ticks_processed.saturating_add(ticks_failed))
+        .max(1);
+    let error_rate = Decimal::from(ticks_failed) / Decimal::from(denominator);
+    let max_consecutive_errors = if metrics.loop_errors.is_empty() {
+        errors_count
+    } else {
+        metrics.max_consecutive_errors
+    };
+    let transient_error_count = ticks_failed.saturating_sub(fatal_error_count);
+
+    ComputedLoopErrorMetrics {
+        ticks_failed,
+        error_rate,
+        max_consecutive_errors,
+        transient_error_count,
+        fatal_error_count,
+        error_breakdown_by_reason,
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 struct ComputedQualityMetrics {
     ticks_processed: u64,
@@ -523,6 +690,81 @@ struct ComputedQualityMetrics {
     avg_signal_strength: Decimal,
     max_signal_strength: Decimal,
     avg_edge_after_cost_ratio: Option<Decimal>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct ComputedLoopErrorMetrics {
+    ticks_failed: u64,
+    error_rate: Decimal,
+    max_consecutive_errors: u64,
+    transient_error_count: u64,
+    fatal_error_count: u64,
+    error_breakdown_by_reason: BTreeMap<String, u64>,
+}
+
+pub fn classify_loop_error(err: &AppError) -> PaperSoakErrorReason {
+    match err {
+        AppError::HttpRequest { reason, .. } => {
+            if reason.to_ascii_lowercase().contains("timeout")
+                || reason.to_ascii_lowercase().contains("timed out")
+            {
+                PaperSoakErrorReason::TimeoutError
+            } else {
+                PaperSoakErrorReason::TransientMarketDataError
+            }
+        }
+        AppError::HttpStatus { status, .. } => match *status {
+            408 => PaperSoakErrorReason::TimeoutError,
+            418 | 429 => PaperSoakErrorReason::RateLimitError,
+            _ => PaperSoakErrorReason::TransientMarketDataError,
+        },
+        AppError::ResponseParse { .. } => PaperSoakErrorReason::ParseError,
+        AppError::ExecutionRejected(_) | AppError::RiskRejected(_) | AppError::CostRejected(_) => {
+            PaperSoakErrorReason::InvariantViolation
+        }
+        AppError::UnsafeConfig(_) | AppError::LeverageTooHigh { .. } => {
+            PaperSoakErrorReason::ForbiddenCapabilityError
+        }
+        AppError::Config(message) => classify_config_error(message),
+        AppError::Exchange(_) | AppError::Reconciliation(_) => {
+            PaperSoakErrorReason::TransientMarketDataError
+        }
+        AppError::InvalidSymbol(_) | AppError::NonPositive { .. } => {
+            PaperSoakErrorReason::InvariantViolation
+        }
+    }
+}
+
+fn classify_config_error(message: &str) -> PaperSoakErrorReason {
+    let lowered = message.to_ascii_lowercase();
+    if lowered.contains("forbidden")
+        || lowered.contains("api key")
+        || lowered.contains("secret")
+        || lowered.contains("signed")
+        || lowered.contains("withdraw")
+        || lowered.contains("live order")
+    {
+        PaperSoakErrorReason::ForbiddenCapabilityError
+    } else if lowered.contains("write")
+        || lowered.contains("persist")
+        || lowered.contains("append")
+        || lowered.contains("paper state")
+        || lowered.contains("paper log")
+    {
+        PaperSoakErrorReason::StatePersistenceError
+    } else if lowered.contains("parse") {
+        PaperSoakErrorReason::ParseError
+    } else {
+        PaperSoakErrorReason::TransientMarketDataError
+    }
+}
+
+fn low_rate_transient_error_threshold() -> Decimal {
+    Decimal::new(1, 3)
+}
+
+fn excessive_error_rate_threshold() -> Decimal {
+    Decimal::new(5, 3)
 }
 
 fn ticks_per_minute(ticks_processed: u64, duration_seconds: u64) -> Decimal {
@@ -656,8 +898,9 @@ mod tests {
     use domain::{
         AccountRiskState, CandidateSizingConfig, DecisionReason, DryRunOrderCandidate,
         MarketRegime, OrderCandidateDecision, OrderCandidateReason, PaperEngineState,
-        PaperPosition, PaperTrade, Price, RiskBudgetConfig, RiskBudgetDecision, RiskDecisionReason,
-        SignalDecision, SignalDirection, SignalGrade, SignalPacket, Symbol,
+        PaperPosition, PaperSoakErrorReason, PaperTrade, Price, RiskBudgetConfig,
+        RiskBudgetDecision, RiskDecisionReason, SignalDecision, SignalDirection, SignalGrade,
+        SignalPacket, Symbol,
     };
     use rust_decimal_macros::dec;
 
@@ -895,6 +1138,163 @@ mod tests {
             second.candidate_pressure_ratio
         );
         assert_eq!(first.candidate_pressure_ratio, dec!(0.5));
+        paths.cleanup();
+    }
+
+    #[test]
+    fn three_transient_errors_over_long_soak_warn_only() {
+        let paths = FixturePaths::new("low_rate_transient_errors");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        write_log(&paths.log, &[trade(false, false)]);
+        let mut config = paths.config();
+        config.ticks = 5_760;
+        let run_metrics = nonconsecutive_loop_errors(&[
+            PaperSoakErrorReason::TransientMarketDataError,
+            PaperSoakErrorReason::TimeoutError,
+            PaperSoakErrorReason::RateLimitError,
+        ]);
+
+        let report = build_soak_report_with_metrics(&config, 5_757, 0, 3, &run_metrics);
+
+        assert!(report.soak_passed);
+        assert_eq!(report.ticks_failed, 3);
+        assert_eq!(report.errors_count, 3);
+        assert!(report.error_rate <= dec!(0.001));
+        assert_eq!(report.max_consecutive_errors, 1);
+        assert_eq!(report.transient_error_count, 3);
+        assert_eq!(report.fatal_error_count, 0);
+        assert_eq!(report.error_breakdown_by_reason["timeout_error"], 1);
+        assert_eq!(report.error_breakdown_by_reason["rate_limit_error"], 1);
+        assert!(has_warning(&report, "transient_loop_errors"));
+        assert!(report.blockers.is_empty());
+        paths.cleanup();
+    }
+
+    #[test]
+    fn excessive_loop_error_rate_blocks_soak() {
+        let paths = FixturePaths::new("loop_error_rate_excessive");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        write_log(&paths.log, &[trade(false, false)]);
+        let mut config = paths.config();
+        config.ticks = 100;
+        let run_metrics =
+            nonconsecutive_loop_errors(&[PaperSoakErrorReason::TransientMarketDataError]);
+
+        let report = build_soak_report_with_metrics(&config, 99, 0, 1, &run_metrics);
+
+        assert!(!report.soak_passed);
+        assert!(report.error_rate > dec!(0.005));
+        assert!(has_blocker(&report, "loop_error_rate_excessive"));
+        paths.cleanup();
+    }
+
+    #[test]
+    fn three_consecutive_loop_errors_block_soak() {
+        let paths = FixturePaths::new("consecutive_loop_errors");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        write_log(&paths.log, &[trade(false, false)]);
+        let mut config = paths.config();
+        config.ticks = 1_000;
+        let run_metrics = consecutive_loop_errors(&[
+            PaperSoakErrorReason::TransientMarketDataError,
+            PaperSoakErrorReason::TimeoutError,
+            PaperSoakErrorReason::RateLimitError,
+        ]);
+
+        let report = build_soak_report_with_metrics(&config, 997, 0, 3, &run_metrics);
+
+        assert!(!report.soak_passed);
+        assert_eq!(report.max_consecutive_errors, 3);
+        assert!(has_blocker(&report, "consecutive_loop_errors"));
+        paths.cleanup();
+    }
+
+    #[test]
+    fn fatal_state_persistence_error_blocks_soak() {
+        let paths = FixturePaths::new("fatal_state_persistence_error");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        write_log(&paths.log, &[trade(false, false)]);
+        let mut config = paths.config();
+        config.ticks = 1_000;
+        let run_metrics =
+            nonconsecutive_loop_errors(&[PaperSoakErrorReason::StatePersistenceError]);
+
+        let report = build_soak_report_with_metrics(&config, 999, 0, 1, &run_metrics);
+
+        assert!(!report.soak_passed);
+        assert_eq!(report.fatal_error_count, 1);
+        assert_eq!(report.transient_error_count, 0);
+        assert!(has_blocker(&report, "fatal_loop_error"));
+        paths.cleanup();
+    }
+
+    #[test]
+    fn failed_tick_does_not_mutate_state_generate_candidate_or_fill() {
+        let paths = FixturePaths::new("failed_tick_no_mutation");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        fs::write(&paths.log, "").unwrap();
+        let mut config = paths.config();
+        config.ticks = 1_000;
+        let run_metrics =
+            nonconsecutive_loop_errors(&[PaperSoakErrorReason::TransientMarketDataError]);
+
+        let report = build_soak_report_with_metrics(&config, 0, 0, 1, &run_metrics);
+
+        assert!(report.soak_passed);
+        assert_eq!(report.ticks_failed, 1);
+        assert_eq!(report.candidate_generated_count, 0);
+        assert_eq!(report.candidate_pressure_ratio, dec!(0));
+        assert_eq!(report.paper_trades_count, 0);
+        assert_eq!(report.open_positions_count, 0);
+        assert_eq!(report.state_mutation_count, 0);
+        assert!(has_warning(&report, "zero_paper_trades"));
+        assert!(has_warning(&report, "transient_loop_errors"));
+        paths.cleanup();
+    }
+
+    #[test]
+    fn state_mutation_on_failed_tick_blocks_soak() {
+        let paths = FixturePaths::new("state_mutation_on_failed_tick");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        write_log(&paths.log, &[trade(false, false)]);
+        let mut config = paths.config();
+        config.ticks = 1_000;
+        let mut run_metrics = metrics(Vec::new());
+        run_metrics.record_loop_error(PaperSoakLoopErrorInput {
+            reason: PaperSoakErrorReason::TransientMarketDataError,
+            message: "simulated read-only fetch failed".to_string(),
+            state_mutated: true,
+        });
+
+        let report = build_soak_report_with_metrics(&config, 999, 0, 1, &run_metrics);
+
+        assert!(!report.soak_passed);
+        assert!(has_blocker(&report, "state_mutation_on_failed_tick"));
+        paths.cleanup();
+    }
+
+    #[test]
+    fn error_breakdown_is_deterministic() {
+        let paths = FixturePaths::new("error_breakdown_deterministic");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        write_log(&paths.log, &[trade(false, false)]);
+        let mut config = paths.config();
+        config.ticks = 1_000;
+        let run_metrics = nonconsecutive_loop_errors(&[
+            PaperSoakErrorReason::TimeoutError,
+            PaperSoakErrorReason::RateLimitError,
+            PaperSoakErrorReason::TimeoutError,
+        ]);
+
+        let first = build_soak_report_with_metrics(&config, 997, 0, 3, &run_metrics);
+        let second = build_soak_report_with_metrics(&config, 997, 0, 3, &run_metrics);
+
+        assert_eq!(
+            first.error_breakdown_by_reason,
+            second.error_breakdown_by_reason
+        );
+        assert_eq!(first.error_breakdown_by_reason["timeout_error"], 2);
+        assert_eq!(first.error_breakdown_by_reason["rate_limit_error"], 1);
         paths.cleanup();
     }
 
@@ -1163,6 +1563,31 @@ mod tests {
             duration_seconds: 60,
             ..Default::default()
         }
+    }
+
+    fn nonconsecutive_loop_errors(reasons: &[PaperSoakErrorReason]) -> PaperSoakRunMetrics {
+        let mut run_metrics = metrics(Vec::new());
+        for reason in reasons {
+            run_metrics.record_loop_error(PaperSoakLoopErrorInput {
+                reason: *reason,
+                message: reason.as_key().to_string(),
+                state_mutated: false,
+            });
+            run_metrics.record_successful_tick();
+        }
+        run_metrics
+    }
+
+    fn consecutive_loop_errors(reasons: &[PaperSoakErrorReason]) -> PaperSoakRunMetrics {
+        let mut run_metrics = metrics(Vec::new());
+        for reason in reasons {
+            run_metrics.record_loop_error(PaperSoakLoopErrorInput {
+                reason: *reason,
+                message: reason.as_key().to_string(),
+                state_mutated: false,
+            });
+        }
+        run_metrics
     }
 
     fn record(

@@ -1,6 +1,9 @@
 use std::path::Path;
 
-use domain::{AppResult, FeatureSnapshot, PaperEngineState, PaperSoakConfig, PaperSoakReport};
+use domain::{
+    AppError, AppResult, FeatureSnapshot, PaperEngineState, PaperSoakConfig, PaperSoakErrorReason,
+    PaperSoakReport,
+};
 
 use crate::{paper_loop, paper_state, soak_report};
 
@@ -28,19 +31,33 @@ pub fn run_snapshots(
         match paper_loop::process_snapshot(&mut state, snapshot) {
             Ok(outcome) => {
                 ticks_processed += 1;
+                let mut tick_had_error = false;
                 let safe_candidate_generated =
                     soak_report::is_audit_only_candidate_generated(&outcome.candidate_decision);
                 if safe_candidate_generated {
                     candidate_generated_count += 1;
                 }
-                let append_failed = outcome.trade.as_ref().is_some_and(|trade| {
-                    paper_state::append_trade(&config.log_path, trade).is_err()
-                });
-                if append_failed {
+                if let Some(trade) = &outcome.trade
+                    && let Err(err) = paper_state::append_trade(&config.log_path, trade)
+                {
+                    tick_had_error = true;
                     errors_count += 1;
+                    record_loop_error(
+                        &mut metrics,
+                        PaperSoakErrorReason::StatePersistenceError,
+                        err,
+                        before != StateStructuralFingerprint::from_state(&state),
+                    );
                 }
-                if paper_state::persist_state(&config.state_path, &state).is_err() {
+                if let Err(err) = paper_state::persist_state(&config.state_path, &state) {
+                    tick_had_error = true;
                     errors_count += 1;
+                    record_loop_error(
+                        &mut metrics,
+                        PaperSoakErrorReason::StatePersistenceError,
+                        err,
+                        before != StateStructuralFingerprint::from_state(&state),
+                    );
                 }
                 let state_mutated = before != StateStructuralFingerprint::from_state(&state);
                 let state_mutated_without_candidate_or_fill =
@@ -59,8 +76,19 @@ pub fn run_snapshots(
                     state_mutated,
                     state_mutated_without_candidate_or_fill,
                 });
+                if !tick_had_error {
+                    metrics.record_successful_tick();
+                }
             }
-            Err(_) => errors_count += 1,
+            Err(err) => {
+                errors_count += 1;
+                record_loop_error(
+                    &mut metrics,
+                    soak_report::classify_loop_error(&err),
+                    err,
+                    before != StateStructuralFingerprint::from_state(&state),
+                );
+            }
         }
     }
     metrics.paper_equity_end = state.account_equity_usdt;
@@ -75,6 +103,19 @@ pub fn run_snapshots(
         errors_count,
         metrics,
     ))
+}
+
+fn record_loop_error(
+    metrics: &mut soak_report::PaperSoakRunMetrics,
+    reason: PaperSoakErrorReason,
+    err: AppError,
+    state_mutated: bool,
+) {
+    metrics.record_loop_error(soak_report::PaperSoakLoopErrorInput {
+        reason,
+        message: err.to_string(),
+        state_mutated,
+    });
 }
 
 pub fn finalize_report(

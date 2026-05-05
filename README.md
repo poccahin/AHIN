@@ -734,6 +734,26 @@ Example output shape:
 }
 ```
 
+## Phase 8.3.1: Loop Error Tolerance & Diagnostics
+
+Phase 8.3.1 hardens long paper soaks against tiny public read-only data hiccups. Failed ticks are classified and counted, but they must not generate candidates, paper fills, or paper position mutations.
+
+The soak report now includes:
+
+- `error_rate`, `ticks_failed`, and `max_consecutive_errors`
+- `transient_error_count` and `fatal_error_count`
+- `error_breakdown_by_reason` with keys such as `transient_market_data_error`, `timeout_error`, `rate_limit_error`, `parse_error`, `state_persistence_error`, `invariant_violation`, and `forbidden_capability_error`
+
+Guardrails:
+
+- `error_rate <= 0.001`, `max_consecutive_errors <= 2`, and `fatal_error_count = 0` emits a warning only
+- `error_rate > 0.005` emits `loop_error_rate_excessive`
+- `max_consecutive_errors >= 3` emits `consecutive_loop_errors`
+- fatal persistence/invariant/forbidden-capability errors emit blockers
+- state mutation on a failed tick emits `state_mutation_on_failed_tick`
+
+`paper compare-reports` treats low-rate transient loop warnings as non-blocking. Legacy reports that only contain the old `paper_loop_errors` blocker can also be tolerated when their tick/error counts prove the errors were low-rate and no candidates, fills, positions, or state mutations occurred.
+
 ## Phase Roadmap
 
 1. Workspace skeleton, strict domain types, safe config, mock exchange, dry-run CLI health check.

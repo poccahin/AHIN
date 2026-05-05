@@ -18,8 +18,8 @@ pub use types::{
     MarketRegime, OpenInterest, OrderBook, OrderBookLevel, OrderCandidate, OrderCandidateDecision,
     OrderCandidateReason, OrderRequest, PaperEngineState, PaperPosition, PaperRunConfig,
     PaperRunReport, PaperSoakBlocker, PaperSoakComparisonBlocker, PaperSoakComparisonReport,
-    PaperSoakComparisonWarning, PaperSoakConfig, PaperSoakMetricDelta, PaperSoakReport,
-    PaperSoakWarning, PaperTick, PaperTrade, Position, ReplayDecision, RiskBudget,
+    PaperSoakComparisonWarning, PaperSoakConfig, PaperSoakErrorReason, PaperSoakMetricDelta,
+    PaperSoakReport, PaperSoakWarning, PaperTick, PaperTrade, Position, ReplayDecision, RiskBudget,
     RiskBudgetConfig, RiskBudgetDecision, RiskDecisionReason, Side, SignalDecision,
     SignalDirection, SignalGrade, SignalPacket, SimulatedTrade, Symbol,
 };
