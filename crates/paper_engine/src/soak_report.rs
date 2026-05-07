@@ -3,8 +3,9 @@ use std::{collections::BTreeMap, fs, path::Path};
 use domain::{
     AppError, AppResult, DecisionReason, DryRunOrderCandidate, OrderCandidateDecision,
     OrderCandidateReason, PaperEngineState, PaperSoakBlocker, PaperSoakConfig,
-    PaperSoakErrorReason, PaperSoakReport, PaperSoakWarning, PaperTrade, RiskBudgetDecision,
-    RiskDecisionReason, SignalDecision, SignalDirection, SignalGrade,
+    PaperSoakEndpointErrorReason, PaperSoakErrorReason, PaperSoakErrorWindow, PaperSoakReport,
+    PaperSoakWarning, PaperTrade, RiskBudgetDecision, RiskDecisionReason, SignalDecision,
+    SignalDirection, SignalGrade,
 };
 use rust_decimal::Decimal;
 
@@ -12,11 +13,14 @@ use crate::paper_state;
 
 pub const MIN_TICKS_FOR_CANDIDATE_PRESSURE_BLOCKER: u64 = 20;
 pub const MIN_TICKS_FOR_CANDIDATE_PRESSURE_WARNING: u64 = 100;
+pub const FUNDING_RATE_STALE_MAX_AGE_SECONDS: u64 = 15 * 60;
+pub const OPEN_INTEREST_STALE_MAX_AGE_SECONDS: u64 = 5 * 60;
 
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PaperSoakRunMetrics {
     pub decisions: Vec<PaperSoakDecisionRecord>,
     pub loop_errors: Vec<PaperSoakErrorRecord>,
+    pub endpoint_errors: Vec<PaperSoakEndpointErrorRecord>,
     pub paper_equity_start: Decimal,
     pub paper_equity_end: Decimal,
     pub duration_seconds: u64,
@@ -25,11 +29,27 @@ pub struct PaperSoakRunMetrics {
     pub state_mutation_on_failed_tick_count: u64,
     pub max_consecutive_errors: u64,
     pub current_consecutive_errors: u64,
+    pub fresh_ticks: u64,
+    pub stale_ticks: u64,
+    pub stale_fallback_count: u64,
+    pub max_stale_age_seconds: u64,
 }
 
 impl PaperSoakRunMetrics {
     pub fn record_successful_tick(&mut self) {
         self.current_consecutive_errors = 0;
+    }
+
+    pub fn record_fresh_market_data_tick(&mut self) {
+        self.fresh_ticks += 1;
+        self.record_successful_tick();
+    }
+
+    pub fn record_stale_market_data_tick(&mut self, fallback_count: u64, max_age_seconds: u64) {
+        self.stale_ticks += 1;
+        self.stale_fallback_count += fallback_count;
+        self.max_stale_age_seconds = self.max_stale_age_seconds.max(max_age_seconds);
+        self.record_successful_tick();
     }
 
     pub fn record_loop_error(&mut self, input: PaperSoakLoopErrorInput) {
@@ -44,6 +64,15 @@ impl PaperSoakRunMetrics {
             reason: input.reason,
             message: input.message,
             state_mutated: input.state_mutated,
+        });
+    }
+
+    pub fn record_endpoint_error(&mut self, input: PaperSoakEndpointErrorInput) {
+        self.endpoint_errors.push(PaperSoakEndpointErrorRecord {
+            tick_index: input.tick_index,
+            reason: input.reason,
+            critical: input.critical,
+            stale_fallback_used: input.stale_fallback_used,
         });
     }
 
@@ -78,6 +107,22 @@ pub struct PaperSoakLoopErrorInput {
     pub reason: PaperSoakErrorReason,
     pub message: String,
     pub state_mutated: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PaperSoakEndpointErrorRecord {
+    pub tick_index: u64,
+    pub reason: PaperSoakEndpointErrorReason,
+    pub critical: bool,
+    pub stale_fallback_used: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PaperSoakEndpointErrorInput {
+    pub tick_index: u64,
+    pub reason: PaperSoakEndpointErrorReason,
+    pub critical: bool,
+    pub stale_fallback_used: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -194,8 +239,10 @@ pub fn build_soak_report_with_metrics(
 
     let quality = quality_metrics(config, ticks_processed, candidate_generated_count, metrics);
     let loop_errors = loop_error_metrics(config, ticks_processed, errors_count, metrics);
+    let data_reliability = data_reliability_metrics(ticks_processed, &loop_errors, metrics);
     add_quality_findings(&quality, metrics, &mut warnings, &mut blockers);
     add_loop_error_findings(&loop_errors, metrics, &mut warnings, &mut blockers);
+    add_data_reliability_findings(&data_reliability, &mut warnings, &mut blockers);
 
     let soak_passed = blockers.is_empty();
 
@@ -219,6 +266,14 @@ pub fn build_soak_report_with_metrics(
         fatal_error_count: loop_errors.fatal_error_count,
         error_breakdown_by_reason: loop_errors.error_breakdown_by_reason,
         ticks_failed: loop_errors.ticks_failed,
+        endpoint_error_breakdown: data_reliability.endpoint_error_breakdown,
+        error_windows: data_reliability.error_windows,
+        fresh_ticks: data_reliability.fresh_ticks,
+        stale_ticks: data_reliability.stale_ticks,
+        failed_ticks: data_reliability.failed_ticks,
+        stale_fallback_count: data_reliability.stale_fallback_count,
+        max_stale_age_seconds: data_reliability.max_stale_age_seconds,
+        data_freshness_score: data_reliability.data_freshness_score,
         signal_grade_distribution: quality.signal_grade_distribution,
         signal_direction_distribution: quality.signal_direction_distribution,
         rejection_breakdown_by_reason: quality.rejection_breakdown_by_reason,
@@ -530,6 +585,36 @@ fn add_loop_error_findings(
     }
 }
 
+fn add_data_reliability_findings(
+    data_reliability: &ComputedDataReliabilityMetrics,
+    warnings: &mut Vec<PaperSoakWarning>,
+    blockers: &mut Vec<PaperSoakBlocker>,
+) {
+    if data_reliability.stale_fallback_count == 0 {
+        return;
+    }
+
+    if data_reliability.stale_fallback_ratio > Decimal::new(15, 2) {
+        blockers.push(blocker(
+            "stale_fallback_ratio_excessive",
+            "stale market-data fallback ratio exceeded blocker threshold",
+        ));
+    } else if data_reliability.stale_fallback_ratio > Decimal::new(5, 2) {
+        warnings.push(warning(
+            "stale_fallback_ratio_high",
+            "stale market-data fallback ratio exceeded warning threshold",
+        ));
+    } else {
+        warnings.push(warning(
+            "stale_market_data_fallback_used",
+            format!(
+                "{} non-critical market-data stale fallbacks were used",
+                data_reliability.stale_fallback_count
+            ),
+        ));
+    }
+}
+
 fn quality_metrics(
     config: &PaperSoakConfig,
     ticks_processed: u64,
@@ -676,6 +761,111 @@ fn loop_error_metrics(
     }
 }
 
+fn data_reliability_metrics(
+    ticks_processed: u64,
+    loop_errors: &ComputedLoopErrorMetrics,
+    metrics: &PaperSoakRunMetrics,
+) -> ComputedDataReliabilityMetrics {
+    let mut endpoint_error_breakdown = BTreeMap::new();
+    for error in &metrics.endpoint_errors {
+        increment(&mut endpoint_error_breakdown, error.reason.as_key());
+    }
+
+    let fresh_ticks = if metrics.fresh_ticks == 0 && metrics.stale_ticks == 0 {
+        ticks_processed
+    } else {
+        metrics.fresh_ticks
+    };
+    let stale_ticks = metrics.stale_ticks;
+    let failed_ticks = loop_errors.ticks_failed;
+    let stale_fallback_count = metrics.stale_fallback_count;
+    let denominator = fresh_ticks
+        .saturating_add(stale_ticks)
+        .saturating_add(failed_ticks);
+    let data_freshness_score = if denominator == 0 {
+        Decimal::ZERO
+    } else {
+        let fresh_weight = Decimal::from(fresh_ticks);
+        let stale_weight = Decimal::from(stale_ticks) * Decimal::new(75, 2);
+        (fresh_weight + stale_weight) / Decimal::from(denominator)
+    };
+    let stale_fallback_ratio = if denominator == 0 {
+        Decimal::ZERO
+    } else {
+        Decimal::from(stale_fallback_count) / Decimal::from(denominator)
+    };
+
+    ComputedDataReliabilityMetrics {
+        endpoint_error_breakdown,
+        error_windows: error_windows(&metrics.endpoint_errors),
+        fresh_ticks,
+        stale_ticks,
+        failed_ticks,
+        stale_fallback_count,
+        max_stale_age_seconds: metrics.max_stale_age_seconds,
+        data_freshness_score,
+        stale_fallback_ratio,
+    }
+}
+
+fn error_windows(errors: &[PaperSoakEndpointErrorRecord]) -> Vec<PaperSoakErrorWindow> {
+    let mut sorted = errors.to_vec();
+    sorted.sort_by_key(|error| (error.reason.as_key(), error.critical, error.tick_index));
+    let mut windows: Vec<PaperSoakErrorWindow> = Vec::new();
+
+    for error in sorted {
+        let reason = error.reason.as_key().to_string();
+        if let Some(window) = windows.last_mut()
+            && window.reason == reason
+            && window.critical == error.critical
+            && window.end_tick.saturating_add(1) == error.tick_index
+        {
+            window.end_tick = error.tick_index;
+            window.length += 1;
+            continue;
+        }
+        windows.push(PaperSoakErrorWindow {
+            reason,
+            start_tick: error.tick_index,
+            end_tick: error.tick_index,
+            length: 1,
+            critical: error.critical,
+        });
+    }
+
+    windows
+}
+
+pub fn endpoint_allows_stale_fallback(
+    reason: PaperSoakEndpointErrorReason,
+    age_seconds: u64,
+) -> bool {
+    match reason {
+        PaperSoakEndpointErrorReason::FundingRateError => {
+            age_seconds <= FUNDING_RATE_STALE_MAX_AGE_SECONDS
+        }
+        PaperSoakEndpointErrorReason::OpenInterestError => {
+            age_seconds <= OPEN_INTEREST_STALE_MAX_AGE_SECONDS
+        }
+        PaperSoakEndpointErrorReason::MarkPriceError
+        | PaperSoakEndpointErrorReason::OrderbookDepthError
+        | PaperSoakEndpointErrorReason::FeatureSnapshotError
+        | PaperSoakEndpointErrorReason::HttpTimeout
+        | PaperSoakEndpointErrorReason::HttpRateLimit
+        | PaperSoakEndpointErrorReason::HttpStatusError
+        | PaperSoakEndpointErrorReason::ParseError => false,
+    }
+}
+
+pub fn endpoint_error_is_critical(reason: PaperSoakEndpointErrorReason) -> bool {
+    matches!(
+        reason,
+        PaperSoakEndpointErrorReason::MarkPriceError
+            | PaperSoakEndpointErrorReason::OrderbookDepthError
+            | PaperSoakEndpointErrorReason::FeatureSnapshotError
+    )
+}
+
 #[derive(Debug, Clone, PartialEq)]
 struct ComputedQualityMetrics {
     ticks_processed: u64,
@@ -700,6 +890,19 @@ struct ComputedLoopErrorMetrics {
     transient_error_count: u64,
     fatal_error_count: u64,
     error_breakdown_by_reason: BTreeMap<String, u64>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct ComputedDataReliabilityMetrics {
+    endpoint_error_breakdown: BTreeMap<String, u64>,
+    error_windows: Vec<PaperSoakErrorWindow>,
+    fresh_ticks: u64,
+    stale_ticks: u64,
+    failed_ticks: u64,
+    stale_fallback_count: u64,
+    max_stale_age_seconds: u64,
+    data_freshness_score: Decimal,
+    stale_fallback_ratio: Decimal,
 }
 
 pub fn classify_loop_error(err: &AppError) -> PaperSoakErrorReason {
@@ -898,9 +1101,9 @@ mod tests {
     use domain::{
         AccountRiskState, CandidateSizingConfig, DecisionReason, DryRunOrderCandidate,
         MarketRegime, OrderCandidateDecision, OrderCandidateReason, PaperEngineState,
-        PaperPosition, PaperSoakErrorReason, PaperTrade, Price, RiskBudgetConfig,
-        RiskBudgetDecision, RiskDecisionReason, SignalDecision, SignalDirection, SignalGrade,
-        SignalPacket, Symbol,
+        PaperPosition, PaperSoakEndpointErrorReason, PaperSoakErrorReason, PaperTrade, Price,
+        RiskBudgetConfig, RiskBudgetDecision, RiskDecisionReason, SignalDecision, SignalDirection,
+        SignalGrade, SignalPacket, Symbol,
     };
     use rust_decimal_macros::dec;
 
@@ -1295,6 +1498,211 @@ mod tests {
         );
         assert_eq!(first.error_breakdown_by_reason["timeout_error"], 2);
         assert_eq!(first.error_breakdown_by_reason["rate_limit_error"], 1);
+        paths.cleanup();
+    }
+
+    #[test]
+    fn endpoint_error_breakdown_identifies_failing_endpoint() {
+        let paths = FixturePaths::new("endpoint_error_breakdown");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        fs::write(&paths.log, "").unwrap();
+        let mut run_metrics = metrics(Vec::new());
+        run_metrics.record_endpoint_error(PaperSoakEndpointErrorInput {
+            tick_index: 7,
+            reason: PaperSoakEndpointErrorReason::OpenInterestError,
+            critical: false,
+            stale_fallback_used: true,
+        });
+        run_metrics.record_stale_market_data_tick(1, 60);
+
+        let report = build_soak_report_with_metrics(&paths.config(), 1, 0, 0, &run_metrics);
+
+        assert_eq!(report.endpoint_error_breakdown["open_interest_error"], 1);
+        assert_eq!(report.error_windows.len(), 1);
+        assert_eq!(report.error_windows[0].reason, "open_interest_error");
+        assert!(!report.error_windows[0].critical);
+        paths.cleanup();
+    }
+
+    #[test]
+    fn consecutive_open_interest_errors_use_stale_fallback_without_loop_blocker() {
+        let paths = FixturePaths::new("open_interest_stale_fallback");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        fs::write(&paths.log, "").unwrap();
+        let mut config = paths.config();
+        config.ticks = 5_760;
+        let mut run_metrics = metrics(Vec::new());
+        run_metrics.fresh_ticks = 5_713;
+        for tick_index in 0..47 {
+            run_metrics.record_endpoint_error(PaperSoakEndpointErrorInput {
+                tick_index,
+                reason: PaperSoakEndpointErrorReason::OpenInterestError,
+                critical: false,
+                stale_fallback_used: true,
+            });
+            run_metrics.record_stale_market_data_tick(1, 60);
+        }
+
+        let report = build_soak_report_with_metrics(&config, 5_760, 0, 0, &run_metrics);
+
+        assert!(report.soak_passed);
+        assert_eq!(report.fresh_ticks, 5_713);
+        assert_eq!(report.stale_ticks, 47);
+        assert_eq!(report.failed_ticks, 0);
+        assert_eq!(report.ticks_failed, 0);
+        assert_eq!(report.stale_fallback_count, 47);
+        assert_eq!(report.endpoint_error_breakdown["open_interest_error"], 47);
+        assert!(has_warning(&report, "stale_market_data_fallback_used"));
+        assert!(!has_blocker(&report, "consecutive_loop_errors"));
+        assert!(!has_blocker(&report, "loop_error_rate_excessive"));
+        paths.cleanup();
+    }
+
+    #[test]
+    fn mark_price_error_fails_tick_without_candidate_or_fill() {
+        let paths = FixturePaths::new("mark_price_error_failed_tick");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        fs::write(&paths.log, "").unwrap();
+        let mut config = paths.config();
+        config.ticks = 1_000;
+        let mut run_metrics = metrics(Vec::new());
+        run_metrics.record_endpoint_error(PaperSoakEndpointErrorInput {
+            tick_index: 0,
+            reason: PaperSoakEndpointErrorReason::MarkPriceError,
+            critical: true,
+            stale_fallback_used: false,
+        });
+        run_metrics.record_loop_error(PaperSoakLoopErrorInput {
+            reason: PaperSoakErrorReason::TransientMarketDataError,
+            message: "mark price fetch failed".to_string(),
+            state_mutated: false,
+        });
+
+        let report = build_soak_report_with_metrics(&config, 999, 0, 1, &run_metrics);
+
+        assert!(report.soak_passed);
+        assert_eq!(report.failed_ticks, 1);
+        assert_eq!(report.candidate_generated_count, 0);
+        assert_eq!(report.paper_trades_count, 0);
+        assert_eq!(report.open_positions_count, 0);
+        assert_eq!(report.endpoint_error_breakdown["mark_price_error"], 1);
+        assert!(report.error_windows[0].critical);
+        paths.cleanup();
+    }
+
+    #[test]
+    fn orderbook_depth_error_fails_tick_without_state_mutation() {
+        let paths = FixturePaths::new("orderbook_depth_error_failed_tick");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        fs::write(&paths.log, "").unwrap();
+        let mut config = paths.config();
+        config.ticks = 1_000;
+        let mut run_metrics = metrics(Vec::new());
+        run_metrics.record_endpoint_error(PaperSoakEndpointErrorInput {
+            tick_index: 0,
+            reason: PaperSoakEndpointErrorReason::OrderbookDepthError,
+            critical: true,
+            stale_fallback_used: false,
+        });
+        run_metrics.record_loop_error(PaperSoakLoopErrorInput {
+            reason: PaperSoakErrorReason::TransientMarketDataError,
+            message: "orderbook depth fetch failed".to_string(),
+            state_mutated: false,
+        });
+
+        let report = build_soak_report_with_metrics(&config, 999, 0, 1, &run_metrics);
+
+        assert!(report.soak_passed);
+        assert_eq!(report.failed_ticks, 1);
+        assert_eq!(report.state_mutation_count, 0);
+        assert_eq!(report.endpoint_error_breakdown["orderbook_depth_error"], 1);
+        assert!(report.error_windows[0].critical);
+        paths.cleanup();
+    }
+
+    #[test]
+    fn stale_fallback_older_than_limit_fails_tick() {
+        let paths = FixturePaths::new("stale_fallback_too_old");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        fs::write(&paths.log, "").unwrap();
+        let mut config = paths.config();
+        config.ticks = 1_000;
+        assert!(!endpoint_allows_stale_fallback(
+            PaperSoakEndpointErrorReason::OpenInterestError,
+            OPEN_INTEREST_STALE_MAX_AGE_SECONDS + 1
+        ));
+        let mut run_metrics = metrics(Vec::new());
+        run_metrics.record_endpoint_error(PaperSoakEndpointErrorInput {
+            tick_index: 0,
+            reason: PaperSoakEndpointErrorReason::OpenInterestError,
+            critical: false,
+            stale_fallback_used: false,
+        });
+        run_metrics.record_loop_error(PaperSoakLoopErrorInput {
+            reason: PaperSoakErrorReason::TransientMarketDataError,
+            message: "open interest stale fallback expired".to_string(),
+            state_mutated: false,
+        });
+
+        let report = build_soak_report_with_metrics(&config, 999, 0, 1, &run_metrics);
+
+        assert!(report.soak_passed);
+        assert_eq!(report.failed_ticks, 1);
+        assert_eq!(report.stale_fallback_count, 0);
+        assert_eq!(report.endpoint_error_breakdown["open_interest_error"], 1);
+        paths.cleanup();
+    }
+
+    #[test]
+    fn max_consecutive_critical_errors_blocks_soak() {
+        let paths = FixturePaths::new("consecutive_critical_endpoint_errors");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        fs::write(&paths.log, "").unwrap();
+        let mut config = paths.config();
+        config.ticks = 1_000;
+        let mut run_metrics = metrics(Vec::new());
+        for tick_index in 0..3 {
+            run_metrics.record_endpoint_error(PaperSoakEndpointErrorInput {
+                tick_index,
+                reason: PaperSoakEndpointErrorReason::MarkPriceError,
+                critical: true,
+                stale_fallback_used: false,
+            });
+            run_metrics.record_loop_error(PaperSoakLoopErrorInput {
+                reason: PaperSoakErrorReason::TransientMarketDataError,
+                message: "critical market data failed".to_string(),
+                state_mutated: false,
+            });
+        }
+
+        let report = build_soak_report_with_metrics(&config, 997, 0, 3, &run_metrics);
+
+        assert!(!report.soak_passed);
+        assert_eq!(report.max_consecutive_errors, 3);
+        assert_eq!(report.error_windows.len(), 1);
+        assert_eq!(report.error_windows[0].length, 3);
+        assert!(report.error_windows[0].critical);
+        assert!(has_blocker(&report, "consecutive_loop_errors"));
+        paths.cleanup();
+    }
+
+    #[test]
+    fn data_freshness_score_is_deterministic() {
+        let paths = FixturePaths::new("data_freshness_score");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        fs::write(&paths.log, "").unwrap();
+        let mut run_metrics = metrics(Vec::new());
+        run_metrics.fresh_ticks = 8;
+        run_metrics.record_stale_market_data_tick(1, 60);
+        run_metrics.record_stale_market_data_tick(1, 120);
+
+        let first = build_soak_report_with_metrics(&paths.config(), 10, 0, 0, &run_metrics);
+        let second = build_soak_report_with_metrics(&paths.config(), 10, 0, 0, &run_metrics);
+
+        assert_eq!(first.data_freshness_score, second.data_freshness_score);
+        assert_eq!(first.data_freshness_score, dec!(0.95));
+        assert_eq!(first.stale_fallback_count, 2);
+        assert_eq!(first.max_stale_age_seconds, 120);
         paths.cleanup();
     }
 

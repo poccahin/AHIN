@@ -83,6 +83,24 @@ pub fn safety_config_check(
             "canary readiness cannot enable live order capability",
         ));
     }
+    if engine_config.safety.allow_live_orders {
+        blockers.push(blocker(
+            "live_orders_enabled",
+            "config safety.allow_live_orders must be false",
+        ));
+    }
+    if engine_config.safety.allow_signed_endpoints {
+        blockers.push(blocker(
+            "signed_endpoints_enabled",
+            "config safety.allow_signed_endpoints must be false",
+        ));
+    }
+    if engine_config.safety.allow_api_key_loading {
+        blockers.push(blocker(
+            "api_key_loading_enabled",
+            "config safety.allow_api_key_loading must be false",
+        ));
+    }
     if engine_config.safety.allow_live_100x {
         blockers.push(blocker(
             "live_100x_enabled",
@@ -93,6 +111,36 @@ pub fn safety_config_check(
         blockers.push(blocker(
             "withdrawal_enabled",
             "canary readiness cannot enable withdrawal capability",
+        ));
+    }
+    if engine_config.safety.allow_withdrawals {
+        blockers.push(blocker(
+            "withdrawal_enabled",
+            "config safety.allow_withdrawals must be false",
+        ));
+    }
+    if engine_config.safety.allow_leverage_changes {
+        blockers.push(blocker(
+            "leverage_changes_enabled",
+            "config safety.allow_leverage_changes must be false",
+        ));
+    }
+    if engine_config.safety.max_live_micro_notional_usdt > Decimal::ZERO {
+        blockers.push(blocker(
+            "live_micro_notional_enabled",
+            "config max_live_micro_notional_usdt must remain 0",
+        ));
+    }
+    if !engine_config.safety.manual_confirmation_required {
+        blockers.push(blocker(
+            "manual_confirmation_not_required",
+            "manual confirmation must remain required",
+        ));
+    }
+    if !engine_config.safety.two_step_confirmation_required {
+        blockers.push(blocker(
+            "two_step_confirmation_not_required",
+            "two-step confirmation must remain required",
         ));
     }
     if engine_config.safety.max_leverage > readiness_config.max_allowed_leverage {

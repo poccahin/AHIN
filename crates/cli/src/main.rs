@@ -1,14 +1,23 @@
 #![forbid(unsafe_code)]
 
-use std::{path::PathBuf, time::Instant};
+use std::{
+    future::Future,
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 
 use backtest::{event_loader, event_replay};
-use canary_engine::readiness::{self, CanaryReadinessInputs};
+use canary_engine::{
+    live_micro::{self, LiveMicroReadinessInputs},
+    readiness::{self, CanaryReadinessInputs},
+    release_audit,
+};
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use cost_engine::{edge_after_cost, fee_model};
 use domain::{
-    AccountRiskState, AppResult, BacktestConfig, CandidateSizingConfig, EngineConfig,
-    FeatureSnapshot, Leverage, Notional, OrderRequest, Price, Quantity, RiskBudget,
+    AccountRiskState, AppError, AppResult, BacktestConfig, CandidateSizingConfig, EngineConfig,
+    FeatureSnapshot, FundingRate, Leverage, Notional, OpenInterest, OrderRequest,
+    PaperSoakEndpointErrorReason, PaperSoakRetryConfig, Price, Quantity, RiskBudget,
     RiskBudgetConfig, Side, Symbol,
 };
 use exchange::{BinanceReadonly, ExchangeAdapter, MockExchange};
@@ -71,6 +80,14 @@ enum Command {
         #[command(subcommand)]
         command: CanaryCommand,
     },
+    LiveMicro {
+        #[command(subcommand)]
+        command: LiveMicroCommand,
+    },
+    Release {
+        #[command(subcommand)]
+        command: ReleaseCommand,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -117,6 +134,16 @@ enum PaperCommand {
 #[derive(Debug, Subcommand)]
 enum CanaryCommand {
     Readiness(CanaryReadinessArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum LiveMicroCommand {
+    Readiness,
+}
+
+#[derive(Debug, Subcommand)]
+enum ReleaseCommand {
+    Audit(ReleaseAuditArgs),
 }
 
 #[derive(Debug, Args)]
@@ -230,6 +257,24 @@ struct CanaryReadinessArgs {
     backtest_input: PathBuf,
 }
 
+#[derive(Debug, Args)]
+struct ReleaseAuditArgs {
+    #[arg(long)]
+    backtest_input: PathBuf,
+
+    #[arg(long)]
+    paper_state: PathBuf,
+
+    #[arg(long)]
+    paper_log: PathBuf,
+
+    #[arg(long)]
+    soak_report: PathBuf,
+
+    #[arg(long)]
+    output: PathBuf,
+}
+
 #[derive(Debug, Clone, Copy, ValueEnum)]
 enum ExchangeName {
     Binance,
@@ -262,6 +307,8 @@ async fn run() -> AppResult<()> {
         Command::Backtest { command } => backtest_cli(config, command).await,
         Command::Paper { command } => paper_cli(config, binance_base_url, command).await,
         Command::Canary { command } => canary_cli(config, command).await,
+        Command::LiveMicro { command } => live_micro_cli(config, command).await,
+        Command::Release { command } => release_cli(config, command).await,
     }
 }
 
@@ -635,24 +682,44 @@ async fn paper_cli(
             let mut ticks_processed = 0;
             let mut candidate_generated_count = 0;
             let mut errors_count = 0;
+            let adapter = market_adapter(args.exchange, binance_base_url.as_deref())?;
+            let symbol = Symbol::new(&args.symbol)?;
+            let retry_config = PaperSoakRetryConfig::default();
+            let mut market_data_cache = PaperSoakMarketDataCache::default();
 
             for tick_idx in 0..soak_config.ticks {
                 let before = paper_soak::StateStructuralFingerprint::from_state(&state);
-                match fetch_feature_snapshot(
-                    FeatureSnapshotArgs {
-                        exchange: args.exchange,
-                        symbol: args.symbol.clone(),
-                        depth: args.depth,
-                    },
-                    binance_base_url.as_deref(),
+                let feature_snapshot_result = tokio::time::timeout(
+                    Duration::from_millis(retry_config.tick_max_duration_ms),
+                    fetch_resilient_feature_snapshot(
+                        &adapter,
+                        &symbol,
+                        args.depth,
+                        &retry_config,
+                        &mut market_data_cache,
+                    ),
                 )
-                .await
-                {
-                    Ok(feature_snapshot) => {
-                        match paper_loop::process_snapshot(&mut state, &feature_snapshot) {
+                .await;
+
+                match feature_snapshot_result {
+                    Ok(Ok(resilient_snapshot)) => {
+                        record_endpoint_errors_for_tick(
+                            &mut metrics,
+                            tick_idx,
+                            &resilient_snapshot.endpoint_errors,
+                        );
+                        if resilient_snapshot.stale_fallback_count > 0 {
+                            metrics.record_stale_market_data_tick(
+                                resilient_snapshot.stale_fallback_count,
+                                resilient_snapshot.max_stale_age_seconds,
+                            );
+                        } else {
+                            metrics.record_fresh_market_data_tick();
+                        }
+                        match paper_loop::process_snapshot(&mut state, &resilient_snapshot.snapshot)
+                        {
                             Ok(outcome) => {
                                 ticks_processed += 1;
-                                let mut tick_had_error = false;
                                 let safe_candidate_generated =
                                     paper_engine::soak_report::is_audit_only_candidate_generated(
                                         &outcome.candidate_decision,
@@ -664,7 +731,6 @@ async fn paper_cli(
                                     && let Err(err) =
                                         paper_state::append_trade(&soak_config.log_path, trade)
                                 {
-                                    tick_had_error = true;
                                     errors_count += 1;
                                     metrics.record_loop_error(
                                         paper_engine::soak_report::PaperSoakLoopErrorInput {
@@ -678,7 +744,6 @@ async fn paper_cli(
                                 if let Err(err) =
                                     paper_state::persist_state(&soak_config.state_path, &state)
                                 {
-                                    tick_had_error = true;
                                     errors_count += 1;
                                     metrics.record_loop_error(
                                         paper_engine::soak_report::PaperSoakLoopErrorInput {
@@ -701,7 +766,7 @@ async fn paper_cli(
                                         candidate_decision: &outcome.candidate_decision,
                                         edge_after_cost_ratio: Some(
                                             candidate_decision::edge_after_cost_ratio(
-                                                &feature_snapshot,
+                                                &resilient_snapshot.snapshot,
                                                 &outcome.signal_decision,
                                             ),
                                         ),
@@ -710,9 +775,6 @@ async fn paper_cli(
                                         state_mutated_without_candidate_or_fill,
                                     },
                                 );
-                                if !tick_had_error {
-                                    metrics.record_successful_tick();
-                                }
                             }
                             Err(err) => {
                                 errors_count += 1;
@@ -731,7 +793,46 @@ async fn paper_cli(
                             }
                         }
                     }
-                    Err(err) => {
+                    Ok(Err(err)) => {
+                        record_endpoint_errors_for_tick(
+                            &mut metrics,
+                            tick_idx,
+                            &err.endpoint_errors,
+                        );
+                        errors_count += 1;
+                        metrics.record_loop_error(
+                            paper_engine::soak_report::PaperSoakLoopErrorInput {
+                                reason: paper_engine::soak_report::classify_loop_error(
+                                    &err.app_error,
+                                ),
+                                message: err.app_error.to_string(),
+                                state_mutated: before
+                                    != paper_soak::StateStructuralFingerprint::from_state(&state),
+                            },
+                        );
+                    }
+                    Err(_) => {
+                        let err = AppError::HttpRequest {
+                            exchange: "paper_soak".to_string(),
+                            endpoint: "feature_snapshot".to_string(),
+                            reason: format!(
+                                "tick exceeded {} ms max duration",
+                                retry_config.tick_max_duration_ms
+                            ),
+                        };
+                        let endpoint_errors = vec![
+                            PaperSoakEndpointDiagnostic {
+                                reason: PaperSoakEndpointErrorReason::FeatureSnapshotError,
+                                critical: true,
+                                stale_fallback_used: false,
+                            },
+                            PaperSoakEndpointDiagnostic {
+                                reason: PaperSoakEndpointErrorReason::HttpTimeout,
+                                critical: true,
+                                stale_fallback_used: false,
+                            },
+                        ];
+                        record_endpoint_errors_for_tick(&mut metrics, tick_idx, &endpoint_errors);
                         errors_count += 1;
                         metrics.record_loop_error(
                             paper_engine::soak_report::PaperSoakLoopErrorInput {
@@ -795,6 +896,44 @@ async fn canary_cli(config_path: PathBuf, command: CanaryCommand) -> AppResult<(
     }
 }
 
+async fn live_micro_cli(config_path: PathBuf, command: LiveMicroCommand) -> AppResult<()> {
+    let config = EngineConfig::load_from_path(config_path)?;
+
+    match command {
+        LiveMicroCommand::Readiness => {
+            let inputs = LiveMicroReadinessInputs::default();
+            let report = live_micro::evaluate_live_micro_readiness(&config, &inputs);
+            print_json(serde_json::to_value(report).map_err(|err| {
+                domain::AppError::Config(format!(
+                    "failed to render live micro readiness report: {err}"
+                ))
+            })?)
+        }
+    }
+}
+
+async fn release_cli(config_path: PathBuf, command: ReleaseCommand) -> AppResult<()> {
+    let config = EngineConfig::load_from_path(config_path)?;
+
+    match command {
+        ReleaseCommand::Audit(args) => {
+            let defaults = domain::ReleaseAuditConfig::default();
+            let audit_config = domain::ReleaseAuditConfig {
+                backtest_input: args.backtest_input.display().to_string(),
+                paper_state: args.paper_state.display().to_string(),
+                paper_log: args.paper_log.display().to_string(),
+                soak_report: args.soak_report.display().to_string(),
+                output: Some(args.output.display().to_string()),
+                ..defaults
+            };
+            let report = release_audit::run_release_audit(&config, &audit_config)?;
+            print_json(serde_json::to_value(report).map_err(|err| {
+                domain::AppError::Config(format!("failed to render release audit report: {err}"))
+            })?)
+        }
+    }
+}
+
 async fn fetch_feature_snapshot(
     args: FeatureSnapshotArgs,
     binance_base_url: Option<&str>,
@@ -817,6 +956,307 @@ async fn fetch_feature_snapshot(
         open_interest,
         orderbook,
     )
+}
+
+async fn fetch_resilient_feature_snapshot(
+    adapter: &BinanceReadonly,
+    symbol: &Symbol,
+    depth: u16,
+    retry_config: &PaperSoakRetryConfig,
+    cache: &mut PaperSoakMarketDataCache,
+) -> Result<ResilientFeatureSnapshot, ResilientFeatureSnapshotError> {
+    let mut endpoint_errors = Vec::new();
+    let mut stale_fallback_count = 0_u64;
+    let mut max_stale_age_seconds = 0_u64;
+
+    let (mark_price, index_price) = fetch_with_retries("mark_price", retry_config, || {
+        adapter.fetch_mark_index_prices(symbol.as_str())
+    })
+    .await
+    .map_err(|err| {
+        resilient_endpoint_error(err, PaperSoakEndpointErrorReason::MarkPriceError, true)
+    })?;
+
+    let funding_rate = match fetch_with_retries("funding_rate", retry_config, || {
+        adapter.fetch_funding_rate(symbol.as_str())
+    })
+    .await
+    {
+        Ok(funding_rate) => {
+            cache.funding_rate = Some(CachedFundingRate {
+                value: funding_rate.clone(),
+                fetched_at: Instant::now(),
+            });
+            funding_rate
+        }
+        Err(err) => {
+            if let Some((cached, age_seconds)) = cache.cached_funding_rate() {
+                endpoint_errors.extend(endpoint_failure_diagnostics(
+                    PaperSoakEndpointErrorReason::FundingRateError,
+                    false,
+                    true,
+                    &err,
+                ));
+                stale_fallback_count += 1;
+                max_stale_age_seconds = max_stale_age_seconds.max(age_seconds);
+                cached
+            } else {
+                return Err(resilient_endpoint_error(
+                    err,
+                    PaperSoakEndpointErrorReason::FundingRateError,
+                    false,
+                ));
+            }
+        }
+    };
+
+    let open_interest = match fetch_with_retries("open_interest", retry_config, || {
+        adapter.fetch_open_interest(symbol.as_str())
+    })
+    .await
+    {
+        Ok(open_interest) => {
+            cache.open_interest = Some(CachedOpenInterest {
+                value: open_interest.clone(),
+                fetched_at: Instant::now(),
+            });
+            open_interest
+        }
+        Err(err) => {
+            if let Some((cached, age_seconds)) = cache.cached_open_interest() {
+                endpoint_errors.extend(endpoint_failure_diagnostics(
+                    PaperSoakEndpointErrorReason::OpenInterestError,
+                    false,
+                    true,
+                    &err,
+                ));
+                stale_fallback_count += 1;
+                max_stale_age_seconds = max_stale_age_seconds.max(age_seconds);
+                cached
+            } else {
+                return Err(resilient_endpoint_error(
+                    err,
+                    PaperSoakEndpointErrorReason::OpenInterestError,
+                    false,
+                ));
+            }
+        }
+    };
+
+    let orderbook = fetch_with_retries("orderbook_depth", retry_config, || {
+        adapter.fetch_orderbook_depth(symbol.as_str(), depth)
+    })
+    .await
+    .map_err(|err| {
+        resilient_endpoint_error(err, PaperSoakEndpointErrorReason::OrderbookDepthError, true)
+    })?;
+
+    let snapshot = snapshot::build_feature_snapshot(
+        "binance",
+        symbol.clone(),
+        mark_price,
+        index_price,
+        funding_rate,
+        open_interest,
+        orderbook,
+    )
+    .map_err(|err| {
+        resilient_endpoint_error(
+            err,
+            PaperSoakEndpointErrorReason::FeatureSnapshotError,
+            true,
+        )
+    })?;
+
+    Ok(ResilientFeatureSnapshot {
+        snapshot,
+        endpoint_errors,
+        stale_fallback_count,
+        max_stale_age_seconds,
+    })
+}
+
+async fn fetch_with_retries<T, Fut, F>(
+    endpoint: &'static str,
+    retry_config: &PaperSoakRetryConfig,
+    mut fetch: F,
+) -> AppResult<T>
+where
+    F: FnMut() -> Fut,
+    Fut: Future<Output = AppResult<T>>,
+{
+    let mut last_error = None;
+    for attempt in 0..=retry_config.per_endpoint_max_retries {
+        match tokio::time::timeout(
+            Duration::from_millis(retry_config.per_endpoint_timeout_ms),
+            fetch(),
+        )
+        .await
+        {
+            Ok(Ok(value)) => return Ok(value),
+            Ok(Err(err)) => last_error = Some(err),
+            Err(_) => {
+                last_error = Some(AppError::HttpRequest {
+                    exchange: "paper_soak".to_string(),
+                    endpoint: endpoint.to_string(),
+                    reason: format!(
+                        "endpoint timed out after {} ms",
+                        retry_config.per_endpoint_timeout_ms
+                    ),
+                });
+            }
+        }
+
+        if attempt < retry_config.per_endpoint_max_retries {
+            let backoff_ms = retry_config
+                .retry_backoff_ms
+                .get(attempt as usize)
+                .copied()
+                .unwrap_or_else(|| retry_config.retry_backoff_ms.last().copied().unwrap_or(0));
+            if backoff_ms > 0 {
+                tokio::time::sleep(Duration::from_millis(backoff_ms)).await;
+            }
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| AppError::HttpRequest {
+        exchange: "paper_soak".to_string(),
+        endpoint: endpoint.to_string(),
+        reason: "endpoint retry loop exhausted without a response".to_string(),
+    }))
+}
+
+fn resilient_endpoint_error(
+    app_error: AppError,
+    endpoint_reason: PaperSoakEndpointErrorReason,
+    critical: bool,
+) -> ResilientFeatureSnapshotError {
+    let endpoint_errors =
+        endpoint_failure_diagnostics(endpoint_reason, critical, false, &app_error);
+    ResilientFeatureSnapshotError {
+        app_error,
+        endpoint_errors,
+    }
+}
+
+fn endpoint_failure_diagnostics(
+    endpoint_reason: PaperSoakEndpointErrorReason,
+    critical: bool,
+    stale_fallback_used: bool,
+    app_error: &AppError,
+) -> Vec<PaperSoakEndpointDiagnostic> {
+    let mut diagnostics = vec![PaperSoakEndpointDiagnostic {
+        reason: endpoint_reason,
+        critical,
+        stale_fallback_used,
+    }];
+    if let Some(reason) = transport_endpoint_error_reason(app_error) {
+        diagnostics.push(PaperSoakEndpointDiagnostic {
+            reason,
+            critical,
+            stale_fallback_used,
+        });
+    }
+    diagnostics
+}
+
+fn transport_endpoint_error_reason(app_error: &AppError) -> Option<PaperSoakEndpointErrorReason> {
+    match app_error {
+        AppError::HttpRequest { reason, .. } => {
+            if reason.to_ascii_lowercase().contains("timeout")
+                || reason.to_ascii_lowercase().contains("timed out")
+            {
+                Some(PaperSoakEndpointErrorReason::HttpTimeout)
+            } else {
+                None
+            }
+        }
+        AppError::HttpStatus { status, .. } => match *status {
+            408 => Some(PaperSoakEndpointErrorReason::HttpTimeout),
+            418 | 429 => Some(PaperSoakEndpointErrorReason::HttpRateLimit),
+            _ => Some(PaperSoakEndpointErrorReason::HttpStatusError),
+        },
+        AppError::ResponseParse { .. } => Some(PaperSoakEndpointErrorReason::ParseError),
+        _ => None,
+    }
+}
+
+fn record_endpoint_errors_for_tick(
+    metrics: &mut paper_engine::soak_report::PaperSoakRunMetrics,
+    tick_index: u64,
+    endpoint_errors: &[PaperSoakEndpointDiagnostic],
+) {
+    for error in endpoint_errors {
+        metrics.record_endpoint_error(paper_engine::soak_report::PaperSoakEndpointErrorInput {
+            tick_index,
+            reason: error.reason,
+            critical: error.critical,
+            stale_fallback_used: error.stale_fallback_used,
+        });
+    }
+}
+
+#[derive(Debug, Default)]
+struct PaperSoakMarketDataCache {
+    funding_rate: Option<CachedFundingRate>,
+    open_interest: Option<CachedOpenInterest>,
+}
+
+impl PaperSoakMarketDataCache {
+    fn cached_funding_rate(&self) -> Option<(FundingRate, u64)> {
+        self.funding_rate.as_ref().and_then(|cached| {
+            let age_seconds = cached.fetched_at.elapsed().as_secs();
+            paper_engine::soak_report::endpoint_allows_stale_fallback(
+                PaperSoakEndpointErrorReason::FundingRateError,
+                age_seconds,
+            )
+            .then(|| (cached.value.clone(), age_seconds))
+        })
+    }
+
+    fn cached_open_interest(&self) -> Option<(OpenInterest, u64)> {
+        self.open_interest.as_ref().and_then(|cached| {
+            let age_seconds = cached.fetched_at.elapsed().as_secs();
+            paper_engine::soak_report::endpoint_allows_stale_fallback(
+                PaperSoakEndpointErrorReason::OpenInterestError,
+                age_seconds,
+            )
+            .then(|| (cached.value.clone(), age_seconds))
+        })
+    }
+}
+
+#[derive(Debug, Clone)]
+struct CachedFundingRate {
+    value: FundingRate,
+    fetched_at: Instant,
+}
+
+#[derive(Debug, Clone)]
+struct CachedOpenInterest {
+    value: OpenInterest,
+    fetched_at: Instant,
+}
+
+#[derive(Debug)]
+struct ResilientFeatureSnapshot {
+    snapshot: FeatureSnapshot,
+    endpoint_errors: Vec<PaperSoakEndpointDiagnostic>,
+    stale_fallback_count: u64,
+    max_stale_age_seconds: u64,
+}
+
+#[derive(Debug, Clone)]
+struct ResilientFeatureSnapshotError {
+    app_error: AppError,
+    endpoint_errors: Vec<PaperSoakEndpointDiagnostic>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PaperSoakEndpointDiagnostic {
+    reason: PaperSoakEndpointErrorReason,
+    critical: bool,
+    stale_fallback_used: bool,
 }
 
 fn market_adapter(

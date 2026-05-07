@@ -1,8 +1,16 @@
 [safety]
 allow_live_trading = false
 allow_live_100x = false
+allow_live_orders = false
+allow_signed_endpoints = false
+allow_api_key_loading = false
+allow_withdrawals = false
+allow_leverage_changes = false
 max_leverage = 5
 max_order_notional = 20
+max_live_micro_notional_usdt = 0
+manual_confirmation_required = true
+two_step_confirmation_required = true
 
 [account]
 starting_equity = 200
@@ -14,4 +22,3 @@ min_notional = 5
 dry_run = false
 
 symbols = ["BTCUSDT"]
-

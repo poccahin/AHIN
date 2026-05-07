@@ -77,7 +77,7 @@ pub fn run_snapshots(
                     state_mutated_without_candidate_or_fill,
                 });
                 if !tick_had_error {
-                    metrics.record_successful_tick();
+                    metrics.record_fresh_market_data_tick();
                 }
             }
             Err(err) => {

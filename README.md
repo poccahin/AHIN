@@ -754,6 +754,83 @@ Guardrails:
 
 `paper compare-reports` treats low-rate transient loop warnings as non-blocking. Legacy reports that only contain the old `paper_loop_errors` blocker can also be tolerated when their tick/error counts prove the errors were low-rate and no candidates, fills, positions, or state mutations occurred.
 
+## Phase 8.3.2: Market Data Reliability Diagnostics & Resilience
+
+Phase 8.3.2 diagnoses public read-only market-data reliability during paper soaks. The soak loop now fetches Binance endpoints with bounded per-endpoint retry/backoff, records which endpoint failed, and only permits stale fallback for non-critical data.
+
+Critical fields must be fresh:
+
+- mark/index price
+- orderbook depth
+
+Non-critical stale fallback is allowed only when cached data is still recent:
+
+- funding rate: up to 15 minutes old
+- open interest: up to 5 minutes old
+
+The soak report now includes endpoint diagnostics:
+
+- `endpoint_error_breakdown`
+- `error_windows`
+- `fresh_ticks`, `stale_ticks`, and `failed_ticks`
+- `stale_fallback_count`
+- `max_stale_age_seconds`
+- `data_freshness_score`
+
+Guardrails:
+
+- critical endpoint failures fail the tick
+- failed ticks never generate candidates, paper fills, or paper position mutations
+- stale fallback ticks may evaluate only when mark/index price and orderbook are fresh
+- stale fallback ratio above `0.05` warns
+- stale fallback ratio above `0.15` blocks
+- three consecutive critical failed ticks still block through `consecutive_loop_errors`
+
+Retry defaults:
+
+- `per_endpoint_max_retries = 2`
+- `per_endpoint_timeout_ms = 5000`
+- `retry_backoff_ms = [200, 500]`
+- `tick_max_duration_ms = 12000`
+
+## Phase 9: Manual-Gated Live Micro Scaffold
+
+Phase 9 adds an audit-only live micro readiness scaffold. It does not implement real order placement, signed/private endpoints, API key loading, withdrawal execution, leverage changes, market orders, limit orders, or executable exchange orders.
+
+```sh
+cargo run -p cli -- live-micro readiness
+```
+
+The command inspects local safety config, optional local canary and paper soak reports, git hygiene, non-secret manual gate environment markers, and source files for obvious forbidden live capabilities. Defaults remain locked:
+
+- `allow_live_trading = false`
+- `allow_live_orders = false`
+- `allow_signed_endpoints = false`
+- `allow_api_key_loading = false`
+- `allow_withdrawals = false`
+- `allow_leverage_changes = false`
+- `max_live_micro_notional_usdt = 0`
+- manual and two-step confirmation remain required
+
+The default report intentionally returns `live_micro_ready=false`, `live_trading_allowed=false`, `live_orders_allowed=false`, and `signed_endpoints_allowed=false`. Reasons include `manual_confirmation_absent`, `second_confirmation_absent`, `live_orders_disabled`, and `no_executable_order_capability`.
+
+## Phase 9.1: Release Audit Snapshot
+
+Phase 9.1 generates a local release audit snapshot proving the repository is still research/paper/audit-only. It only reads local files, config, reports, git metadata, and safety flags. It does not place orders, call signed endpoints, read API keys, execute withdrawals, change leverage, or enable live trading.
+
+```sh
+cargo run -p cli -- release audit \
+  --backtest-input data/replay/sample_events.jsonl \
+  --paper-state data/paper/paper_state.json \
+  --paper-log data/paper/paper_trades.jsonl \
+  --soak-report data/paper/soak_report_24h.json \
+  --output data/release/release_audit_report.json
+```
+
+The report includes git commit/clean state, config safety flags, health-check summary, canary readiness summary, live micro readiness summary, soak report summary, forbidden capability scan summary, expected validation commands, release readiness, blockers, and warnings.
+
+`release_ready=true` requires a clean git worktree, passing config safety flags, passing forbidden-capability scan, canary readiness with only the expected manual-live-gate blocker, live micro readiness remaining false by design, and no executable order capability. During active development the command may write a valid report with `release_ready=false` because the worktree is dirty.
+
 ## Phase Roadmap
 
 1. Workspace skeleton, strict domain types, safe config, mock exchange, dry-run CLI health check.

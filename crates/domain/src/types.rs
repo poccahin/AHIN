@@ -492,6 +492,25 @@ impl Default for PaperSoakConfig {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaperSoakRetryConfig {
+    pub per_endpoint_max_retries: u32,
+    pub per_endpoint_timeout_ms: u64,
+    pub retry_backoff_ms: Vec<u64>,
+    pub tick_max_duration_ms: u64,
+}
+
+impl Default for PaperSoakRetryConfig {
+    fn default() -> Self {
+        Self {
+            per_endpoint_max_retries: 2,
+            per_endpoint_timeout_ms: 5_000,
+            retry_backoff_ms: vec![200, 500],
+            tick_max_duration_ms: 12_000,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaperSoakWarning {
     pub code: String,
     pub message: String,
@@ -513,6 +532,45 @@ pub enum PaperSoakErrorReason {
     StatePersistenceError,
     InvariantViolation,
     ForbiddenCapabilityError,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PaperSoakEndpointErrorReason {
+    MarkPriceError,
+    FundingRateError,
+    OpenInterestError,
+    OrderbookDepthError,
+    FeatureSnapshotError,
+    HttpTimeout,
+    HttpRateLimit,
+    HttpStatusError,
+    ParseError,
+}
+
+impl PaperSoakEndpointErrorReason {
+    pub fn as_key(self) -> &'static str {
+        match self {
+            Self::MarkPriceError => "mark_price_error",
+            Self::FundingRateError => "funding_rate_error",
+            Self::OpenInterestError => "open_interest_error",
+            Self::OrderbookDepthError => "orderbook_depth_error",
+            Self::FeatureSnapshotError => "feature_snapshot_error",
+            Self::HttpTimeout => "http_timeout",
+            Self::HttpRateLimit => "http_rate_limit",
+            Self::HttpStatusError => "http_status_error",
+            Self::ParseError => "parse_error",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaperSoakErrorWindow {
+    pub reason: String,
+    pub start_tick: u64,
+    pub end_tick: u64,
+    pub length: u64,
+    pub critical: bool,
 }
 
 impl PaperSoakErrorReason {
@@ -563,6 +621,22 @@ pub struct PaperSoakReport {
     pub error_breakdown_by_reason: BTreeMap<String, u64>,
     #[serde(default)]
     pub ticks_failed: u64,
+    #[serde(default)]
+    pub endpoint_error_breakdown: BTreeMap<String, u64>,
+    #[serde(default)]
+    pub error_windows: Vec<PaperSoakErrorWindow>,
+    #[serde(default)]
+    pub fresh_ticks: u64,
+    #[serde(default)]
+    pub stale_ticks: u64,
+    #[serde(default)]
+    pub failed_ticks: u64,
+    #[serde(default)]
+    pub stale_fallback_count: u64,
+    #[serde(default)]
+    pub max_stale_age_seconds: u64,
+    #[serde(default)]
+    pub data_freshness_score: Decimal,
     pub signal_grade_distribution: BTreeMap<String, u64>,
     pub signal_direction_distribution: BTreeMap<String, u64>,
     pub rejection_breakdown_by_reason: BTreeMap<String, u64>,
@@ -684,6 +758,199 @@ pub struct CanaryReadinessReport {
     pub summary: String,
     pub live_trading_allowed: bool,
     pub executable_order_capability: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LiveGateConfig {
+    pub allow_live_trading: bool,
+    pub allow_live_orders: bool,
+    pub allow_signed_endpoints: bool,
+    pub allow_api_key_loading: bool,
+    pub allow_withdrawals: bool,
+    pub allow_leverage_changes: bool,
+    pub max_live_micro_notional_usdt: Decimal,
+    pub manual_confirmation_required: bool,
+    pub two_step_confirmation_required: bool,
+}
+
+impl Default for LiveGateConfig {
+    fn default() -> Self {
+        Self {
+            allow_live_trading: false,
+            allow_live_orders: false,
+            allow_signed_endpoints: false,
+            allow_api_key_loading: false,
+            allow_withdrawals: false,
+            allow_leverage_changes: false,
+            max_live_micro_notional_usdt: Decimal::ZERO,
+            manual_confirmation_required: true,
+            two_step_confirmation_required: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveGateReason {
+    DefaultSafeMode,
+    LiveTradingDisabled,
+    LiveOrdersDisabled,
+    SignedEndpointsDisabled,
+    ApiKeyLoadingDisabled,
+    WithdrawalsDisabled,
+    LeverageChangesDisabled,
+    MaxLiveMicroNotionalZero,
+    ManualConfirmationAbsent,
+    SecondConfirmationAbsent,
+    CanaryReadinessMissing,
+    CanaryReadinessNotReady,
+    PaperSoakReportMissing,
+    PaperSoakNotPassed,
+    GitHygieneBlocked,
+    ForbiddenCapabilityFound,
+    ApiPermissionAuditBlocked,
+    NoExecutableOrderCapability,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LiveGateDecision {
+    pub live_micro_ready: bool,
+    pub live_trading_allowed: bool,
+    pub live_orders_allowed: bool,
+    pub signed_endpoints_allowed: bool,
+    pub reasons: Vec<LiveGateReason>,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ApiPermissionAuditReport {
+    pub api_key_loading_allowed: bool,
+    pub signed_endpoints_allowed: bool,
+    pub withdrawals_allowed: bool,
+    pub leverage_changes_allowed: bool,
+    pub forbidden_patterns_found: Vec<String>,
+    pub blocked: bool,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ManualConfirmationState {
+    pub manual_confirmation_required: bool,
+    pub two_step_confirmation_required: bool,
+    pub manual_confirmation_env: String,
+    pub second_confirmation_env: String,
+    pub manual_confirmation_present: bool,
+    pub second_confirmation_present: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LiveMicroReadinessReport {
+    pub live_micro_ready: bool,
+    pub live_trading_allowed: bool,
+    pub live_orders_allowed: bool,
+    pub signed_endpoints_allowed: bool,
+    pub api_key_loading_allowed: bool,
+    pub withdrawals_allowed: bool,
+    pub leverage_changes_allowed: bool,
+    pub executable_order_capability: bool,
+    pub gate_decision: LiveGateDecision,
+    pub api_permission_audit: ApiPermissionAuditReport,
+    pub manual_confirmation: ManualConfirmationState,
+    pub canary_readiness_available: bool,
+    pub canary_ready: Option<bool>,
+    pub paper_soak_report_available: bool,
+    pub paper_soak_passed: Option<bool>,
+    pub git_hygiene_ok: Option<bool>,
+    pub reasons: Vec<LiveGateReason>,
+    pub blockers: Vec<String>,
+    pub warnings: Vec<String>,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReleaseAuditBlocker {
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReleaseAuditWarning {
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReleaseAuditCheck {
+    pub name: String,
+    pub passed: bool,
+    pub summary: String,
+    pub blockers: Vec<ReleaseAuditBlocker>,
+    pub warnings: Vec<ReleaseAuditWarning>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReleaseAuditConfig {
+    pub workspace_root: String,
+    pub backtest_input: String,
+    pub paper_state: String,
+    pub paper_log: String,
+    pub soak_report: String,
+    pub output: Option<String>,
+    pub source_scan_paths: Vec<String>,
+    pub validation_commands_expected: Vec<String>,
+}
+
+impl Default for ReleaseAuditConfig {
+    fn default() -> Self {
+        Self {
+            workspace_root: ".".to_string(),
+            backtest_input: "data/replay/sample_events.jsonl".to_string(),
+            paper_state: "data/paper/paper_state.json".to_string(),
+            paper_log: "data/paper/paper_trades.jsonl".to_string(),
+            soak_report: "data/paper/soak_report_24h.json".to_string(),
+            output: None,
+            source_scan_paths: vec![
+                "crates/backtest/src".to_string(),
+                "crates/cost_engine/src".to_string(),
+                "crates/domain/src".to_string(),
+                "crates/exchange/src".to_string(),
+                "crates/execution_engine/src".to_string(),
+                "crates/feature_engine/src".to_string(),
+                "crates/market_data/src".to_string(),
+                "crates/paper_engine/src".to_string(),
+                "crates/risk_engine/src".to_string(),
+                "crates/signal_engine/src".to_string(),
+                "crates/state_engine/src".to_string(),
+                "crates/withdrawal_engine/src".to_string(),
+                "crates/cli/src".to_string(),
+            ],
+            validation_commands_expected: vec![
+                "cargo fmt --all".to_string(),
+                "cargo clippy --workspace --all-targets -- -D warnings".to_string(),
+                "cargo test --workspace".to_string(),
+                "cargo run -p cli -- health-check".to_string(),
+                "cargo run -p cli -- live-micro readiness".to_string(),
+            ],
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ReleaseAuditReport {
+    pub git_commit: Option<String>,
+    pub git_clean: Option<bool>,
+    pub config_safety_flags: BTreeMap<String, String>,
+    pub health_check_summary: String,
+    pub canary_readiness_summary: String,
+    pub live_micro_readiness_summary: String,
+    pub soak_report_summary: String,
+    pub forbidden_capability_scan_summary: String,
+    pub validation_commands_expected: Vec<String>,
+    pub release_ready: bool,
+    pub checks: Vec<ReleaseAuditCheck>,
+    pub blockers: Vec<ReleaseAuditBlocker>,
+    pub warnings: Vec<ReleaseAuditWarning>,
+    pub summary: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
