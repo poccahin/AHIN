@@ -102,6 +102,8 @@ fn has_candidate_blocking_reason(reasons: &[OrderCandidateReason]) -> bool {
                 | OrderCandidateReason::SignalGradeTooLow
                 | OrderCandidateReason::SignalStrengthTooLow
                 | OrderCandidateReason::EdgeAfterCostTooLow
+                | OrderCandidateReason::DegradedMarketData
+                | OrderCandidateReason::YiGateRejected
         )
     })
 }

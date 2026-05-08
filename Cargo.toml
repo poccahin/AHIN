@@ -8,6 +8,7 @@ members = [
     "crates/exchange",
     "crates/execution_engine",
     "crates/feature_engine",
+    "crates/iching_engine",
     "crates/market_data",
     "crates/paper_engine",
     "crates/risk_engine",

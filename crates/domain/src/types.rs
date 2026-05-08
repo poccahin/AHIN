@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
@@ -235,6 +235,8 @@ pub enum OrderCandidateReason {
     SizingCappedByInitialNotional,
     SizingCappedByGrossNotional,
     SizingCappedByMaxLoss,
+    DegradedMarketData,
+    YiGateRejected,
     CandidateGenerated,
 }
 
@@ -497,6 +499,7 @@ pub struct PaperSoakRetryConfig {
     pub per_endpoint_timeout_ms: u64,
     pub retry_backoff_ms: Vec<u64>,
     pub tick_max_duration_ms: u64,
+    pub max_degraded_mark_proxy_spread_bps: Decimal,
 }
 
 impl Default for PaperSoakRetryConfig {
@@ -506,6 +509,7 @@ impl Default for PaperSoakRetryConfig {
             per_endpoint_timeout_ms: 5_000,
             retry_backoff_ms: vec![200, 500],
             tick_max_duration_ms: 12_000,
+            max_degraded_mark_proxy_spread_bps: Decimal::from(5),
         }
     }
 }
@@ -567,6 +571,8 @@ impl PaperSoakEndpointErrorReason {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaperSoakErrorWindow {
     pub reason: String,
+    #[serde(default)]
+    pub reasons: Vec<String>,
     pub start_tick: u64,
     pub end_tick: u64,
     pub length: u64,
@@ -637,9 +643,45 @@ pub struct PaperSoakReport {
     pub max_stale_age_seconds: u64,
     #[serde(default)]
     pub data_freshness_score: Decimal,
+    #[serde(default)]
+    pub critical_endpoint_error_count: u64,
+    #[serde(default)]
+    pub noncritical_endpoint_error_count: u64,
+    #[serde(default)]
+    pub critical_fallback_used_count: u64,
+    #[serde(default)]
+    pub critical_fallback_failed_count: u64,
+    #[serde(default)]
+    pub mark_price_primary_error_count: u64,
+    #[serde(default)]
+    pub mark_price_fallback_used_count: u64,
+    #[serde(default)]
+    pub mark_price_fallback_failed_count: u64,
+    #[serde(default)]
+    pub orderbook_error_count: u64,
+    #[serde(default)]
+    pub consecutive_critical_error_windows: Vec<PaperSoakErrorWindow>,
     pub signal_grade_distribution: BTreeMap<String, u64>,
     pub signal_direction_distribution: BTreeMap<String, u64>,
     pub rejection_breakdown_by_reason: BTreeMap<String, u64>,
+    #[serde(default)]
+    pub yi_hexagram_distribution: BTreeMap<String, u64>,
+    #[serde(default)]
+    pub yi_action_bias_distribution: BTreeMap<String, u64>,
+    #[serde(default)]
+    pub yi_reason_breakdown: BTreeMap<String, u64>,
+    #[serde(default)]
+    pub god_turnpoint_evaluated_count: u64,
+    #[serde(default)]
+    pub god_turnpoint_allowed_count: u64,
+    #[serde(default)]
+    pub god_turnpoint_blocker_breakdown: BTreeMap<String, u64>,
+    #[serde(default)]
+    pub god_turnpoint_warning_breakdown: BTreeMap<String, u64>,
+    #[serde(default)]
+    pub god_signal_pressure_ratio: Decimal,
+    #[serde(default)]
+    pub degraded_yi_evaluation_count: u64,
     pub candidate_pressure_ratio: Decimal,
     pub avg_signal_strength: Decimal,
     pub max_signal_strength: Decimal,
@@ -1156,6 +1198,242 @@ pub struct SignalDecision {
     pub trade_allowed: bool,
     pub reasons: Vec<DecisionReason>,
     pub summary: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Trigram {
+    Qian,
+    Dui,
+    Li,
+    Zhen,
+    Xun,
+    Kan,
+    Gen,
+    Kun,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum YinYang {
+    Yin,
+    Yang,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum YiActionBias {
+    Observe,
+    Probe,
+    Hold,
+    AddAllowed,
+    Reduce,
+    Exit,
+    Cooldown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum YiReason {
+    ResearchOnlyExplanation,
+    WeakSignal,
+    StrongSignal,
+    EdgeAfterCostStrong,
+    EdgeAfterCostWeak,
+    RiskBudgetBlocked,
+    RiskBudgetAllowed,
+    DataFresh,
+    DataFreshnessLow,
+    DegradedMarketData,
+    KanRisk,
+    BoCollapse,
+    PiBlockage,
+    Cooldown,
+    ExecutionSupportive,
+    ExecutionThin,
+    CostHigh,
+    DerivativesSupportive,
+    DerivativesCrowded,
+    TurnpointEvidencePositive,
+    TurnpointEvidenceNegative,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum YiState {
+    QianMomentum,
+    KunStillness,
+    ZhenImpulse,
+    XunTrend,
+    LiClarity,
+    DuiDistribution,
+    GenPause,
+    KanRisk,
+    BoCollapse,
+    PiBlockage,
+    Cooldown,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PositionLine {
+    Line1,
+    Line2,
+    Line3,
+    Line4,
+    Line5,
+    Line6,
+}
+
+impl PositionLine {
+    pub fn number(self) -> u8 {
+        match self {
+            Self::Line1 => 1,
+            Self::Line2 => 2,
+            Self::Line3 => 3,
+            Self::Line4 => 4,
+            Self::Line5 => 5,
+            Self::Line6 => 6,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct HexagramState {
+    pub upper: Trigram,
+    pub lower: Trigram,
+    pub position_line: PositionLine,
+    pub yi_state: YiState,
+    pub action_bias: YiActionBias,
+    pub name: String,
+    pub reasons: Vec<YiReason>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GodTurnpointBlocker {
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GodTurnpointWarning {
+    pub code: String,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GodTurnpointConfig {
+    pub min_signal_strength: Decimal,
+    pub min_edge_after_cost_ratio: Decimal,
+    pub min_data_freshness_score: Decimal,
+    pub allow_degraded_market_data: bool,
+    pub allowed_biases: Vec<YiActionBias>,
+    pub blocked_states: Vec<YiState>,
+    pub feature_window_len: usize,
+}
+
+impl Default for GodTurnpointConfig {
+    fn default() -> Self {
+        Self {
+            min_signal_strength: Decimal::from(85),
+            min_edge_after_cost_ratio: Decimal::from(3),
+            min_data_freshness_score: Decimal::new(98, 2),
+            allow_degraded_market_data: false,
+            allowed_biases: vec![
+                YiActionBias::Probe,
+                YiActionBias::AddAllowed,
+                YiActionBias::Hold,
+            ],
+            blocked_states: vec![
+                YiState::KanRisk,
+                YiState::BoCollapse,
+                YiState::PiBlockage,
+                YiState::Cooldown,
+            ],
+            feature_window_len: 8,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FeatureWindow {
+    pub max_len: usize,
+    pub snapshots: VecDeque<FeatureSnapshot>,
+}
+
+impl FeatureWindow {
+    pub fn new(max_len: usize) -> Self {
+        Self {
+            max_len: max_len.max(1),
+            snapshots: VecDeque::new(),
+        }
+    }
+
+    pub fn push(&mut self, snapshot: FeatureSnapshot) {
+        self.snapshots.push_back(snapshot);
+        while self.snapshots.len() > self.max_len {
+            self.snapshots.pop_front();
+        }
+    }
+
+    pub fn latest(&self) -> Option<&FeatureSnapshot> {
+        self.snapshots.back()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct FeatureDelta {
+    pub signal_strength_slope: Decimal,
+    pub premium_bps_slope: Decimal,
+    pub funding_rate_slope: Decimal,
+    pub liquidity_score_slope: Decimal,
+    pub cost_bps_slope: Decimal,
+    pub mark_price_return: Decimal,
+    pub direction_transition: String,
+    pub data_freshness_stability: Decimal,
+}
+
+impl Default for FeatureDelta {
+    fn default() -> Self {
+        Self {
+            signal_strength_slope: Decimal::ZERO,
+            premium_bps_slope: Decimal::ZERO,
+            funding_rate_slope: Decimal::ZERO,
+            liquidity_score_slope: Decimal::ZERO,
+            cost_bps_slope: Decimal::ZERO,
+            mark_price_return: Decimal::ZERO,
+            direction_transition: "flat".to_string(),
+            data_freshness_stability: Decimal::ONE,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TurnpointEvidence {
+    pub delta: FeatureDelta,
+    pub positive_count: u64,
+    pub negative_count: u64,
+    pub score: Decimal,
+    pub summary: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct GodTurnpointDecision {
+    pub symbol: Symbol,
+    pub god_turnpoint_allowed: bool,
+    pub yi_state: YiState,
+    pub action_bias: YiActionBias,
+    pub hexagram: HexagramState,
+    pub turnpoint_evidence: TurnpointEvidence,
+    pub edge_after_cost_ratio: Decimal,
+    pub data_freshness_score: Decimal,
+    pub degraded_market_data: bool,
+    pub blockers: Vec<GodTurnpointBlocker>,
+    pub warnings: Vec<GodTurnpointWarning>,
+    pub reasons: Vec<YiReason>,
+    pub explanation: String,
+    pub signal_decision: SignalDecision,
+    pub risk_decision: RiskBudgetDecision,
 }
 
 #[cfg(test)]

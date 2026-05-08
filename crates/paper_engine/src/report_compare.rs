@@ -310,6 +310,8 @@ fn is_loop_error_blocker(code: &str) -> bool {
         "paper_loop_errors"
             | "loop_error_rate_excessive"
             | "consecutive_loop_errors"
+            | "critical_failed_tick_rate_excessive"
+            | "consecutive_critical_endpoint_errors"
             | "fatal_loop_error"
             | "state_mutation_on_failed_tick"
             | "forbidden_capability_error"
@@ -755,6 +757,15 @@ mod tests {
             stale_fallback_count: 0,
             max_stale_age_seconds: 0,
             data_freshness_score: dec!(1),
+            critical_endpoint_error_count: 0,
+            noncritical_endpoint_error_count: 0,
+            critical_fallback_used_count: 0,
+            critical_fallback_failed_count: 0,
+            mark_price_primary_error_count: 0,
+            mark_price_fallback_used_count: 0,
+            mark_price_fallback_failed_count: 0,
+            orderbook_error_count: 0,
+            consecutive_critical_error_windows: Vec::new(),
             signal_grade_distribution: BTreeMap::from([
                 ("a_plus".to_string(), candidates),
                 ("c".to_string(), 10_u64.saturating_sub(candidates)),
@@ -767,6 +778,15 @@ mod tests {
                 "order.signal_grade_too_low".to_string(),
                 10_u64.saturating_sub(candidates),
             )]),
+            yi_hexagram_distribution: BTreeMap::new(),
+            yi_action_bias_distribution: BTreeMap::new(),
+            yi_reason_breakdown: BTreeMap::new(),
+            god_turnpoint_evaluated_count: 0,
+            god_turnpoint_allowed_count: 0,
+            god_turnpoint_blocker_breakdown: BTreeMap::new(),
+            god_turnpoint_warning_breakdown: BTreeMap::new(),
+            god_signal_pressure_ratio: dec!(0),
+            degraded_yi_evaluation_count: 0,
             candidate_pressure_ratio: pressure,
             avg_signal_strength: dec!(65),
             max_signal_strength: dec!(90),

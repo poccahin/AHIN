@@ -320,6 +320,7 @@ dependencies = [
  "exchange",
  "execution_engine",
  "feature_engine",
+ "iching_engine",
  "paper_engine",
  "risk_engine",
  "rust_decimal",
@@ -753,6 +754,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "iching_engine"
+version = "0.1.0"
+dependencies = [
+ "domain",
+ "rust_decimal",
+ "rust_decimal_macros",
+]
+
+[[package]]
 name = "icu_collections"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -999,6 +1009,7 @@ version = "0.1.0"
 dependencies = [
  "domain",
  "execution_engine",
+ "iching_engine",
  "risk_engine",
  "rust_decimal",
  "rust_decimal_macros",

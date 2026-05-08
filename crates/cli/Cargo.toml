@@ -14,6 +14,7 @@ domain = { path = "../domain" }
 exchange = { path = "../exchange" }
 execution_engine = { path = "../execution_engine" }
 feature_engine = { path = "../feature_engine" }
+iching_engine = { path = "../iching_engine" }
 paper_engine = { path = "../paper_engine" }
 risk_engine = { path = "../risk_engine" }
 signal_engine = { path = "../signal_engine" }

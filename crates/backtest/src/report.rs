@@ -316,6 +316,8 @@ fn order_candidate_reason_key(reason: OrderCandidateReason) -> &'static str {
             "order.sizing_capped_by_gross_notional"
         }
         OrderCandidateReason::SizingCappedByMaxLoss => "order.sizing_capped_by_max_loss",
+        OrderCandidateReason::DegradedMarketData => "order.degraded_market_data",
+        OrderCandidateReason::YiGateRejected => "order.yi_gate_rejected",
         OrderCandidateReason::CandidateGenerated => "order.candidate_generated",
     }
 }

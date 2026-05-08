@@ -8,6 +8,7 @@ publish.workspace = true
 [dependencies]
 domain = { path = "../domain" }
 execution_engine = { path = "../execution_engine" }
+iching_engine = { path = "../iching_engine" }
 risk_engine = { path = "../risk_engine" }
 rust_decimal.workspace = true
 serde_json.workspace = true

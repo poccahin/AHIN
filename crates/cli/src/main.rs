@@ -16,13 +16,14 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use cost_engine::{edge_after_cost, fee_model};
 use domain::{
     AccountRiskState, AppError, AppResult, BacktestConfig, CandidateSizingConfig, EngineConfig,
-    FeatureSnapshot, FundingRate, Leverage, Notional, OpenInterest, OrderRequest,
-    PaperSoakEndpointErrorReason, PaperSoakRetryConfig, Price, Quantity, RiskBudget,
-    RiskBudgetConfig, Side, Symbol,
+    FeatureSnapshot, FeatureWindow, FundingRate, GodTurnpointConfig, Leverage, Notional,
+    OpenInterest, OrderBook, OrderRequest, PaperSoakEndpointErrorReason, PaperSoakRetryConfig,
+    Price, Quantity, RiskBudget, RiskBudgetConfig, Side, Symbol,
 };
 use exchange::{BinanceReadonly, ExchangeAdapter, MockExchange};
 use execution_engine::{candidate_decision, dry_run_router, order_candidate};
 use feature_engine::snapshot;
+use iching_engine::evaluate_god_turnpoint;
 use paper_engine::{paper_loop, paper_report, paper_soak, paper_state, report_compare};
 use risk_engine::{risk_budget, risk_decision, tail_event_simulator};
 use rust_decimal::Decimal;
@@ -59,6 +60,14 @@ enum Command {
     Signal {
         #[command(subcommand)]
         command: SignalCommand,
+    },
+    Yi {
+        #[command(subcommand)]
+        command: YiCommand,
+    },
+    GodSignal {
+        #[command(subcommand)]
+        command: GodSignalCommand,
     },
     Risk {
         #[command(subcommand)]
@@ -106,6 +115,16 @@ enum FeaturesCommand {
 
 #[derive(Debug, Subcommand)]
 enum SignalCommand {
+    Evaluate(FeatureSnapshotArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum YiCommand {
+    Evaluate(FeatureSnapshotArgs),
+}
+
+#[derive(Debug, Subcommand)]
+enum GodSignalCommand {
     Evaluate(FeatureSnapshotArgs),
 }
 
@@ -300,6 +319,8 @@ async fn run() -> AppResult<()> {
         Command::Market { command } => market(config, binance_base_url, command).await,
         Command::Features { command } => features(config, binance_base_url, command).await,
         Command::Signal { command } => signal(config, binance_base_url, command).await,
+        Command::Yi { command } => yi_cli(config, binance_base_url, command).await,
+        Command::GodSignal { command } => god_signal_cli(config, binance_base_url, command).await,
         Command::Risk { command } => risk(config, binance_base_url, command).await,
         Command::OrderCandidate { command } => {
             order_candidate_cli(config, binance_base_url, command).await
@@ -526,6 +547,58 @@ async fn risk(
     }
 }
 
+async fn yi_cli(
+    config_path: PathBuf,
+    binance_base_url: Option<String>,
+    command: YiCommand,
+) -> AppResult<()> {
+    let config = EngineConfig::load_from_path(config_path)?;
+    config.validate_safety()?;
+
+    match command {
+        YiCommand::Evaluate(args) => {
+            let feature_snapshot =
+                fetch_feature_snapshot(args, binance_base_url.as_deref()).await?;
+            let decision = evaluate_god_turnpoint_from_snapshot(&feature_snapshot);
+            print_json(json!({
+                "symbol": decision.symbol.as_str(),
+                "yi_state": decision.yi_state,
+                "action_bias": decision.action_bias,
+                "hexagram": decision.hexagram,
+                "turnpoint_evidence": decision.turnpoint_evidence,
+                "god_turnpoint_allowed": decision.god_turnpoint_allowed,
+                "edge_after_cost_ratio": decision.edge_after_cost_ratio.to_string(),
+                "data_freshness_score": decision.data_freshness_score.to_string(),
+                "degraded_market_data": decision.degraded_market_data,
+                "blockers": decision.blockers,
+                "warnings": decision.warnings,
+                "reasons": decision.reasons,
+                "explanation": decision.explanation,
+            }))
+        }
+    }
+}
+
+async fn god_signal_cli(
+    config_path: PathBuf,
+    binance_base_url: Option<String>,
+    command: GodSignalCommand,
+) -> AppResult<()> {
+    let config = EngineConfig::load_from_path(config_path)?;
+    config.validate_safety()?;
+
+    match command {
+        GodSignalCommand::Evaluate(args) => {
+            let feature_snapshot =
+                fetch_feature_snapshot(args, binance_base_url.as_deref()).await?;
+            let decision = evaluate_god_turnpoint_from_snapshot(&feature_snapshot);
+            print_json(serde_json::to_value(decision).map_err(|err| {
+                domain::AppError::Config(format!("failed to render god turnpoint decision: {err}"))
+            })?)
+        }
+    }
+}
+
 async fn order_candidate_cli(
     config_path: PathBuf,
     binance_base_url: Option<String>,
@@ -686,6 +759,8 @@ async fn paper_cli(
             let symbol = Symbol::new(&args.symbol)?;
             let retry_config = PaperSoakRetryConfig::default();
             let mut market_data_cache = PaperSoakMarketDataCache::default();
+            let god_config = GodTurnpointConfig::default();
+            let mut feature_window = FeatureWindow::new(god_config.feature_window_len);
 
             for tick_idx in 0..soak_config.ticks {
                 let before = paper_soak::StateStructuralFingerprint::from_state(&state);
@@ -708,6 +783,7 @@ async fn paper_cli(
                             tick_idx,
                             &resilient_snapshot.endpoint_errors,
                         );
+                        record_resilient_market_data_counts(&mut metrics, &resilient_snapshot);
                         if resilient_snapshot.stale_fallback_count > 0 {
                             metrics.record_stale_market_data_tick(
                                 resilient_snapshot.stale_fallback_count,
@@ -716,80 +792,121 @@ async fn paper_cli(
                         } else {
                             metrics.record_fresh_market_data_tick();
                         }
-                        match paper_loop::process_snapshot(&mut state, &resilient_snapshot.snapshot)
-                        {
-                            Ok(outcome) => {
-                                ticks_processed += 1;
-                                let safe_candidate_generated =
-                                    paper_engine::soak_report::is_audit_only_candidate_generated(
-                                        &outcome.candidate_decision,
-                                    );
-                                if safe_candidate_generated {
-                                    candidate_generated_count += 1;
-                                }
-                                if let Some(trade) = &outcome.trade
-                                    && let Err(err) =
-                                        paper_state::append_trade(&soak_config.log_path, trade)
-                                {
-                                    errors_count += 1;
-                                    metrics.record_loop_error(
-                                        paper_engine::soak_report::PaperSoakLoopErrorInput {
-                                            reason: domain::PaperSoakErrorReason::StatePersistenceError,
-                                            message: err.to_string(),
-                                            state_mutated: before
-                                                != paper_soak::StateStructuralFingerprint::from_state(&state),
+                        if resilient_snapshot.degraded_market_data {
+                            let (
+                                signal_decision,
+                                risk_decision,
+                                god_turnpoint_decision,
+                                candidate_decision,
+                            ) = paper_loop::evaluate_snapshot_decisions(
+                                &state,
+                                &resilient_snapshot.snapshot,
+                                &mut feature_window,
+                                true,
+                                resilient_snapshot.data_freshness_score(),
+                            );
+                            ticks_processed += 1;
+                            metrics.record_decision(
+                                paper_engine::soak_report::PaperSoakDecisionInput {
+                                    signal_decision: &signal_decision,
+                                    risk_decision: &risk_decision,
+                                    god_turnpoint_decision: Some(&god_turnpoint_decision),
+                                    candidate_decision: &candidate_decision,
+                                    edge_after_cost_ratio: Some(
+                                        god_turnpoint_decision.edge_after_cost_ratio,
+                                    ),
+                                    paper_fill_generated: false,
+                                    state_mutated: false,
+                                    state_mutated_without_candidate_or_fill: false,
+                                    degraded_market_data: true,
+                                },
+                            );
+                        } else {
+                            match paper_loop::process_snapshot_with_yi(
+                                &mut state,
+                                &resilient_snapshot.snapshot,
+                                &mut feature_window,
+                                false,
+                                resilient_snapshot.data_freshness_score(),
+                            ) {
+                                Ok(outcome) => {
+                                    ticks_processed += 1;
+                                    let safe_candidate_generated =
+                                        paper_engine::soak_report::is_audit_only_candidate_generated(
+                                            &outcome.candidate_decision,
+                                        );
+                                    if safe_candidate_generated {
+                                        candidate_generated_count += 1;
+                                    }
+                                    if let Some(trade) = &outcome.trade
+                                        && let Err(err) =
+                                            paper_state::append_trade(&soak_config.log_path, trade)
+                                    {
+                                        errors_count += 1;
+                                        metrics.record_loop_error(
+                                            paper_engine::soak_report::PaperSoakLoopErrorInput {
+                                                reason: domain::PaperSoakErrorReason::StatePersistenceError,
+                                                message: err.to_string(),
+                                                state_mutated: before
+                                                    != paper_soak::StateStructuralFingerprint::from_state(&state),
+                                            },
+                                        );
+                                    }
+                                    if let Err(err) =
+                                        paper_state::persist_state(&soak_config.state_path, &state)
+                                    {
+                                        errors_count += 1;
+                                        metrics.record_loop_error(
+                                            paper_engine::soak_report::PaperSoakLoopErrorInput {
+                                                reason: domain::PaperSoakErrorReason::StatePersistenceError,
+                                                message: err.to_string(),
+                                                state_mutated: before
+                                                    != paper_soak::StateStructuralFingerprint::from_state(&state),
+                                            },
+                                        );
+                                    }
+                                    let state_mutated = before
+                                        != paper_soak::StateStructuralFingerprint::from_state(
+                                            &state,
+                                        );
+                                    let state_mutated_without_candidate_or_fill = state_mutated
+                                        && !safe_candidate_generated
+                                        && outcome.trade.is_none();
+                                    metrics.record_decision(
+                                        paper_engine::soak_report::PaperSoakDecisionInput {
+                                            signal_decision: &outcome.signal_decision,
+                                            risk_decision: &outcome.risk_decision,
+                                            god_turnpoint_decision: Some(
+                                                &outcome.god_turnpoint_decision,
+                                            ),
+                                            candidate_decision: &outcome.candidate_decision,
+                                            edge_after_cost_ratio: Some(
+                                                outcome
+                                                    .god_turnpoint_decision
+                                                    .edge_after_cost_ratio,
+                                            ),
+                                            paper_fill_generated: outcome.trade.is_some(),
+                                            state_mutated,
+                                            state_mutated_without_candidate_or_fill,
+                                            degraded_market_data: false,
                                         },
                                     );
                                 }
-                                if let Err(err) =
-                                    paper_state::persist_state(&soak_config.state_path, &state)
-                                {
+                                Err(err) => {
                                     errors_count += 1;
                                     metrics.record_loop_error(
                                         paper_engine::soak_report::PaperSoakLoopErrorInput {
-                                            reason: domain::PaperSoakErrorReason::StatePersistenceError,
+                                            reason: paper_engine::soak_report::classify_loop_error(
+                                                &err,
+                                            ),
                                             message: err.to_string(),
                                             state_mutated: before
-                                                != paper_soak::StateStructuralFingerprint::from_state(&state),
+                                                != paper_soak::StateStructuralFingerprint::from_state(
+                                                    &state,
+                                                ),
                                         },
                                     );
                                 }
-                                let state_mutated = before
-                                    != paper_soak::StateStructuralFingerprint::from_state(&state);
-                                let state_mutated_without_candidate_or_fill = state_mutated
-                                    && !safe_candidate_generated
-                                    && outcome.trade.is_none();
-                                metrics.record_decision(
-                                    paper_engine::soak_report::PaperSoakDecisionInput {
-                                        signal_decision: &outcome.signal_decision,
-                                        risk_decision: &outcome.risk_decision,
-                                        candidate_decision: &outcome.candidate_decision,
-                                        edge_after_cost_ratio: Some(
-                                            candidate_decision::edge_after_cost_ratio(
-                                                &resilient_snapshot.snapshot,
-                                                &outcome.signal_decision,
-                                            ),
-                                        ),
-                                        paper_fill_generated: outcome.trade.is_some(),
-                                        state_mutated,
-                                        state_mutated_without_candidate_or_fill,
-                                    },
-                                );
-                            }
-                            Err(err) => {
-                                errors_count += 1;
-                                metrics.record_loop_error(
-                                    paper_engine::soak_report::PaperSoakLoopErrorInput {
-                                        reason: paper_engine::soak_report::classify_loop_error(
-                                            &err,
-                                        ),
-                                        message: err.to_string(),
-                                        state_mutated: before
-                                            != paper_soak::StateStructuralFingerprint::from_state(
-                                                &state,
-                                            ),
-                                    },
-                                );
                             }
                         }
                     }
@@ -799,6 +916,7 @@ async fn paper_cli(
                             tick_idx,
                             &err.endpoint_errors,
                         );
+                        record_resilient_market_data_error_counts(&mut metrics, &err);
                         errors_count += 1;
                         metrics.record_loop_error(
                             paper_engine::soak_report::PaperSoakLoopErrorInput {
@@ -825,11 +943,15 @@ async fn paper_cli(
                                 reason: PaperSoakEndpointErrorReason::FeatureSnapshotError,
                                 critical: true,
                                 stale_fallback_used: false,
+                                critical_fallback_used: false,
+                                critical_fallback_failed: false,
                             },
                             PaperSoakEndpointDiagnostic {
                                 reason: PaperSoakEndpointErrorReason::HttpTimeout,
                                 critical: true,
                                 stale_fallback_used: false,
+                                critical_fallback_used: false,
+                                critical_fallback_failed: false,
                             },
                         ];
                         record_endpoint_errors_for_tick(&mut metrics, tick_idx, &endpoint_errors);
@@ -958,6 +1080,30 @@ async fn fetch_feature_snapshot(
     )
 }
 
+fn evaluate_god_turnpoint_from_snapshot(
+    feature_snapshot: &FeatureSnapshot,
+) -> domain::GodTurnpointDecision {
+    let signal_decision = signal_decision::evaluate_snapshot(feature_snapshot);
+    let risk_decision = risk_decision::evaluate_risk_budget(
+        signal_decision.clone(),
+        AccountRiskState::default(),
+        RiskBudgetConfig::default(),
+    );
+    let config = GodTurnpointConfig::default();
+    let mut window = FeatureWindow::new(config.feature_window_len);
+    window.push(feature_snapshot.clone());
+
+    evaluate_god_turnpoint(
+        feature_snapshot,
+        signal_decision,
+        risk_decision,
+        &window,
+        Decimal::ONE,
+        false,
+        config,
+    )
+}
+
 async fn fetch_resilient_feature_snapshot(
     adapter: &BinanceReadonly,
     symbol: &Symbol,
@@ -968,14 +1114,52 @@ async fn fetch_resilient_feature_snapshot(
     let mut endpoint_errors = Vec::new();
     let mut stale_fallback_count = 0_u64;
     let mut max_stale_age_seconds = 0_u64;
+    let mut critical_fallback_used_count = 0_u64;
+    let mut mark_price_fallback_used_count = 0_u64;
+    let mut degraded_market_data = false;
 
-    let (mark_price, index_price) = fetch_with_retries("mark_price", retry_config, || {
-        adapter.fetch_mark_index_prices(symbol.as_str())
+    let orderbook = fetch_with_retries("orderbook_depth", retry_config, || {
+        adapter.fetch_orderbook_depth(symbol.as_str(), depth)
     })
     .await
     .map_err(|err| {
-        resilient_endpoint_error(err, PaperSoakEndpointErrorReason::MarkPriceError, true)
+        resilient_endpoint_error(err, PaperSoakEndpointErrorReason::OrderbookDepthError, true)
     })?;
+
+    let (mark_price, index_price) = match fetch_with_retries("mark_price", retry_config, || {
+        adapter.fetch_mark_index_prices(symbol.as_str())
+    })
+    .await
+    {
+        Ok(prices) => prices,
+        Err(err) => match degraded_mark_proxy_from_orderbook(&orderbook, retry_config) {
+            Ok(prices) => {
+                endpoint_errors.extend(endpoint_failure_diagnostics(
+                    PaperSoakEndpointErrorReason::MarkPriceError,
+                    true,
+                    false,
+                    true,
+                    false,
+                    &err,
+                ));
+                critical_fallback_used_count += 1;
+                mark_price_fallback_used_count += 1;
+                degraded_market_data = true;
+                prices
+            }
+            Err(proxy_err) => {
+                let mut fallback_error = resilient_endpoint_error_with_fallback_state(
+                    err,
+                    PaperSoakEndpointErrorReason::MarkPriceError,
+                    true,
+                    false,
+                    true,
+                );
+                fallback_error.app_error = proxy_err;
+                return Err(fallback_error);
+            }
+        },
+    };
 
     let funding_rate = match fetch_with_retries("funding_rate", retry_config, || {
         adapter.fetch_funding_rate(symbol.as_str())
@@ -995,6 +1179,8 @@ async fn fetch_resilient_feature_snapshot(
                     PaperSoakEndpointErrorReason::FundingRateError,
                     false,
                     true,
+                    false,
+                    false,
                     &err,
                 ));
                 stale_fallback_count += 1;
@@ -1028,6 +1214,8 @@ async fn fetch_resilient_feature_snapshot(
                     PaperSoakEndpointErrorReason::OpenInterestError,
                     false,
                     true,
+                    false,
+                    false,
                     &err,
                 ));
                 stale_fallback_count += 1;
@@ -1042,14 +1230,6 @@ async fn fetch_resilient_feature_snapshot(
             }
         }
     };
-
-    let orderbook = fetch_with_retries("orderbook_depth", retry_config, || {
-        adapter.fetch_orderbook_depth(symbol.as_str(), depth)
-    })
-    .await
-    .map_err(|err| {
-        resilient_endpoint_error(err, PaperSoakEndpointErrorReason::OrderbookDepthError, true)
-    })?;
 
     let snapshot = snapshot::build_feature_snapshot(
         "binance",
@@ -1073,6 +1253,9 @@ async fn fetch_resilient_feature_snapshot(
         endpoint_errors,
         stale_fallback_count,
         max_stale_age_seconds,
+        critical_fallback_used_count,
+        mark_price_fallback_used_count,
+        degraded_market_data: degraded_market_data || stale_fallback_count > 0,
     })
 }
 
@@ -1131,11 +1314,32 @@ fn resilient_endpoint_error(
     endpoint_reason: PaperSoakEndpointErrorReason,
     critical: bool,
 ) -> ResilientFeatureSnapshotError {
-    let endpoint_errors =
-        endpoint_failure_diagnostics(endpoint_reason, critical, false, &app_error);
+    resilient_endpoint_error_with_fallback_state(app_error, endpoint_reason, critical, false, false)
+}
+
+fn resilient_endpoint_error_with_fallback_state(
+    app_error: AppError,
+    endpoint_reason: PaperSoakEndpointErrorReason,
+    critical: bool,
+    critical_fallback_used: bool,
+    critical_fallback_failed: bool,
+) -> ResilientFeatureSnapshotError {
+    let endpoint_errors = endpoint_failure_diagnostics(
+        endpoint_reason,
+        critical,
+        false,
+        critical_fallback_used,
+        critical_fallback_failed,
+        &app_error,
+    );
     ResilientFeatureSnapshotError {
         app_error,
         endpoint_errors,
+        critical_fallback_failed_count: u64::from(critical_fallback_failed),
+        mark_price_fallback_failed_count: u64::from(
+            critical_fallback_failed
+                && endpoint_reason == PaperSoakEndpointErrorReason::MarkPriceError,
+        ),
     }
 }
 
@@ -1143,18 +1347,24 @@ fn endpoint_failure_diagnostics(
     endpoint_reason: PaperSoakEndpointErrorReason,
     critical: bool,
     stale_fallback_used: bool,
+    critical_fallback_used: bool,
+    critical_fallback_failed: bool,
     app_error: &AppError,
 ) -> Vec<PaperSoakEndpointDiagnostic> {
     let mut diagnostics = vec![PaperSoakEndpointDiagnostic {
         reason: endpoint_reason,
         critical,
         stale_fallback_used,
+        critical_fallback_used,
+        critical_fallback_failed,
     }];
     if let Some(reason) = transport_endpoint_error_reason(app_error) {
         diagnostics.push(PaperSoakEndpointDiagnostic {
             reason,
             critical,
             stale_fallback_used,
+            critical_fallback_used,
+            critical_fallback_failed,
         });
     }
     diagnostics
@@ -1192,8 +1402,46 @@ fn record_endpoint_errors_for_tick(
             reason: error.reason,
             critical: error.critical,
             stale_fallback_used: error.stale_fallback_used,
+            critical_fallback_used: error.critical_fallback_used,
+            critical_fallback_failed: error.critical_fallback_failed,
         });
     }
+}
+
+fn record_resilient_market_data_counts(
+    metrics: &mut paper_engine::soak_report::PaperSoakRunMetrics,
+    snapshot: &ResilientFeatureSnapshot,
+) {
+    metrics.critical_fallback_used_count += snapshot.critical_fallback_used_count;
+    metrics.mark_price_fallback_used_count += snapshot.mark_price_fallback_used_count;
+}
+
+fn record_resilient_market_data_error_counts(
+    metrics: &mut paper_engine::soak_report::PaperSoakRunMetrics,
+    err: &ResilientFeatureSnapshotError,
+) {
+    metrics.critical_fallback_failed_count += err.critical_fallback_failed_count;
+    metrics.mark_price_fallback_failed_count += err.mark_price_fallback_failed_count;
+}
+
+fn degraded_mark_proxy_from_orderbook(
+    orderbook: &OrderBook,
+    retry_config: &PaperSoakRetryConfig,
+) -> AppResult<(Price, Price)> {
+    let spread_bps = orderbook.spread_bps();
+    if spread_bps > retry_config.max_degraded_mark_proxy_spread_bps {
+        return Err(AppError::HttpRequest {
+            exchange: "paper_soak".to_string(),
+            endpoint: "mark_price_orderbook_mid_proxy".to_string(),
+            reason: format!(
+                "fresh orderbook spread {spread_bps} bps exceeded degraded mark proxy limit {} bps",
+                retry_config.max_degraded_mark_proxy_spread_bps
+            ),
+        });
+    }
+    let mid = (orderbook.bid.as_decimal() + orderbook.ask.as_decimal()) / Decimal::from(2);
+    let proxy = Price::new(mid)?;
+    Ok((proxy, proxy))
 }
 
 #[derive(Debug, Default)]
@@ -1244,12 +1492,27 @@ struct ResilientFeatureSnapshot {
     endpoint_errors: Vec<PaperSoakEndpointDiagnostic>,
     stale_fallback_count: u64,
     max_stale_age_seconds: u64,
+    critical_fallback_used_count: u64,
+    mark_price_fallback_used_count: u64,
+    degraded_market_data: bool,
+}
+
+impl ResilientFeatureSnapshot {
+    fn data_freshness_score(&self) -> Decimal {
+        if self.stale_fallback_count > 0 {
+            dec!(0.75)
+        } else {
+            Decimal::ONE
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 struct ResilientFeatureSnapshotError {
     app_error: AppError,
     endpoint_errors: Vec<PaperSoakEndpointDiagnostic>,
+    critical_fallback_failed_count: u64,
+    mark_price_fallback_failed_count: u64,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1257,6 +1520,8 @@ struct PaperSoakEndpointDiagnostic {
     reason: PaperSoakEndpointErrorReason,
     critical: bool,
     stale_fallback_used: bool,
+    critical_fallback_used: bool,
+    critical_fallback_failed: bool,
 }
 
 fn market_adapter(

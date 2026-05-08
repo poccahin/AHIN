@@ -1,11 +1,15 @@
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::Path,
+};
 
 use domain::{
-    AppError, AppResult, DecisionReason, DryRunOrderCandidate, OrderCandidateDecision,
-    OrderCandidateReason, PaperEngineState, PaperSoakBlocker, PaperSoakConfig,
-    PaperSoakEndpointErrorReason, PaperSoakErrorReason, PaperSoakErrorWindow, PaperSoakReport,
-    PaperSoakWarning, PaperTrade, RiskBudgetDecision, RiskDecisionReason, SignalDecision,
-    SignalDirection, SignalGrade,
+    AppError, AppResult, DecisionReason, DryRunOrderCandidate, GodTurnpointDecision,
+    OrderCandidateDecision, OrderCandidateReason, PaperEngineState, PaperSoakBlocker,
+    PaperSoakConfig, PaperSoakEndpointErrorReason, PaperSoakErrorReason, PaperSoakErrorWindow,
+    PaperSoakReport, PaperSoakWarning, PaperTrade, RiskBudgetDecision, RiskDecisionReason,
+    SignalDecision, SignalDirection, SignalGrade, YiActionBias, YiReason,
 };
 use rust_decimal::Decimal;
 
@@ -33,6 +37,10 @@ pub struct PaperSoakRunMetrics {
     pub stale_ticks: u64,
     pub stale_fallback_count: u64,
     pub max_stale_age_seconds: u64,
+    pub critical_fallback_used_count: u64,
+    pub critical_fallback_failed_count: u64,
+    pub mark_price_fallback_used_count: u64,
+    pub mark_price_fallback_failed_count: u64,
 }
 
 impl PaperSoakRunMetrics {
@@ -73,7 +81,19 @@ impl PaperSoakRunMetrics {
             reason: input.reason,
             critical: input.critical,
             stale_fallback_used: input.stale_fallback_used,
+            critical_fallback_used: input.critical_fallback_used,
+            critical_fallback_failed: input.critical_fallback_failed,
         });
+    }
+
+    pub fn record_mark_price_critical_fallback_used(&mut self) {
+        self.critical_fallback_used_count += 1;
+        self.mark_price_fallback_used_count += 1;
+    }
+
+    pub fn record_mark_price_critical_fallback_failed(&mut self) {
+        self.critical_fallback_failed_count += 1;
+        self.mark_price_fallback_failed_count += 1;
     }
 
     pub fn record_decision(&mut self, input: PaperSoakDecisionInput<'_>) {
@@ -86,11 +106,13 @@ impl PaperSoakRunMetrics {
         self.decisions.push(PaperSoakDecisionRecord {
             signal_decision: input.signal_decision.clone(),
             risk_decision: input.risk_decision.clone(),
+            god_turnpoint_decision: input.god_turnpoint_decision.cloned(),
             candidate_decision: input.candidate_decision.clone(),
             edge_after_cost_ratio: input.edge_after_cost_ratio,
             paper_fill_generated: input.paper_fill_generated,
             state_mutated: input.state_mutated,
             state_mutated_without_candidate_or_fill: input.state_mutated_without_candidate_or_fill,
+            degraded_market_data: input.degraded_market_data,
         });
     }
 }
@@ -115,6 +137,8 @@ pub struct PaperSoakEndpointErrorRecord {
     pub reason: PaperSoakEndpointErrorReason,
     pub critical: bool,
     pub stale_fallback_used: bool,
+    pub critical_fallback_used: bool,
+    pub critical_fallback_failed: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -123,28 +147,34 @@ pub struct PaperSoakEndpointErrorInput {
     pub reason: PaperSoakEndpointErrorReason,
     pub critical: bool,
     pub stale_fallback_used: bool,
+    pub critical_fallback_used: bool,
+    pub critical_fallback_failed: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct PaperSoakDecisionInput<'a> {
     pub signal_decision: &'a SignalDecision,
     pub risk_decision: &'a RiskBudgetDecision,
+    pub god_turnpoint_decision: Option<&'a GodTurnpointDecision>,
     pub candidate_decision: &'a OrderCandidateDecision,
     pub edge_after_cost_ratio: Option<Decimal>,
     pub paper_fill_generated: bool,
     pub state_mutated: bool,
     pub state_mutated_without_candidate_or_fill: bool,
+    pub degraded_market_data: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct PaperSoakDecisionRecord {
     pub signal_decision: SignalDecision,
     pub risk_decision: RiskBudgetDecision,
+    pub god_turnpoint_decision: Option<GodTurnpointDecision>,
     pub candidate_decision: OrderCandidateDecision,
     pub edge_after_cost_ratio: Option<Decimal>,
     pub paper_fill_generated: bool,
     pub state_mutated: bool,
     pub state_mutated_without_candidate_or_fill: bool,
+    pub degraded_market_data: bool,
 }
 
 pub fn is_audit_only_candidate_generated(decision: &OrderCandidateDecision) -> bool {
@@ -239,8 +269,10 @@ pub fn build_soak_report_with_metrics(
 
     let quality = quality_metrics(config, ticks_processed, candidate_generated_count, metrics);
     let loop_errors = loop_error_metrics(config, ticks_processed, errors_count, metrics);
-    let data_reliability = data_reliability_metrics(ticks_processed, &loop_errors, metrics);
+    let data_reliability = data_reliability_metrics(config, ticks_processed, &loop_errors, metrics);
+    let yi = yi_metrics(ticks_processed, metrics);
     add_quality_findings(&quality, metrics, &mut warnings, &mut blockers);
+    add_yi_findings(&yi, &mut warnings);
     add_loop_error_findings(&loop_errors, metrics, &mut warnings, &mut blockers);
     add_data_reliability_findings(&data_reliability, &mut warnings, &mut blockers);
 
@@ -274,9 +306,27 @@ pub fn build_soak_report_with_metrics(
         stale_fallback_count: data_reliability.stale_fallback_count,
         max_stale_age_seconds: data_reliability.max_stale_age_seconds,
         data_freshness_score: data_reliability.data_freshness_score,
+        critical_endpoint_error_count: data_reliability.critical_endpoint_error_count,
+        noncritical_endpoint_error_count: data_reliability.noncritical_endpoint_error_count,
+        critical_fallback_used_count: data_reliability.critical_fallback_used_count,
+        critical_fallback_failed_count: data_reliability.critical_fallback_failed_count,
+        mark_price_primary_error_count: data_reliability.mark_price_primary_error_count,
+        mark_price_fallback_used_count: data_reliability.mark_price_fallback_used_count,
+        mark_price_fallback_failed_count: data_reliability.mark_price_fallback_failed_count,
+        orderbook_error_count: data_reliability.orderbook_error_count,
+        consecutive_critical_error_windows: data_reliability.consecutive_critical_error_windows,
         signal_grade_distribution: quality.signal_grade_distribution,
         signal_direction_distribution: quality.signal_direction_distribution,
         rejection_breakdown_by_reason: quality.rejection_breakdown_by_reason,
+        yi_hexagram_distribution: yi.yi_hexagram_distribution,
+        yi_action_bias_distribution: yi.yi_action_bias_distribution,
+        yi_reason_breakdown: yi.yi_reason_breakdown,
+        god_turnpoint_evaluated_count: yi.god_turnpoint_evaluated_count,
+        god_turnpoint_allowed_count: yi.god_turnpoint_allowed_count,
+        god_turnpoint_blocker_breakdown: yi.god_turnpoint_blocker_breakdown,
+        god_turnpoint_warning_breakdown: yi.god_turnpoint_warning_breakdown,
+        god_signal_pressure_ratio: yi.god_signal_pressure_ratio,
+        degraded_yi_evaluation_count: yi.degraded_yi_evaluation_count,
         candidate_pressure_ratio: quality.candidate_pressure_ratio,
         avg_signal_strength: quality.avg_signal_strength,
         max_signal_strength: quality.max_signal_strength,
@@ -508,6 +558,63 @@ fn add_quality_findings(
             ),
         ));
     }
+
+    let degraded_candidates = metrics
+        .decisions
+        .iter()
+        .filter(|record| {
+            record.degraded_market_data
+                && is_audit_only_candidate_generated(&record.candidate_decision)
+        })
+        .count();
+    if degraded_candidates > 0 {
+        blockers.push(blocker(
+            "candidate_generated_on_degraded_market_data",
+            format!("{degraded_candidates} degraded market-data ticks generated candidates"),
+        ));
+    }
+
+    let degraded_fills = metrics
+        .decisions
+        .iter()
+        .filter(|record| record.degraded_market_data && record.paper_fill_generated)
+        .count();
+    if degraded_fills > 0 {
+        blockers.push(blocker(
+            "paper_fill_on_degraded_market_data",
+            format!("{degraded_fills} degraded market-data ticks generated paper fills"),
+        ));
+    }
+
+    let degraded_state_mutations = metrics
+        .decisions
+        .iter()
+        .filter(|record| record.degraded_market_data && record.state_mutated)
+        .count();
+    if degraded_state_mutations > 0 {
+        blockers.push(blocker(
+            "state_mutation_on_degraded_market_data",
+            format!("{degraded_state_mutations} degraded market-data ticks mutated paper state"),
+        ));
+    }
+}
+
+fn add_yi_findings(yi: &ComputedYiMetrics, warnings: &mut Vec<PaperSoakWarning>) {
+    if yi.god_turnpoint_evaluated_count > 0 && yi.god_turnpoint_allowed_count == 0 {
+        warnings.push(warning(
+            "zero_god_turnpoints",
+            "Yi/GodTurnpoint layer evaluated ticks but allowed zero internal god signals",
+        ));
+    }
+    if yi.degraded_yi_evaluation_count > 0 {
+        warnings.push(warning(
+            "degraded_yi_evaluations",
+            format!(
+                "{} degraded market-data ticks ran Yi diagnostics only",
+                yi.degraded_yi_evaluation_count
+            ),
+        ));
+    }
 }
 
 fn add_loop_error_findings(
@@ -590,6 +697,49 @@ fn add_data_reliability_findings(
     warnings: &mut Vec<PaperSoakWarning>,
     blockers: &mut Vec<PaperSoakBlocker>,
 ) {
+    if data_reliability.critical_fallback_used_count > 0 {
+        warnings.push(warning(
+            "critical_market_data_fallback_used",
+            format!(
+                "{} same-tick critical market-data fallbacks were used; candidate generation stays blocked on degraded ticks",
+                data_reliability.critical_fallback_used_count
+            ),
+        ));
+    }
+    if data_reliability.critical_fallback_failed_count > 0 {
+        warnings.push(warning(
+            "critical_market_data_fallback_failed",
+            format!(
+                "{} critical market-data fallback attempts failed",
+                data_reliability.critical_fallback_failed_count
+            ),
+        ));
+    }
+
+    if data_reliability.critical_failed_tick_rate > Decimal::new(5, 3) {
+        blockers.push(blocker(
+            "critical_failed_tick_rate_excessive",
+            "critical market-data failed tick rate exceeded tolerance",
+        ));
+    } else if data_reliability.critical_failed_tick_count > 0
+        && data_reliability.max_consecutive_critical_errors <= 2
+    {
+        warnings.push(warning(
+            "isolated_critical_endpoint_failures",
+            format!(
+                "{} isolated critical market-data failed ticks were tolerated",
+                data_reliability.critical_failed_tick_count
+            ),
+        ));
+    }
+
+    if data_reliability.max_consecutive_critical_errors >= 3 {
+        blockers.push(blocker(
+            "consecutive_critical_endpoint_errors",
+            "paper soak observed three or more consecutive critical endpoint failed ticks",
+        ));
+    }
+
     if data_reliability.stale_fallback_count == 0 {
         return;
     }
@@ -707,6 +857,66 @@ fn quality_metrics(
     }
 }
 
+fn yi_metrics(ticks_processed: u64, metrics: &PaperSoakRunMetrics) -> ComputedYiMetrics {
+    let mut yi_hexagram_distribution = BTreeMap::new();
+    let mut yi_action_bias_distribution = BTreeMap::new();
+    let mut yi_reason_breakdown = BTreeMap::new();
+    let mut god_turnpoint_blocker_breakdown = BTreeMap::new();
+    let mut god_turnpoint_warning_breakdown = BTreeMap::new();
+    let mut god_turnpoint_evaluated_count = 0_u64;
+    let mut god_turnpoint_allowed_count = 0_u64;
+    let mut degraded_yi_evaluation_count = 0_u64;
+
+    for decision in metrics
+        .decisions
+        .iter()
+        .filter_map(|record| record.god_turnpoint_decision.as_ref())
+    {
+        god_turnpoint_evaluated_count += 1;
+        if decision.god_turnpoint_allowed {
+            god_turnpoint_allowed_count += 1;
+        }
+        if decision.degraded_market_data {
+            degraded_yi_evaluation_count += 1;
+        }
+        increment_dynamic(
+            &mut yi_hexagram_distribution,
+            decision.hexagram.name.to_ascii_lowercase(),
+        );
+        increment(
+            &mut yi_action_bias_distribution,
+            yi_action_bias_key(decision.action_bias),
+        );
+        for reason in &decision.reasons {
+            increment(&mut yi_reason_breakdown, yi_reason_key(*reason));
+        }
+        for blocker in &decision.blockers {
+            increment_dynamic(&mut god_turnpoint_blocker_breakdown, blocker.code.clone());
+        }
+        for warning in &decision.warnings {
+            increment_dynamic(&mut god_turnpoint_warning_breakdown, warning.code.clone());
+        }
+    }
+
+    let god_signal_pressure_ratio = if ticks_processed == 0 {
+        Decimal::ZERO
+    } else {
+        Decimal::from(god_turnpoint_allowed_count) / Decimal::from(ticks_processed)
+    };
+
+    ComputedYiMetrics {
+        yi_hexagram_distribution,
+        yi_action_bias_distribution,
+        yi_reason_breakdown,
+        god_turnpoint_evaluated_count,
+        god_turnpoint_allowed_count,
+        god_turnpoint_blocker_breakdown,
+        god_turnpoint_warning_breakdown,
+        god_signal_pressure_ratio,
+        degraded_yi_evaluation_count,
+    }
+}
+
 fn loop_error_metrics(
     config: &PaperSoakConfig,
     ticks_processed: u64,
@@ -762,13 +972,44 @@ fn loop_error_metrics(
 }
 
 fn data_reliability_metrics(
+    config: &PaperSoakConfig,
     ticks_processed: u64,
     loop_errors: &ComputedLoopErrorMetrics,
     metrics: &PaperSoakRunMetrics,
 ) -> ComputedDataReliabilityMetrics {
     let mut endpoint_error_breakdown = BTreeMap::new();
+    let mut critical_endpoint_error_count = 0_u64;
+    let mut noncritical_endpoint_error_count = 0_u64;
+    let mut mark_price_primary_error_count = 0_u64;
+    let mut orderbook_error_count = 0_u64;
+    let mut critical_failed_ticks = BTreeSet::new();
+
     for error in &metrics.endpoint_errors {
         increment(&mut endpoint_error_breakdown, error.reason.as_key());
+        match error.reason {
+            PaperSoakEndpointErrorReason::MarkPriceError => {
+                critical_endpoint_error_count += 1;
+                mark_price_primary_error_count += 1;
+                if !error.critical_fallback_used {
+                    critical_failed_ticks.insert(error.tick_index);
+                }
+            }
+            PaperSoakEndpointErrorReason::OrderbookDepthError
+            | PaperSoakEndpointErrorReason::FeatureSnapshotError => {
+                critical_endpoint_error_count += 1;
+                orderbook_error_count +=
+                    u64::from(error.reason == PaperSoakEndpointErrorReason::OrderbookDepthError);
+                critical_failed_ticks.insert(error.tick_index);
+            }
+            PaperSoakEndpointErrorReason::FundingRateError
+            | PaperSoakEndpointErrorReason::OpenInterestError => {
+                noncritical_endpoint_error_count += 1;
+            }
+            PaperSoakEndpointErrorReason::HttpTimeout
+            | PaperSoakEndpointErrorReason::HttpRateLimit
+            | PaperSoakEndpointErrorReason::HttpStatusError
+            | PaperSoakEndpointErrorReason::ParseError => {}
+        }
     }
 
     let fresh_ticks = if metrics.fresh_ticks == 0 && metrics.stale_ticks == 0 {
@@ -794,6 +1035,20 @@ fn data_reliability_metrics(
     } else {
         Decimal::from(stale_fallback_count) / Decimal::from(denominator)
     };
+    let critical_failed_tick_count = critical_failed_ticks.len() as u64;
+    let rate_denominator = config
+        .ticks
+        .max(ticks_processed.saturating_add(failed_ticks))
+        .max(1);
+    let critical_failed_tick_rate =
+        Decimal::from(critical_failed_tick_count) / Decimal::from(rate_denominator);
+    let consecutive_critical_error_windows =
+        consecutive_critical_error_windows(&critical_failed_ticks);
+    let max_consecutive_critical_errors = consecutive_critical_error_windows
+        .iter()
+        .map(|window| window.length)
+        .max()
+        .unwrap_or(0);
 
     ComputedDataReliabilityMetrics {
         endpoint_error_breakdown,
@@ -805,35 +1060,84 @@ fn data_reliability_metrics(
         max_stale_age_seconds: metrics.max_stale_age_seconds,
         data_freshness_score,
         stale_fallback_ratio,
+        critical_endpoint_error_count,
+        noncritical_endpoint_error_count,
+        critical_fallback_used_count: metrics.critical_fallback_used_count,
+        critical_fallback_failed_count: metrics.critical_fallback_failed_count,
+        mark_price_primary_error_count,
+        mark_price_fallback_used_count: metrics.mark_price_fallback_used_count,
+        mark_price_fallback_failed_count: metrics.mark_price_fallback_failed_count,
+        orderbook_error_count,
+        critical_failed_tick_count,
+        critical_failed_tick_rate,
+        max_consecutive_critical_errors,
+        consecutive_critical_error_windows,
     }
 }
 
 fn error_windows(errors: &[PaperSoakEndpointErrorRecord]) -> Vec<PaperSoakErrorWindow> {
-    let mut sorted = errors.to_vec();
-    sorted.sort_by_key(|error| (error.reason.as_key(), error.critical, error.tick_index));
+    let mut by_tick: BTreeMap<u64, TickEndpointErrorGroup> = BTreeMap::new();
+    for error in errors {
+        let group = by_tick.entry(error.tick_index).or_default();
+        group.reasons.insert(error.reason.as_key().to_string());
+        group.critical |= error.critical;
+    }
+
     let mut windows: Vec<PaperSoakErrorWindow> = Vec::new();
 
-    for error in sorted {
-        let reason = error.reason.as_key().to_string();
+    for (tick_index, group) in by_tick {
+        let reasons = group.reasons.into_iter().collect::<Vec<_>>();
+        let reason = reasons.join("+");
         if let Some(window) = windows.last_mut()
             && window.reason == reason
-            && window.critical == error.critical
-            && window.end_tick.saturating_add(1) == error.tick_index
+            && window.critical == group.critical
+            && window.end_tick.saturating_add(1) == tick_index
         {
-            window.end_tick = error.tick_index;
+            window.end_tick = tick_index;
             window.length += 1;
             continue;
         }
         windows.push(PaperSoakErrorWindow {
             reason,
-            start_tick: error.tick_index,
-            end_tick: error.tick_index,
+            reasons,
+            start_tick: tick_index,
+            end_tick: tick_index,
             length: 1,
-            critical: error.critical,
+            critical: group.critical,
         });
     }
 
     windows
+}
+
+fn consecutive_critical_error_windows(
+    critical_failed_ticks: &BTreeSet<u64>,
+) -> Vec<PaperSoakErrorWindow> {
+    let mut windows: Vec<PaperSoakErrorWindow> = Vec::new();
+    for tick_index in critical_failed_ticks {
+        if let Some(window) = windows.last_mut()
+            && window.end_tick.saturating_add(1) == *tick_index
+        {
+            window.end_tick = *tick_index;
+            window.length += 1;
+            continue;
+        }
+        windows.push(PaperSoakErrorWindow {
+            reason: "critical_endpoint_failed_tick".to_string(),
+            reasons: vec!["critical_endpoint_failed_tick".to_string()],
+            start_tick: *tick_index,
+            end_tick: *tick_index,
+            length: 1,
+            critical: true,
+        });
+    }
+    windows
+}
+
+#[derive(Debug, Default)]
+struct TickEndpointErrorGroup {
+    reasons: BTreeSet<String>,
+    critical: bool,
 }
 
 pub fn endpoint_allows_stale_fallback(
@@ -883,6 +1187,19 @@ struct ComputedQualityMetrics {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+struct ComputedYiMetrics {
+    yi_hexagram_distribution: BTreeMap<String, u64>,
+    yi_action_bias_distribution: BTreeMap<String, u64>,
+    yi_reason_breakdown: BTreeMap<String, u64>,
+    god_turnpoint_evaluated_count: u64,
+    god_turnpoint_allowed_count: u64,
+    god_turnpoint_blocker_breakdown: BTreeMap<String, u64>,
+    god_turnpoint_warning_breakdown: BTreeMap<String, u64>,
+    god_signal_pressure_ratio: Decimal,
+    degraded_yi_evaluation_count: u64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 struct ComputedLoopErrorMetrics {
     ticks_failed: u64,
     error_rate: Decimal,
@@ -903,6 +1220,18 @@ struct ComputedDataReliabilityMetrics {
     max_stale_age_seconds: u64,
     data_freshness_score: Decimal,
     stale_fallback_ratio: Decimal,
+    critical_endpoint_error_count: u64,
+    noncritical_endpoint_error_count: u64,
+    critical_fallback_used_count: u64,
+    critical_fallback_failed_count: u64,
+    mark_price_primary_error_count: u64,
+    mark_price_fallback_used_count: u64,
+    mark_price_fallback_failed_count: u64,
+    orderbook_error_count: u64,
+    critical_failed_tick_count: u64,
+    critical_failed_tick_rate: Decimal,
+    max_consecutive_critical_errors: u64,
+    consecutive_critical_error_windows: Vec<PaperSoakErrorWindow>,
 }
 
 pub fn classify_loop_error(err: &AppError) -> PaperSoakErrorReason {
@@ -981,6 +1310,10 @@ fn increment(map: &mut BTreeMap<String, u64>, key: &'static str) {
     *map.entry(key.to_string()).or_insert(0) += 1;
 }
 
+fn increment_dynamic(map: &mut BTreeMap<String, u64>, key: String) {
+    *map.entry(key).or_insert(0) += 1;
+}
+
 fn signal_grade_key(grade: SignalGrade) -> &'static str {
     match grade {
         SignalGrade::APlus => "a_plus",
@@ -1048,7 +1381,47 @@ fn order_candidate_reason_key(reason: OrderCandidateReason) -> &'static str {
             "order.sizing_capped_by_gross_notional"
         }
         OrderCandidateReason::SizingCappedByMaxLoss => "order.sizing_capped_by_max_loss",
+        OrderCandidateReason::DegradedMarketData => "order.degraded_market_data",
+        OrderCandidateReason::YiGateRejected => "order.yi_gate_rejected",
         OrderCandidateReason::CandidateGenerated => "order.candidate_generated",
+    }
+}
+
+fn yi_action_bias_key(action_bias: YiActionBias) -> &'static str {
+    match action_bias {
+        YiActionBias::Observe => "observe",
+        YiActionBias::Probe => "probe",
+        YiActionBias::Hold => "hold",
+        YiActionBias::AddAllowed => "add_allowed",
+        YiActionBias::Reduce => "reduce",
+        YiActionBias::Exit => "exit",
+        YiActionBias::Cooldown => "cooldown",
+    }
+}
+
+fn yi_reason_key(reason: YiReason) -> &'static str {
+    match reason {
+        YiReason::ResearchOnlyExplanation => "yi.research_only_explanation",
+        YiReason::WeakSignal => "yi.weak_signal",
+        YiReason::StrongSignal => "yi.strong_signal",
+        YiReason::EdgeAfterCostStrong => "yi.edge_after_cost_strong",
+        YiReason::EdgeAfterCostWeak => "yi.edge_after_cost_weak",
+        YiReason::RiskBudgetBlocked => "yi.risk_budget_blocked",
+        YiReason::RiskBudgetAllowed => "yi.risk_budget_allowed",
+        YiReason::DataFresh => "yi.data_fresh",
+        YiReason::DataFreshnessLow => "yi.data_freshness_low",
+        YiReason::DegradedMarketData => "yi.degraded_market_data",
+        YiReason::KanRisk => "yi.kan_risk",
+        YiReason::BoCollapse => "yi.bo_collapse",
+        YiReason::PiBlockage => "yi.pi_blockage",
+        YiReason::Cooldown => "yi.cooldown",
+        YiReason::ExecutionSupportive => "yi.execution_supportive",
+        YiReason::ExecutionThin => "yi.execution_thin",
+        YiReason::CostHigh => "yi.cost_high",
+        YiReason::DerivativesSupportive => "yi.derivatives_supportive",
+        YiReason::DerivativesCrowded => "yi.derivatives_crowded",
+        YiReason::TurnpointEvidencePositive => "yi.turnpoint_evidence_positive",
+        YiReason::TurnpointEvidenceNegative => "yi.turnpoint_evidence_negative",
     }
 }
 
@@ -1512,6 +1885,8 @@ mod tests {
             reason: PaperSoakEndpointErrorReason::OpenInterestError,
             critical: false,
             stale_fallback_used: true,
+            critical_fallback_used: false,
+            critical_fallback_failed: false,
         });
         run_metrics.record_stale_market_data_tick(1, 60);
 
@@ -1521,6 +1896,107 @@ mod tests {
         assert_eq!(report.error_windows.len(), 1);
         assert_eq!(report.error_windows[0].reason, "open_interest_error");
         assert!(!report.error_windows[0].critical);
+        paths.cleanup();
+    }
+
+    #[test]
+    fn primary_mark_failure_with_fallback_success_continues_degraded_tick_with_warning() {
+        let paths = FixturePaths::new("mark_fallback_success");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        fs::write(&paths.log, "").unwrap();
+        let mut run_metrics = metrics(vec![degraded_rejected_record(false, false)]);
+        run_metrics.record_endpoint_error(PaperSoakEndpointErrorInput {
+            tick_index: 0,
+            reason: PaperSoakEndpointErrorReason::MarkPriceError,
+            critical: true,
+            stale_fallback_used: false,
+            critical_fallback_used: true,
+            critical_fallback_failed: false,
+        });
+        run_metrics.record_endpoint_error(PaperSoakEndpointErrorInput {
+            tick_index: 0,
+            reason: PaperSoakEndpointErrorReason::HttpTimeout,
+            critical: true,
+            stale_fallback_used: false,
+            critical_fallback_used: true,
+            critical_fallback_failed: false,
+        });
+        run_metrics.record_mark_price_critical_fallback_used();
+
+        let report = build_soak_report_with_metrics(&paths.config(), 1, 0, 0, &run_metrics);
+
+        assert!(report.soak_passed);
+        assert_eq!(report.failed_ticks, 0);
+        assert_eq!(report.critical_endpoint_error_count, 1);
+        assert_eq!(report.mark_price_primary_error_count, 1);
+        assert_eq!(report.critical_fallback_used_count, 1);
+        assert_eq!(report.mark_price_fallback_used_count, 1);
+        assert_eq!(report.candidate_generated_count, 0);
+        assert_eq!(report.paper_trades_count, 0);
+        assert_eq!(
+            report.rejection_breakdown_by_reason["order.degraded_market_data"],
+            1
+        );
+        assert!(has_warning(&report, "critical_market_data_fallback_used"));
+        assert_eq!(report.error_windows.len(), 1);
+        assert_eq!(
+            report.error_windows[0].reasons,
+            vec!["http_timeout".to_string(), "mark_price_error".to_string()]
+        );
+        paths.cleanup();
+    }
+
+    #[test]
+    fn degraded_tick_cannot_generate_candidate_or_fill() {
+        let paths = FixturePaths::new("degraded_candidate_blocked");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        write_log(&paths.log, &[trade(false, false)]);
+        let mut run_metrics = metrics(vec![degraded_rejected_record(true, true)]);
+        run_metrics.record_mark_price_critical_fallback_used();
+
+        let report = build_soak_report_with_metrics(&paths.config(), 1, 1, 0, &run_metrics);
+
+        assert!(!report.soak_passed);
+        assert!(has_blocker(
+            &report,
+            "candidate_generated_on_degraded_market_data"
+        ));
+        assert!(has_blocker(&report, "paper_fill_on_degraded_market_data"));
+        paths.cleanup();
+    }
+
+    #[test]
+    fn primary_mark_failure_with_fallback_failure_fails_tick() {
+        let paths = FixturePaths::new("mark_fallback_failed");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        fs::write(&paths.log, "").unwrap();
+        let mut config = paths.config();
+        config.ticks = 1_000;
+        let mut run_metrics = metrics(Vec::new());
+        run_metrics.record_endpoint_error(PaperSoakEndpointErrorInput {
+            tick_index: 0,
+            reason: PaperSoakEndpointErrorReason::MarkPriceError,
+            critical: true,
+            stale_fallback_used: false,
+            critical_fallback_used: false,
+            critical_fallback_failed: true,
+        });
+        run_metrics.record_mark_price_critical_fallback_failed();
+        run_metrics.record_loop_error(PaperSoakLoopErrorInput {
+            reason: PaperSoakErrorReason::TransientMarketDataError,
+            message: "mark primary and fallback failed".to_string(),
+            state_mutated: false,
+        });
+
+        let report = build_soak_report_with_metrics(&config, 999, 0, 1, &run_metrics);
+
+        assert!(report.soak_passed);
+        assert_eq!(report.failed_ticks, 1);
+        assert_eq!(report.critical_fallback_failed_count, 1);
+        assert_eq!(report.mark_price_fallback_failed_count, 1);
+        assert_eq!(report.candidate_generated_count, 0);
+        assert!(has_warning(&report, "critical_market_data_fallback_failed"));
+        assert!(has_warning(&report, "isolated_critical_endpoint_failures"));
         paths.cleanup();
     }
 
@@ -1539,6 +2015,8 @@ mod tests {
                 reason: PaperSoakEndpointErrorReason::OpenInterestError,
                 critical: false,
                 stale_fallback_used: true,
+                critical_fallback_used: false,
+                critical_fallback_failed: false,
             });
             run_metrics.record_stale_market_data_tick(1, 60);
         }
@@ -1571,6 +2049,8 @@ mod tests {
             reason: PaperSoakEndpointErrorReason::MarkPriceError,
             critical: true,
             stale_fallback_used: false,
+            critical_fallback_used: false,
+            critical_fallback_failed: false,
         });
         run_metrics.record_loop_error(PaperSoakLoopErrorInput {
             reason: PaperSoakErrorReason::TransientMarketDataError,
@@ -1603,6 +2083,8 @@ mod tests {
             reason: PaperSoakEndpointErrorReason::OrderbookDepthError,
             critical: true,
             stale_fallback_used: false,
+            critical_fallback_used: false,
+            critical_fallback_failed: false,
         });
         run_metrics.record_loop_error(PaperSoakLoopErrorInput {
             reason: PaperSoakErrorReason::TransientMarketDataError,
@@ -1617,6 +2099,69 @@ mod tests {
         assert_eq!(report.state_mutation_count, 0);
         assert_eq!(report.endpoint_error_breakdown["orderbook_depth_error"], 1);
         assert!(report.error_windows[0].critical);
+        paths.cleanup();
+    }
+
+    #[test]
+    fn isolated_critical_failures_below_threshold_warn_only() {
+        let paths = FixturePaths::new("isolated_critical_warn_only");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        fs::write(&paths.log, "").unwrap();
+        let mut config = paths.config();
+        config.ticks = 1_000;
+        let mut run_metrics = metrics(Vec::new());
+        for tick_index in [10, 500] {
+            run_metrics.record_endpoint_error(PaperSoakEndpointErrorInput {
+                tick_index,
+                reason: PaperSoakEndpointErrorReason::MarkPriceError,
+                critical: true,
+                stale_fallback_used: false,
+                critical_fallback_used: false,
+                critical_fallback_failed: true,
+            });
+            run_metrics.record_loop_error(PaperSoakLoopErrorInput {
+                reason: PaperSoakErrorReason::TransientMarketDataError,
+                message: "isolated critical failure".to_string(),
+                state_mutated: false,
+            });
+        }
+
+        let report = build_soak_report_with_metrics(&config, 998, 0, 2, &run_metrics);
+
+        assert!(report.soak_passed);
+        assert!(has_warning(&report, "isolated_critical_endpoint_failures"));
+        assert!(!has_blocker(&report, "critical_failed_tick_rate_excessive"));
+        paths.cleanup();
+    }
+
+    #[test]
+    fn critical_failure_rate_above_threshold_blocks() {
+        let paths = FixturePaths::new("critical_failure_rate_blocks");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        fs::write(&paths.log, "").unwrap();
+        let mut config = paths.config();
+        config.ticks = 240;
+        let mut run_metrics = metrics(Vec::new());
+        for tick_index in [10, 200] {
+            run_metrics.record_endpoint_error(PaperSoakEndpointErrorInput {
+                tick_index,
+                reason: PaperSoakEndpointErrorReason::MarkPriceError,
+                critical: true,
+                stale_fallback_used: false,
+                critical_fallback_used: false,
+                critical_fallback_failed: true,
+            });
+            run_metrics.record_loop_error(PaperSoakLoopErrorInput {
+                reason: PaperSoakErrorReason::TransientMarketDataError,
+                message: "critical failure above rate threshold".to_string(),
+                state_mutated: false,
+            });
+        }
+
+        let report = build_soak_report_with_metrics(&config, 238, 0, 2, &run_metrics);
+
+        assert!(!report.soak_passed);
+        assert!(has_blocker(&report, "critical_failed_tick_rate_excessive"));
         paths.cleanup();
     }
 
@@ -1637,6 +2182,8 @@ mod tests {
             reason: PaperSoakEndpointErrorReason::OpenInterestError,
             critical: false,
             stale_fallback_used: false,
+            critical_fallback_used: false,
+            critical_fallback_failed: false,
         });
         run_metrics.record_loop_error(PaperSoakLoopErrorInput {
             reason: PaperSoakErrorReason::TransientMarketDataError,
@@ -1667,6 +2214,8 @@ mod tests {
                 reason: PaperSoakEndpointErrorReason::MarkPriceError,
                 critical: true,
                 stale_fallback_used: false,
+                critical_fallback_used: false,
+                critical_fallback_failed: false,
             });
             run_metrics.record_loop_error(PaperSoakLoopErrorInput {
                 reason: PaperSoakErrorReason::TransientMarketDataError,
@@ -1683,6 +2232,80 @@ mod tests {
         assert_eq!(report.error_windows[0].length, 3);
         assert!(report.error_windows[0].critical);
         assert!(has_blocker(&report, "consecutive_loop_errors"));
+        assert!(has_blocker(&report, "consecutive_critical_endpoint_errors"));
+        assert_eq!(report.consecutive_critical_error_windows.len(), 1);
+        assert_eq!(report.consecutive_critical_error_windows[0].length, 3);
+        paths.cleanup();
+    }
+
+    #[test]
+    fn error_windows_are_sorted_by_start_tick() {
+        let paths = FixturePaths::new("sorted_error_windows");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        fs::write(&paths.log, "").unwrap();
+        let mut run_metrics = metrics(Vec::new());
+        for tick_index in [10, 2, 7] {
+            run_metrics.record_endpoint_error(PaperSoakEndpointErrorInput {
+                tick_index,
+                reason: PaperSoakEndpointErrorReason::MarkPriceError,
+                critical: true,
+                stale_fallback_used: false,
+                critical_fallback_used: false,
+                critical_fallback_failed: true,
+            });
+        }
+
+        let report = build_soak_report_with_metrics(&paths.config(), 10, 0, 0, &run_metrics);
+
+        let starts = report
+            .error_windows
+            .iter()
+            .map(|window| window.start_tick)
+            .collect::<Vec<_>>();
+        assert_eq!(starts, vec![2, 7, 10]);
+        paths.cleanup();
+    }
+
+    #[test]
+    fn same_tick_multiple_endpoint_errors_do_not_double_count_failed_ticks() {
+        let paths = FixturePaths::new("same_tick_endpoint_errors");
+        write_state_for_test(&paths.state, &PaperEngineState::default()).unwrap();
+        fs::write(&paths.log, "").unwrap();
+        let mut config = paths.config();
+        config.ticks = 1_000;
+        let mut run_metrics = metrics(Vec::new());
+        run_metrics.record_endpoint_error(PaperSoakEndpointErrorInput {
+            tick_index: 12,
+            reason: PaperSoakEndpointErrorReason::MarkPriceError,
+            critical: true,
+            stale_fallback_used: false,
+            critical_fallback_used: false,
+            critical_fallback_failed: true,
+        });
+        run_metrics.record_endpoint_error(PaperSoakEndpointErrorInput {
+            tick_index: 12,
+            reason: PaperSoakEndpointErrorReason::HttpTimeout,
+            critical: true,
+            stale_fallback_used: false,
+            critical_fallback_used: false,
+            critical_fallback_failed: true,
+        });
+        run_metrics.record_loop_error(PaperSoakLoopErrorInput {
+            reason: PaperSoakErrorReason::TimeoutError,
+            message: "same tick critical endpoint timeout".to_string(),
+            state_mutated: false,
+        });
+
+        let report = build_soak_report_with_metrics(&config, 999, 0, 1, &run_metrics);
+
+        assert_eq!(report.failed_ticks, 1);
+        assert_eq!(report.ticks_failed, 1);
+        assert_eq!(report.critical_endpoint_error_count, 1);
+        assert_eq!(report.error_windows.len(), 1);
+        assert_eq!(
+            report.error_windows[0].reasons,
+            vec!["http_timeout".to_string(), "mark_price_error".to_string()]
+        );
         paths.cleanup();
     }
 
@@ -2050,11 +2673,13 @@ mod tests {
         PaperSoakDecisionRecord {
             signal_decision,
             risk_decision,
+            god_turnpoint_decision: None,
             candidate_decision,
             edge_after_cost_ratio: Some(strength / dec!(10)),
             paper_fill_generated,
             state_mutated: paper_fill_generated,
             state_mutated_without_candidate_or_fill: false,
+            degraded_market_data: false,
         }
     }
 
@@ -2097,11 +2722,13 @@ mod tests {
         PaperSoakDecisionRecord {
             signal_decision,
             risk_decision,
+            god_turnpoint_decision: None,
             candidate_decision,
             edge_after_cost_ratio: Some(dec!(2)),
             paper_fill_generated: false,
             state_mutated: false,
             state_mutated_without_candidate_or_fill: false,
+            degraded_market_data: false,
         }
     }
 
@@ -2135,12 +2762,39 @@ mod tests {
         PaperSoakDecisionRecord {
             signal_decision,
             risk_decision,
+            god_turnpoint_decision: None,
             candidate_decision,
             edge_after_cost_ratio: Some(dec!(2.5)),
             paper_fill_generated: false,
             state_mutated: false,
             state_mutated_without_candidate_or_fill: false,
+            degraded_market_data: false,
         }
+    }
+
+    fn degraded_rejected_record(
+        candidate_generated: bool,
+        paper_fill_generated: bool,
+    ) -> PaperSoakDecisionRecord {
+        let mut record = record(
+            SignalGrade::APlus,
+            SignalDirection::Short,
+            dec!(92),
+            candidate_generated,
+            paper_fill_generated,
+        );
+        record.degraded_market_data = true;
+        record.state_mutated = paper_fill_generated;
+        if !candidate_generated {
+            record.candidate_decision.candidate_generated = false;
+            record.candidate_decision.candidate = None;
+            record.candidate_decision.reasons = vec![
+                OrderCandidateReason::ResearchOnlyMode,
+                OrderCandidateReason::NoExecutableOrderGenerated,
+                OrderCandidateReason::DegradedMarketData,
+            ];
+        }
+        record
     }
 
     fn signal_decision(

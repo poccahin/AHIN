@@ -24,6 +24,7 @@ Trade = Signal x Regime x EdgeAfterCost x ExecutionQuality x RiskBudget x Convex
 - `exchange`: exchange adapter trait plus mock/read-only stubs
 - `market_data`: read-only market data models and freshness guards
 - `feature_engine`: first-pass deterministic feature helpers
+- `iching_engine`: deterministic Yi/I-Ching-inspired taxonomy and turnpoint gate
 - `signal_engine`: signal packet helpers and regime/false-breakout guards
 - `cost_engine`: fee, spread, slippage, and cost attrition checks
 - `risk_engine`: risk budget, liquidation, notional, loss, and tail-event checks
@@ -32,7 +33,7 @@ Trade = Signal x Regime x EdgeAfterCost x ExecutionQuality x RiskBudget x Convex
 - `state_engine`: engine state and state reconciliation guard
 - `withdrawal_engine`: high-watermark policy placeholders with no real withdrawals
 - `backtest`: offline JSONL event replay and deterministic simulation reports
-- `cli`: health-check, market-data, feature, signal, risk, dry-run candidate, backtest, paper, and canary commands
+- `cli`: health-check, market-data, feature, signal, Yi, risk, dry-run candidate, backtest, paper, canary, live-micro, and release-audit commands
 
 ## Quick Start
 
@@ -793,6 +794,40 @@ Retry defaults:
 - `retry_backoff_ms = [200, 500]`
 - `tick_max_duration_ms = 12000`
 
+## Phase 8.3.3: Critical Endpoint Redundancy & Reliability Calibration
+
+Phase 8.3.3 keeps mark/index price and orderbook as critical fresh-only data, while adding a paper-only same-tick redundancy path for isolated mark/index primary failures.
+
+Critical endpoint rules:
+
+- mark/index primary failures may use a fresh same-tick orderbook mid-price proxy only in `paper soak`
+- the orderbook must be fresh and must pass the configured max spread check
+- stale mark price is never used
+- stale orderbook is never used
+- orderbook failures still fail the tick
+- degraded/fallback ticks may evaluate diagnostics and signal/risk state, but cannot generate candidates, paper fills, or position mutations
+
+Additional soak report fields:
+
+- `critical_endpoint_error_count`
+- `noncritical_endpoint_error_count`
+- `critical_fallback_used_count`
+- `critical_fallback_failed_count`
+- `mark_price_primary_error_count`
+- `mark_price_fallback_used_count`
+- `mark_price_fallback_failed_count`
+- `orderbook_error_count`
+- `consecutive_critical_error_windows`
+
+Calibration:
+
+- mark primary failure plus fresh same-tick fallback emits `critical_market_data_fallback_used`
+- mark primary plus fallback failure fails the tick
+- isolated critical failed ticks below the critical failure-rate threshold warn only
+- `critical_failed_tick_rate > 0.005` blocks
+- three consecutive critical failed ticks block
+- endpoint errors from the same tick are merged into one sorted error window with multiple reasons
+
 ## Phase 9: Manual-Gated Live Micro Scaffold
 
 Phase 9 adds an audit-only live micro readiness scaffold. It does not implement real order placement, signed/private endpoints, API key loading, withdrawal execution, leverage changes, market orders, limit orders, or executable exchange orders.
@@ -830,6 +865,54 @@ cargo run -p cli -- release audit \
 The report includes git commit/clean state, config safety flags, health-check summary, canary readiness summary, live micro readiness summary, soak report summary, forbidden capability scan summary, expected validation commands, release readiness, blockers, and warnings.
 
 `release_ready=true` requires a clean git worktree, passing config safety flags, passing forbidden-capability scan, canary readiness with only the expected manual-live-gate blocker, live micro readiness remaining false by design, and no executable order capability. During active development the command may write a valid report with `release_ready=false` because the worktree is dirty.
+
+## Phase 10: Yi-Dao God Turnpoint Agent
+
+Phase 10 adds a research-only Yi/I-Ching-inspired market-state taxonomy on top of the existing `FeatureSnapshot -> SignalDecision -> RiskBudgetDecision` pipeline. This is deterministic classification and explanation, not fortune telling. It cannot enable live trading, cannot bypass risk gates, cannot create executable orders, and may only tighten downstream candidate gates.
+
+```sh
+cargo run -p cli -- yi evaluate --exchange binance --symbol BTCUSDT --depth 100
+cargo run -p cli -- god-signal evaluate --exchange binance --symbol BTCUSDT --depth 100
+```
+
+The Yi layer maps derivatives/macro conditions into an upper trigram and execution/micro conditions into a lower trigram. A moving line represents lifecycle and risk stage. The resulting `YiActionBias` can be `observe`, `probe`, `hold`, `add_allowed`, `reduce`, `exit`, or `cooldown`.
+
+The god-turnpoint gate remains intentionally strict. It can pass internally only when all existing research gates pass plus the Yi gates:
+
+- `SignalGrade = a_plus`
+- `final_strength >= 85`
+- `edge_after_cost_ratio >= 3.0`
+- `RiskBudgetDecision.risk_allowed = true`
+- `data_freshness_score >= 0.98`
+- market data is not degraded
+- Yi bias is `probe`, `hold`, or `add_allowed`
+- Yi state is not `kan_risk`, `bo_collapse`, `pi_blockage`, or `cooldown`
+
+Degraded market data may still produce Yi explanations, but `god_turnpoint_allowed=false`; no candidate or paper fill may be produced from that state.
+
+## Phase 10.1: Yi-Dao Soak Integration
+
+Phase 10.1 feeds the Yi/GodTurnpoint layer into paper-soak diagnostics. The soak loop now records Yi state and god-turnpoint gate outcomes for each successfully evaluated tick:
+
+```text
+FeatureSnapshot -> SignalDecision -> RiskBudgetDecision -> YiState -> GodTurnpointDecision -> OrderCandidateDecision
+```
+
+The Yi layer remains research-only and can only veto or explain. It cannot turn a rejected signal into a candidate, cannot bypass risk-budget checks, cannot loosen candidate-quality gates, and cannot create executable orders. Degraded market-data ticks may run Yi diagnostics, but `god_turnpoint_allowed=false` and no candidate or paper fill is allowed.
+
+`paper soak` reports now include:
+
+- `yi_hexagram_distribution`
+- `yi_action_bias_distribution`
+- `yi_reason_breakdown`
+- `god_turnpoint_evaluated_count`
+- `god_turnpoint_allowed_count`
+- `god_turnpoint_blocker_breakdown`
+- `god_turnpoint_warning_breakdown`
+- `god_signal_pressure_ratio`
+- `degraded_yi_evaluation_count`
+
+Zero god-turnpoint signals are a warning only, not a blocker. This keeps the report useful for long research soaks where the correct behavior may be to observe and do nothing.
 
 ## Phase Roadmap
 

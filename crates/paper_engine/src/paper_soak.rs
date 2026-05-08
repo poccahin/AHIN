@@ -1,8 +1,8 @@
 use std::path::Path;
 
 use domain::{
-    AppError, AppResult, FeatureSnapshot, PaperEngineState, PaperSoakConfig, PaperSoakErrorReason,
-    PaperSoakReport,
+    AppError, AppResult, FeatureSnapshot, FeatureWindow, GodTurnpointConfig, PaperEngineState,
+    PaperSoakConfig, PaperSoakErrorReason, PaperSoakReport,
 };
 
 use crate::{paper_loop, paper_state, soak_report};
@@ -25,10 +25,18 @@ pub fn run_snapshots(
     let mut ticks_processed = 0_u64;
     let mut candidate_generated_count = 0_u64;
     let mut errors_count = 0_u64;
+    let god_config = GodTurnpointConfig::default();
+    let mut feature_window = FeatureWindow::new(god_config.feature_window_len);
 
     for snapshot in snapshots.iter().take(config.ticks as usize) {
         let before = StateStructuralFingerprint::from_state(&state);
-        match paper_loop::process_snapshot(&mut state, snapshot) {
+        match paper_loop::process_snapshot_with_yi(
+            &mut state,
+            snapshot,
+            &mut feature_window,
+            false,
+            rust_decimal::Decimal::ONE,
+        ) {
             Ok(outcome) => {
                 ticks_processed += 1;
                 let mut tick_had_error = false;
@@ -66,15 +74,14 @@ pub fn run_snapshots(
                     signal_decision: &outcome.signal_decision,
                     risk_decision: &outcome.risk_decision,
                     candidate_decision: &outcome.candidate_decision,
+                    god_turnpoint_decision: Some(&outcome.god_turnpoint_decision),
                     edge_after_cost_ratio: Some(
-                        execution_engine::candidate_decision::edge_after_cost_ratio(
-                            snapshot,
-                            &outcome.signal_decision,
-                        ),
+                        outcome.god_turnpoint_decision.edge_after_cost_ratio,
                     ),
                     paper_fill_generated: outcome.trade.is_some(),
                     state_mutated,
                     state_mutated_without_candidate_or_fill,
+                    degraded_market_data: false,
                 });
                 if !tick_had_error {
                     metrics.record_fresh_market_data_tick();
@@ -243,6 +250,155 @@ mod tests {
         cleanup(&config);
     }
 
+    #[test]
+    fn c_grade_signal_records_yi_observe_and_god_blockers() {
+        let config = config("yi_observe");
+        let report = run_snapshots(&[rejected_snapshot(dec!(100))], &config).unwrap();
+
+        assert_eq!(report.god_turnpoint_evaluated_count, 1);
+        assert_eq!(report.god_turnpoint_allowed_count, 0);
+        assert_eq!(report.yi_action_bias_distribution["observe"], 1);
+        assert_eq!(
+            report.god_turnpoint_blocker_breakdown["signal_grade_not_a_plus"],
+            1
+        );
+        assert_eq!(report.god_signal_pressure_ratio, dec!(0));
+        cleanup(&config);
+    }
+
+    #[test]
+    fn a_plus_mock_signal_can_increment_god_turnpoint_allowed_count() {
+        let config = config("god_allowed");
+        let report = run_snapshots(&[passing_snapshot(dec!(100))], &config).unwrap();
+
+        assert_eq!(report.god_turnpoint_evaluated_count, 1);
+        assert_eq!(report.god_turnpoint_allowed_count, 1);
+        assert_eq!(report.god_signal_pressure_ratio, dec!(1));
+        assert_eq!(report.candidate_generated_count, 1);
+        assert!(report.soak_passed);
+        cleanup(&config);
+    }
+
+    #[test]
+    fn god_signal_pressure_ratio_is_deterministic() {
+        let first_config = config("god_pressure_first");
+        let second_config = config("god_pressure_second");
+        let snapshots = [passing_snapshot(dec!(100)), rejected_snapshot(dec!(101))];
+
+        let first = run_snapshots(&snapshots, &first_config).unwrap();
+        let second = run_snapshots(&snapshots, &second_config).unwrap();
+
+        assert_eq!(
+            first.god_signal_pressure_ratio,
+            second.god_signal_pressure_ratio
+        );
+        assert_eq!(first.god_signal_pressure_ratio, dec!(0.5));
+        cleanup(&first_config);
+        cleanup(&second_config);
+    }
+
+    #[test]
+    fn zero_god_signals_warns_only() {
+        let config = config("zero_god_warning");
+        let report = run_snapshots(
+            &[rejected_snapshot(dec!(100)), rejected_snapshot(dec!(101))],
+            &config,
+        )
+        .unwrap();
+
+        assert!(report.soak_passed);
+        assert_eq!(report.god_turnpoint_allowed_count, 0);
+        assert!(
+            report
+                .warnings
+                .iter()
+                .any(|warning| warning.code == "zero_god_turnpoints")
+        );
+        assert!(report.blockers.is_empty());
+        cleanup(&config);
+    }
+
+    #[test]
+    fn yi_veto_prevents_candidate_generation() {
+        let mut state = PaperEngineState::default();
+        let outcome = paper_loop::process_snapshot(&mut state, &kan_risk_snapshot(dec!(100)))
+            .expect("paper tick should evaluate without live order capability");
+
+        assert!(outcome.signal_decision.signal_allowed);
+        assert!(outcome.risk_decision.risk_allowed);
+        assert!(!outcome.god_turnpoint_decision.god_turnpoint_allowed);
+        assert!(!outcome.candidate_decision.candidate_generated);
+        assert!(outcome.trade.is_none());
+        assert!(state.positions.is_empty());
+    }
+
+    #[test]
+    fn yi_layer_cannot_turn_rejected_signal_into_candidate() {
+        let mut state = PaperEngineState::default();
+        let outcome = paper_loop::process_snapshot(&mut state, &rejected_snapshot(dec!(100)))
+            .expect("rejected signal remains research-only");
+
+        assert!(!outcome.signal_decision.signal_allowed);
+        assert!(!outcome.god_turnpoint_decision.god_turnpoint_allowed);
+        assert!(!outcome.candidate_decision.candidate_generated);
+        assert!(outcome.trade.is_none());
+    }
+
+    #[test]
+    fn degraded_market_data_records_yi_diagnostics_and_blocks_god_turnpoint() {
+        let config = config("degraded_yi");
+        paper_state::ensure_local_file_path(std::path::Path::new(&config.state_path)).unwrap();
+        paper_state::ensure_local_file_path(std::path::Path::new(&config.log_path)).unwrap();
+        paper_state::persist_state(&config.state_path, &PaperEngineState::default()).unwrap();
+        paper_state::ensure_trade_log(&config.log_path).unwrap();
+        let state = PaperEngineState::default();
+        let god_config = GodTurnpointConfig::default();
+        let mut window = FeatureWindow::new(god_config.feature_window_len);
+        let snapshot = passing_snapshot(dec!(100));
+        let (signal_decision, risk_decision, god_turnpoint_decision, candidate_decision) =
+            paper_loop::evaluate_snapshot_decisions(&state, &snapshot, &mut window, true, dec!(1));
+        let mut metrics = soak_report::PaperSoakRunMetrics {
+            paper_equity_start: dec!(200),
+            paper_equity_end: dec!(200),
+            ..Default::default()
+        };
+        metrics.record_decision(soak_report::PaperSoakDecisionInput {
+            signal_decision: &signal_decision,
+            risk_decision: &risk_decision,
+            god_turnpoint_decision: Some(&god_turnpoint_decision),
+            candidate_decision: &candidate_decision,
+            edge_after_cost_ratio: Some(god_turnpoint_decision.edge_after_cost_ratio),
+            paper_fill_generated: false,
+            state_mutated: false,
+            state_mutated_without_candidate_or_fill: false,
+            degraded_market_data: true,
+        });
+
+        let report = finalize_report_with_metrics(&config, 1, 0, 0, metrics);
+
+        assert_eq!(report.degraded_yi_evaluation_count, 1);
+        assert_eq!(report.god_turnpoint_allowed_count, 0);
+        assert_eq!(
+            report.god_turnpoint_blocker_breakdown["degraded_market_data"],
+            1
+        );
+        assert!(!candidate_decision.candidate_generated);
+        assert!(report.soak_passed);
+        cleanup(&config);
+    }
+
+    #[test]
+    fn paper_soak_remains_safe_with_no_executable_order_id() {
+        let config = config("god_safe_log");
+        let report = run_snapshots(&[passing_snapshot(dec!(100))], &config).unwrap();
+        let raw_log = fs::read_to_string(&config.log_path).unwrap();
+
+        assert!(report.paper_log_valid);
+        assert!(raw_log.contains("\"executable\":false"));
+        assert!(raw_log.contains("\"real_order_id\":null"));
+        cleanup(&config);
+    }
+
     fn passing_snapshot(mark_price: rust_decimal::Decimal) -> FeatureSnapshot {
         FeatureSnapshot {
             exchange: "test".to_string(),
@@ -251,8 +407,8 @@ mod tests {
             index_price: Price::new(mark_price - dec!(1)).unwrap(),
             premium: dec!(1),
             premium_bps: dec!(100),
-            funding_rate: dec!(0.0006),
-            funding_regime: FundingRegime::StronglyPositive,
+            funding_rate: dec!(-0.0002),
+            funding_regime: FundingRegime::StronglyNegative,
             open_interest: Quantity::new(dec!(1000)).unwrap(),
             liquidity: LiquidityMetrics {
                 spread_bps: dec!(2),
@@ -278,6 +434,14 @@ mod tests {
             premium_bps: dec!(0),
             funding_rate: dec!(0),
             funding_regime: FundingRegime::Neutral,
+            ..passing_snapshot(mark_price)
+        }
+    }
+
+    fn kan_risk_snapshot(mark_price: rust_decimal::Decimal) -> FeatureSnapshot {
+        FeatureSnapshot {
+            funding_rate: dec!(0.0008),
+            funding_regime: FundingRegime::StronglyPositive,
             ..passing_snapshot(mark_price)
         }
     }

@@ -2,10 +2,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use domain::{
     AccountRiskState, AppError, AppResult, CandidateSizingConfig, DryRunOrderCandidate,
-    ExposureState, FeatureSnapshot, OrderCandidateDecision, PaperEngineState, PaperRunConfig,
-    PaperRunReport, PaperTick, PaperTrade, RiskBudgetConfig, RiskBudgetDecision, SignalDecision,
+    ExposureState, FeatureSnapshot, FeatureWindow, GodTurnpointConfig, GodTurnpointDecision,
+    OrderCandidateDecision, OrderCandidateReason, PaperEngineState, PaperRunConfig, PaperRunReport,
+    PaperTick, PaperTrade, RiskBudgetConfig, RiskBudgetDecision, SignalDecision,
 };
 use execution_engine::candidate_decision;
+use iching_engine::evaluate_god_turnpoint;
 use risk_engine::risk_decision;
 use rust_decimal::Decimal;
 use signal_engine::signal_decision;
@@ -18,6 +20,7 @@ pub struct PaperTickOutcome {
     pub trade: Option<PaperTrade>,
     pub signal_decision: SignalDecision,
     pub risk_decision: RiskBudgetDecision,
+    pub god_turnpoint_decision: GodTurnpointDecision,
     pub candidate_decision: OrderCandidateDecision,
 }
 
@@ -58,20 +61,30 @@ pub fn process_snapshot(
     state: &mut PaperEngineState,
     snapshot: &FeatureSnapshot,
 ) -> AppResult<PaperTickOutcome> {
-    paper_state::mark_positions(state, &snapshot.symbol, snapshot.mark_price.as_decimal());
+    let config = GodTurnpointConfig::default();
+    let mut feature_window = FeatureWindow::new(config.feature_window_len);
+    process_snapshot_with_yi(state, snapshot, &mut feature_window, false, Decimal::ONE)
+}
 
-    let signal_decision = signal_decision::evaluate_snapshot(snapshot);
-    let risk_decision = risk_decision::evaluate_risk_budget(
-        signal_decision.clone(),
-        account_risk_state(state),
-        RiskBudgetConfig::default(),
-    );
-    let candidate_decision = candidate_decision::evaluate_order_candidate(
-        snapshot,
-        signal_decision.clone(),
-        risk_decision.clone(),
-        CandidateSizingConfig::default(),
-    );
+pub fn process_snapshot_with_yi(
+    state: &mut PaperEngineState,
+    snapshot: &FeatureSnapshot,
+    feature_window: &mut FeatureWindow,
+    degraded_market_data: bool,
+    data_freshness_score: Decimal,
+) -> AppResult<PaperTickOutcome> {
+    if !degraded_market_data {
+        paper_state::mark_positions(state, &snapshot.symbol, snapshot.mark_price.as_decimal());
+    }
+
+    let (signal_decision, risk_decision, god_turnpoint_decision, candidate_decision) =
+        evaluate_snapshot_decisions(
+            state,
+            snapshot,
+            feature_window,
+            degraded_market_data,
+            data_freshness_score,
+        );
     let valid_candidate = valid_generated_candidate(&candidate_decision);
 
     let tick = PaperTick {
@@ -97,16 +110,67 @@ pub fn process_snapshot(
         Some(_) => None,
     };
 
-    state.ticks_processed = tick.tick_id;
-    state.last_tick = Some(tick.clone());
+    if !degraded_market_data {
+        state.ticks_processed = tick.tick_id;
+        state.last_tick = Some(tick.clone());
+    }
 
     Ok(PaperTickOutcome {
         tick,
         trade,
         signal_decision,
         risk_decision,
+        god_turnpoint_decision,
         candidate_decision,
     })
+}
+
+pub fn evaluate_snapshot_decisions(
+    state: &PaperEngineState,
+    snapshot: &FeatureSnapshot,
+    feature_window: &mut FeatureWindow,
+    degraded_market_data: bool,
+    data_freshness_score: Decimal,
+) -> (
+    SignalDecision,
+    RiskBudgetDecision,
+    GodTurnpointDecision,
+    OrderCandidateDecision,
+) {
+    feature_window.push(snapshot.clone());
+    let signal_decision = signal_decision::evaluate_snapshot(snapshot);
+    let risk_decision = risk_decision::evaluate_risk_budget(
+        signal_decision.clone(),
+        account_risk_state(state),
+        RiskBudgetConfig::default(),
+    );
+    let god_config = GodTurnpointConfig::default();
+    let god_turnpoint_decision = evaluate_god_turnpoint(
+        snapshot,
+        signal_decision.clone(),
+        risk_decision.clone(),
+        feature_window,
+        data_freshness_score,
+        degraded_market_data,
+        god_config,
+    );
+    let candidate_decision = if god_turnpoint_decision.god_turnpoint_allowed {
+        candidate_decision::evaluate_order_candidate(
+            snapshot,
+            signal_decision.clone(),
+            risk_decision.clone(),
+            CandidateSizingConfig::default(),
+        )
+    } else {
+        yi_rejected_candidate_decision(signal_decision.clone(), risk_decision.clone())
+    };
+
+    (
+        signal_decision,
+        risk_decision,
+        god_turnpoint_decision,
+        candidate_decision,
+    )
 }
 
 fn valid_generated_candidate(decision: &OrderCandidateDecision) -> Option<&DryRunOrderCandidate> {
@@ -117,6 +181,33 @@ fn valid_generated_candidate(decision: &OrderCandidateDecision) -> Option<&DryRu
         .candidate
         .as_ref()
         .filter(|candidate| candidate.invariant_safe())
+}
+
+fn yi_rejected_candidate_decision(
+    signal_decision: SignalDecision,
+    risk_decision: RiskBudgetDecision,
+) -> OrderCandidateDecision {
+    let mut reasons =
+        execution_engine::order_candidate::base_rejection_reasons(&signal_decision, &risk_decision);
+    execution_engine::order_candidate::push_reason(
+        &mut reasons,
+        OrderCandidateReason::YiGateRejected,
+    );
+    execution_engine::order_candidate::push_reason(
+        &mut reasons,
+        OrderCandidateReason::NoExecutableOrderGenerated,
+    );
+    OrderCandidateDecision {
+        candidate_generated: false,
+        candidate: None,
+        reasons,
+        signal_decision,
+        risk_decision,
+        sizing_config: CandidateSizingConfig::default(),
+        summary:
+            "dry-run candidate rejected by research-only Yi/GodTurnpoint gate; no executable order exists"
+                .to_string(),
+    }
 }
 
 fn account_risk_state(state: &PaperEngineState) -> AccountRiskState {
@@ -197,7 +288,7 @@ mod tests {
     fn paper_pnl_updates_deterministically() {
         let config = config("deterministic_pnl");
         let report = run_snapshots(
-            &[passing_snapshot(dec!(100)), rejected_snapshot(dec!(99))],
+            &[passing_snapshot(dec!(100)), rejected_snapshot(dec!(101))],
             &config,
         )
         .unwrap();
@@ -219,8 +310,8 @@ mod tests {
             index_price: Price::new(mark_price - dec!(1)).unwrap(),
             premium: dec!(1),
             premium_bps: dec!(100),
-            funding_rate: dec!(0.0006),
-            funding_regime: FundingRegime::StronglyPositive,
+            funding_rate: dec!(-0.0002),
+            funding_regime: FundingRegime::StronglyNegative,
             open_interest: Quantity::new(dec!(1000)).unwrap(),
             liquidity: LiquidityMetrics {
                 spread_bps: dec!(2),
