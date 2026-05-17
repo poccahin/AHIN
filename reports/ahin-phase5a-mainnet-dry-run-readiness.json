@@ -1,0 +1,61 @@
+{
+  "phase": "Phase 5A - Mainnet Dry-Run Readiness Certificate",
+  "status": "PREPARATION_AUDIT_ONLY_LOCAL_GATES_PARTIAL",
+  "createdAt": "2026-05-17T08:18:05Z",
+  "deploymentExecuted": false,
+  "workflowDispatched": false,
+  "rootDomainTakeover": false,
+  "rootDomainUntouched": true,
+  "liveExecution": false,
+  "protocolExecutionEnabled": false,
+  "realWalletTransfer": false,
+  "realBurnTransaction": false,
+  "signingEnabled": false,
+  "burnBreakerRelease": false,
+  "oracleMode": "readonly",
+  "gateMode": "mock",
+  "phase4Baseline": {
+    "status": "COMPLETE",
+    "finalPreviewRun": "https://github.com/poccahin/AHIN/actions/runs/25985285116",
+    "commit": "1a40d96f6e3c00f7bdfec36bdc4593bb06da84ed",
+    "previewUrl": "https://52939d58.ahin-gate-preview.pages.dev",
+    "branchPreviewUrl": "https://preview.ahin-gate-preview.pages.dev",
+    "rootDomainSignal": "AHIN Cognitive Network"
+  },
+  "deliverables": [
+    "docs/phase5a/mainnet-dry-run-readiness-certificate.md",
+    "docs/phase5a/wallet-allowlist-policy.md",
+    "docs/phase5a/micro-transfer-cap-policy.md",
+    "docs/phase5a/multisig-approval-checklist.md",
+    "docs/phase5a/rollback-plan.md",
+    "docs/phase5a/post-transfer-replay-attestation-template.md",
+    "docs/phase5a/legal-compliance-checklist.md"
+  ],
+  "phase5BEntryCriteria": [
+    "wallet allowlist approved",
+    "micro-transfer cap approved",
+    "multisig approval complete",
+    "rollback plan approved",
+    "post-transfer replay attestation template approved",
+    "legal/compliance checklist approved",
+    "explicit operator authorization for Phase 5B"
+  ],
+  "localValidation": {
+    "node": "v25.9.0",
+    "npm": "11.12.1",
+    "npm run lint": "PASS",
+    "npm run typecheck": "PASS",
+    "npm run build": "PASS",
+    "npm run guard:no-agent-gates": "PASS",
+    "npm audit --omit=dev": "PASS",
+    "npm run test:agents": "PASS",
+    "npm run test:pocc": "TIMEOUT_30S_LOCAL_NODE_TSX",
+    "npm run test:wallet-ux": "TIMEOUT_30S_LOCAL_NODE_TSX"
+  },
+  "notes": [
+    "Phase 5A proves readiness process only.",
+    "Phase 5A does not authorize live transfer, burn, signing, protocol execution, or root domain promotion.",
+    "Phase 5B must be separately approved before any micro-transfer discussion becomes executable.",
+    "The local Node/tsx timeout matches the previously recorded local runtime issue; GitHub Actions Node 22 passed these tests in Phase 4C-CI-Preview-Gates-2 and Phase 4C-CI-Preview-Deploy-2."
+  ]
+}
