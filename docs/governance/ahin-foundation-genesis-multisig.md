@@ -17,11 +17,20 @@ Treasury funding authorized: false
 ## Genesis Multisig Record
 
 ```text
-Treasury multisig PDA:
+Treasury / multisig address:
+5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo
+
+Previous incorrect address:
 6ptousxVRcq84HYuxkaZfrCSVu1HWEzTvYRXNW4t49w6
 
 Governance threshold:
 2-of-3
+
+Members:
+3
+
+Source:
+Squads dashboard visual confirmation
 
 Transaction signature:
 3q5PFdQVzKP5GRu8hjpvZL236LqFP993vwdC1jPfd7nZHEnG2UqwDtJ4Poj2XomXMUauS7c1ArnUQwe7D61gQtMK
@@ -33,6 +42,16 @@ https://solscan.io/tx/3q5PFdQVzKP5GRu8hjpvZL236LqFP993vwdC1jPfd7nZHEnG2UqwDtJ4Po
 ## Safety Boundary
 
 This archive records the genesis multisig creation evidence only. It does not authorize or implement any operational asset movement.
+
+Current frozen operating statement:
+
+```text
+AHIN Foundation Squads multisig is visible in Squads.
+Treasury / multisig address: 5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo
+Threshold: 2/3
+Members: 3
+No protocol execution, no burn, no automated transfer path enabled.
+```
 
 Explicitly not authorized:
 
