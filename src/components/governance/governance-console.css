@@ -1,0 +1,683 @@
+.governance-console {
+  min-height: 100vh;
+  overflow-x: hidden;
+  color: #111827;
+  background:
+    radial-gradient(circle at 52% 16%, rgba(3, 169, 244, 0.08), transparent 32%),
+    linear-gradient(180deg, #f8f9fb, #f1f3f6 48%, #eef1f5);
+  font-feature-settings: "cv02", "cv03", "cv04", "ss01";
+  letter-spacing: 0;
+}
+
+.governance-shell {
+  display: grid;
+  width: min(1480px, calc(100vw - 32px));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 18px 0;
+  gap: 14px;
+}
+
+.governance-topbar,
+.governance-phase-strip,
+.governance-panel,
+.governance-footer {
+  border: 0.5px solid rgba(17, 24, 39, 0.1);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow:
+    0 18px 55px rgba(17, 24, 39, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(24px) saturate(120%);
+  -webkit-backdrop-filter: blur(24px) saturate(120%);
+}
+
+.governance-topbar {
+  display: flex;
+  min-height: 74px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-radius: 22px;
+  padding: 14px 18px;
+}
+
+.governance-topbar p,
+.governance-section-heading span,
+.governance-phase-strip span,
+.treasury-custody-list dt,
+.inspector-facts dt,
+.governance-footer span,
+.governance-modal-panel dt {
+  margin: 0;
+  color: rgba(17, 24, 39, 0.52);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+}
+
+.governance-topbar h1 {
+  margin: 3px 0 0;
+  color: rgba(17, 24, 39, 0.94);
+  font-size: clamp(28px, 3.6vw, 52px);
+  line-height: 0.98;
+  font-weight: 640;
+  letter-spacing: 0;
+}
+
+.governance-topbar-status {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.governance-topbar-status span,
+.status-chip,
+.proof-envelope-button,
+.agent-switch {
+  border: 0.5px solid rgba(17, 24, 39, 0.1);
+  background: rgba(246, 247, 249, 0.82);
+}
+
+.governance-topbar-status span {
+  min-height: 30px;
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: rgba(17, 24, 39, 0.68);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.governance-phase-strip {
+  display: grid;
+  grid-template-columns: 0.8fr 1.5fr 1fr 1.35fr;
+  gap: 1px;
+  overflow: hidden;
+  border-radius: 20px;
+  padding: 1px;
+  background:
+    linear-gradient(90deg, rgba(17, 24, 39, 0.08), rgba(17, 24, 39, 0.02)),
+    rgba(255, 255, 255, 0.88);
+}
+
+.governance-phase-strip div {
+  min-height: 70px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.governance-phase-strip strong,
+.governance-section-heading strong {
+  display: block;
+  margin-top: 7px;
+  color: rgba(17, 24, 39, 0.88);
+  font-size: 13px;
+  font-weight: 620;
+}
+
+.governance-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.62fr) minmax(360px, 0.88fr);
+  gap: 14px;
+  min-height: 0;
+}
+
+.governance-main-stack,
+.governance-side-stack {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.governance-panel {
+  border-radius: 24px;
+  padding: 16px;
+}
+
+.governance-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.topology-panel {
+  min-height: 472px;
+}
+
+.topology-map {
+  position: relative;
+  display: grid;
+  min-height: 390px;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 14px;
+  isolation: isolate;
+}
+
+.topology-map::before {
+  position: absolute;
+  inset: 18px;
+  z-index: 0;
+  border: 0.5px solid rgba(17, 24, 39, 0.07);
+  border-radius: 999px;
+  content: "";
+}
+
+.topology-path {
+  position: absolute;
+  z-index: 0;
+  background: rgba(17, 24, 39, 0.07);
+  pointer-events: none;
+}
+
+.topology-path.is-horizontal {
+  left: 12%;
+  right: 12%;
+  top: 50%;
+  height: 0.5px;
+}
+
+.topology-path.is-vertical {
+  left: 50%;
+  top: 12%;
+  bottom: 12%;
+  width: 0.5px;
+}
+
+.topology-node {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: 116px;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  align-content: center;
+  align-items: center;
+  border: 0.5px solid rgba(17, 24, 39, 0.09);
+  border-radius: 22px;
+  padding: 15px;
+  color: #111827;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 14px 38px rgba(17, 24, 39, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.topology-node:hover,
+.topology-node.is-selected {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--node-color) 42%, rgba(17, 24, 39, 0.12));
+  box-shadow:
+    0 18px 42px rgba(17, 24, 39, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 4px 0 0 color-mix(in srgb, var(--node-color) 68%, transparent);
+}
+
+.topology-node:nth-of-type(1) {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.topology-node:nth-of-type(2) {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.topology-node:nth-of-type(3) {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.topology-node:nth-of-type(4) {
+  grid-column: 1;
+  grid-row: 3;
+}
+
+.topology-node:nth-of-type(5) {
+  grid-column: 3;
+  grid-row: 3;
+}
+
+.topology-node.is-coral,
+.agent-switch.is-coral,
+.selected-agent-card.is-coral,
+.responsibility-dot.is-coral {
+  --node-color: #d66b58;
+}
+
+.topology-node.is-purple,
+.agent-switch.is-purple,
+.selected-agent-card.is-purple,
+.responsibility-dot.is-purple {
+  --node-color: #7b5da8;
+}
+
+.topology-node.is-blue,
+.agent-switch.is-blue,
+.selected-agent-card.is-blue,
+.responsibility-dot.is-blue {
+  --node-color: #2279a9;
+}
+
+.topology-node.is-amber,
+.agent-switch.is-amber,
+.selected-agent-card.is-amber,
+.responsibility-dot.is-amber {
+  --node-color: #b5892f;
+}
+
+.topology-node.is-green,
+.agent-switch.is-green,
+.selected-agent-card.is-green,
+.responsibility-dot.is-green {
+  --node-color: #5f8b4a;
+}
+
+.topology-node-index,
+.topology-node-glyph {
+  grid-column: 1;
+}
+
+.topology-node-index {
+  color: rgba(17, 24, 39, 0.45);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+}
+
+.topology-node-glyph {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border: 0.5px solid color-mix(in srgb, var(--node-color) 30%, rgba(17, 24, 39, 0.12));
+  border-radius: 14px;
+  color: color-mix(in srgb, var(--node-color) 92%, #111827);
+  background: color-mix(in srgb, var(--node-color) 8%, white);
+  font-weight: 700;
+}
+
+.topology-node-copy {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  min-width: 0;
+}
+
+.topology-node-copy strong {
+  display: block;
+  color: rgba(17, 24, 39, 0.88);
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.topology-node-copy small {
+  display: block;
+  margin-top: 6px;
+  color: rgba(17, 24, 39, 0.54);
+  font-size: 12px;
+}
+
+.responsibility-panel {
+  padding-bottom: 12px;
+}
+
+.responsibility-table-wrap {
+  overflow-x: auto;
+}
+
+.responsibility-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.responsibility-table th {
+  padding: 0 12px 10px;
+  color: rgba(17, 24, 39, 0.48);
+  font-size: 10px;
+  font-weight: 600;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.13em;
+}
+
+.responsibility-table td {
+  border-top: 0.5px solid rgba(17, 24, 39, 0.08);
+  padding: 13px 12px;
+  color: rgba(17, 24, 39, 0.72);
+  white-space: nowrap;
+}
+
+.responsibility-table tr {
+  cursor: pointer;
+}
+
+.responsibility-table tbody tr:hover,
+.responsibility-table tbody tr.is-selected {
+  background: rgba(17, 24, 39, 0.028);
+}
+
+.responsibility-table td:first-child,
+.responsibility-table td:last-child,
+.treasury-custody-list .is-address dd,
+.inspector-facts dd,
+.governance-modal-panel dd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.responsibility-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 8px;
+  border-radius: 999px;
+  background: var(--node-color);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--node-color) 11%, transparent);
+}
+
+.status-chip {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 10.5px;
+  text-transform: capitalize;
+}
+
+.status-chip.is-complete {
+  color: #476d35;
+  background: rgba(139, 195, 74, 0.12);
+}
+
+.status-chip.is-running {
+  color: #775f25;
+  background: rgba(255, 193, 7, 0.14);
+}
+
+.status-chip.is-pending {
+  color: rgba(17, 24, 39, 0.58);
+  background: rgba(17, 24, 39, 0.045);
+}
+
+.treasury-custody-list,
+.inspector-facts,
+.governance-modal-panel dl {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.treasury-custody-list div,
+.inspector-facts div,
+.governance-modal-panel dl div {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  gap: 18px;
+  border-top: 0.5px solid rgba(17, 24, 39, 0.08);
+  padding: 12px 0;
+}
+
+.treasury-custody-list dd,
+.inspector-facts dd,
+.governance-modal-panel dd {
+  margin: 0;
+  color: rgba(17, 24, 39, 0.82);
+  overflow-wrap: anywhere;
+  text-align: right;
+  font-size: 12px;
+}
+
+.treasury-custody-list .is-address {
+  display: grid;
+  gap: 8px;
+}
+
+.treasury-custody-list .is-address dd {
+  border: 0.5px solid rgba(17, 24, 39, 0.08);
+  border-radius: 14px;
+  padding: 10px;
+  background: rgba(246, 247, 249, 0.78);
+  text-align: left;
+}
+
+.readiness-meter {
+  margin-top: 16px;
+  border: 0.5px solid rgba(17, 24, 39, 0.08);
+  border-radius: 18px;
+  padding: 12px;
+  background: rgba(246, 247, 249, 0.74);
+}
+
+.readiness-meter div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.readiness-meter span,
+.readiness-meter p {
+  color: rgba(17, 24, 39, 0.54);
+  font-size: 11px;
+}
+
+.readiness-meter strong {
+  color: rgba(17, 24, 39, 0.78);
+  font-size: 11px;
+  font-weight: 620;
+}
+
+.readiness-bars {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+  margin-top: 12px;
+}
+
+.readiness-bars span {
+  height: 24px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(34, 121, 169, 0.24), rgba(34, 121, 169, 0.1));
+}
+
+.readiness-bars span.is-muted {
+  background: rgba(17, 24, 39, 0.055);
+}
+
+.readiness-meter p {
+  margin: 10px 0 0;
+}
+
+.agent-switcher {
+  display: flex;
+  gap: 7px;
+  margin-bottom: 14px;
+}
+
+.agent-switch {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 13px;
+  color: color-mix(in srgb, var(--node-color) 82%, #111827);
+  font-weight: 700;
+}
+
+.agent-switch.is-selected {
+  border-color: color-mix(in srgb, var(--node-color) 42%, rgba(17, 24, 39, 0.1));
+  background: color-mix(in srgb, var(--node-color) 9%, white);
+}
+
+.selected-agent-card {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  border: 0.5px solid color-mix(in srgb, var(--node-color) 24%, rgba(17, 24, 39, 0.09));
+  border-radius: 20px;
+  padding: 13px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--node-color) 8%, white), rgba(255, 255, 255, 0.74));
+}
+
+.selected-agent-glyph {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0.5px solid color-mix(in srgb, var(--node-color) 32%, rgba(17, 24, 39, 0.08));
+  border-radius: 17px;
+  color: color-mix(in srgb, var(--node-color) 92%, #111827);
+  background: rgba(255, 255, 255, 0.62);
+  font-size: 22px;
+  font-weight: 740;
+}
+
+.selected-agent-card p {
+  margin: 0;
+  color: rgba(17, 24, 39, 0.5);
+  font-size: 11px;
+}
+
+.selected-agent-card h2 {
+  margin: 3px 0 2px;
+  color: rgba(17, 24, 39, 0.9);
+  font-size: 22px;
+  font-weight: 640;
+}
+
+.selected-agent-card span:last-child,
+.selected-agent-description {
+  color: rgba(17, 24, 39, 0.58);
+  font-size: 12px;
+}
+
+.selected-agent-description {
+  margin: 14px 0;
+  line-height: 1.7;
+}
+
+.proof-envelope-button {
+  width: 100%;
+  min-height: 42px;
+  margin-top: 14px;
+  border-radius: 14px;
+  color: rgba(17, 24, 39, 0.78);
+  font-weight: 620;
+}
+
+.governance-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.governance-modal-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(17, 24, 39, 0.46);
+}
+
+.governance-modal-panel {
+  position: relative;
+  z-index: 1;
+  width: min(620px, 100%);
+  border: 0.5px solid rgba(17, 24, 39, 0.1);
+  border-radius: 24px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 80px rgba(17, 24, 39, 0.24);
+}
+
+.governance-modal-panel p {
+  color: rgba(17, 24, 39, 0.58);
+  font-size: 12px;
+}
+
+.governance-modal-panel h2 {
+  margin: 4px 0 16px;
+  color: rgba(17, 24, 39, 0.9);
+}
+
+.governance-modal-panel button {
+  min-height: 38px;
+  margin-top: 16px;
+  border: 0;
+  border-radius: 12px;
+  padding: 0 16px;
+  color: white;
+  background: #111827;
+}
+
+.governance-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+  border-radius: 18px;
+  padding: 11px 14px;
+}
+
+.governance-footer span {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+@media (max-width: 1100px) {
+  .governance-grid,
+  .governance-phase-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .topology-map {
+    min-height: 520px;
+  }
+}
+
+@media (max-width: 760px) {
+  .governance-shell {
+    width: min(100vw - 20px, 1480px);
+    padding: 10px 0;
+  }
+
+  .governance-topbar {
+    display: grid;
+  }
+
+  .governance-topbar-status {
+    justify-content: flex-start;
+  }
+
+  .topology-map {
+    display: flex;
+    min-height: 0;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+
+  .topology-map::before,
+  .topology-path {
+    display: none;
+  }
+
+  .topology-node {
+    flex: 0 0 230px;
+  }
+
+  .governance-section-heading,
+  .readiness-meter div:first-child {
+    display: grid;
+  }
+}

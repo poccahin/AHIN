@@ -1,7 +1,7 @@
 "use client";
 
-import AgentMatrixScene from "./matrix/AgentMatrixScene";
+import GovernanceConsole from "@/src/components/governance/GovernanceConsole";
 
 export default function MatrixReveal() {
-  return <AgentMatrixScene />;
+  return <GovernanceConsole />;
 }

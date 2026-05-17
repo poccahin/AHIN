@@ -1,0 +1,43 @@
+{
+  "phase": "Phase R0-G1 Root Governance Console UI",
+  "status": "READY_NOT_DEPLOYED_WITH_LOCAL_VALIDATION_BLOCKERS_DISCLOSED",
+  "deploymentExecuted": false,
+  "workflowDispatched": false,
+  "rootDomainTouched": false,
+  "canonicalTreasuryMultisigAddress": "5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo",
+  "governanceThreshold": "2-of-3",
+  "members": 3,
+  "phaseG1Visible": true,
+  "treasuryFundingEnabled": false,
+  "protocolExecutionEnabled": false,
+  "realWalletTransfer": false,
+  "realBurnTransaction": false,
+  "signingEnabled": false,
+  "unverifiedTreasuryBalanceShown": false,
+  "unverifiedCertificationClaimShown": false,
+  "inlineScriptUsed": false,
+  "transferBurnCopyAbsent": true,
+  "wranglerRun": false,
+  "treasuryOrMultisigLogicModified": false,
+  "designCorrections": {
+    "fakeTreasuryBalanceRemoved": true,
+    "certificationClaimRemoved": true,
+    "liveSlotNotHardcoded": true,
+    "agentSwitcherUsesReactState": true
+  },
+  "localValidation": {
+    "npm run lint": "PASS",
+    "npm run typecheck": "TIMEOUT_180S_LOCAL_RUNTIME",
+    "npm run build": "TIMEOUT_180S_LOCAL_RUNTIME",
+    "npm run guard:no-agent-gates": "PASS",
+    "npm audit --omit=dev": "FAIL_BIGINT_BUFFER_VIA_EXISTING_SQDS_MULTISIG_DEPENDENCY",
+    "npm run test:agents": "TIMEOUT_180S_LOCAL_RUNTIME",
+    "npm run test:pocc": "TIMEOUT_180S_LOCAL_RUNTIME",
+    "npm run test:wallet-ux": "TIMEOUT_180S_LOCAL_RUNTIME"
+  },
+  "validationNotes": [
+    "The local validation run did not execute deployment, workflow dispatch, wrangler, protocol execution, transfer, burn, signing, transaction submission, or treasury/multisig logic changes.",
+    "Several local Node/Next/tsx validation commands timed out without emitting diagnostics in the current runtime environment.",
+    "The audit finding is the existing bigint-buffer chain through @sqds/multisig and was not introduced by this governance console UI patch."
+  ]
+}
