@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { GovernanceAgentId } from "./governance-data";
-import { GOVERNANCE_AGENTS, getGovernanceAgent } from "./governance-data";
+import { INSPECTOR_AGENT_ORDER, getGovernanceAgent } from "./governance-data";
 
 interface GovernanceInspectorProps {
   selectedAgentId: GovernanceAgentId;
@@ -31,18 +31,21 @@ export default function GovernanceInspector({ selectedAgentId, onSelectAgent }: 
       </div>
 
       <div className="agent-switcher" role="tablist" aria-label="Governance agent switcher">
-        {GOVERNANCE_AGENTS.map((agent) => (
-          <button
-            key={agent.id}
-            type="button"
-            role="tab"
-            aria-selected={selectedAgentId === agent.id}
-            className={`agent-switch is-${agent.tone} ${selectedAgentId === agent.id ? "is-selected" : ""}`}
-            onClick={() => onSelectAgent(agent.id)}
-          >
-            {agent.glyph}
-          </button>
-        ))}
+        {INSPECTOR_AGENT_ORDER.map((agentId) => {
+          const agent = getGovernanceAgent(agentId);
+          return (
+            <button
+              key={agent.id}
+              type="button"
+              role="tab"
+              aria-selected={selectedAgentId === agent.id}
+              className={`agent-switch is-${agent.tone} ${selectedAgentId === agent.id ? "is-selected" : ""}`}
+              onClick={() => onSelectAgent(agent.id)}
+            >
+              {agent.glyph}
+            </button>
+          );
+        })}
       </div>
 
       <div className={`selected-agent-card is-${selectedAgent.tone}`}>

@@ -1,10 +1,24 @@
 .governance-console {
+  --console-bg: #f6f7f9;
+  --console-panel: #ffffff;
+  --console-secondary-panel: #f0f2f5;
+  --console-text-primary: #111318;
+  --console-text-secondary: #5d6675;
+  --console-text-tertiary: #8b93a1;
+  --console-hairline: rgba(17, 19, 24, 0.12);
+  --console-strong-border: rgba(17, 19, 24, 0.18);
+  --console-verified-green: #3b6d11;
+  --console-caution-amber: #ba7517;
+  --console-route-blue: #185fa5;
+  --console-coral: #d85a30;
+  --console-purple: #534ab7;
+  --console-green: #639922;
   min-height: 100vh;
   overflow-x: hidden;
-  color: #111827;
+  color: var(--console-text-primary);
   background:
-    radial-gradient(circle at 52% 16%, rgba(3, 169, 244, 0.08), transparent 32%),
-    linear-gradient(180deg, #f8f9fb, #f1f3f6 48%, #eef1f5);
+    radial-gradient(circle at 52% 16%, rgba(24, 95, 165, 0.07), transparent 32%),
+    linear-gradient(180deg, var(--console-bg), var(--console-secondary-panel) 52%, #eceff3);
   font-feature-settings: "cv02", "cv03", "cv04", "ss01";
   letter-spacing: 0;
 }
@@ -23,7 +37,7 @@
 .governance-panel,
 .governance-footer {
   border: 0.5px solid rgba(17, 24, 39, 0.1);
-  background: rgba(255, 255, 255, 0.86);
+  background: color-mix(in srgb, var(--console-panel) 88%, transparent);
   box-shadow:
     0 18px 55px rgba(17, 24, 39, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
@@ -57,7 +71,7 @@
 
 .governance-topbar h1 {
   margin: 3px 0 0;
-  color: rgba(17, 24, 39, 0.94);
+  color: var(--console-text-primary);
   font-size: clamp(28px, 3.6vw, 52px);
   line-height: 0.98;
   font-weight: 640;
@@ -75,15 +89,15 @@
 .status-chip,
 .proof-envelope-button,
 .agent-switch {
-  border: 0.5px solid rgba(17, 24, 39, 0.1);
-  background: rgba(246, 247, 249, 0.82);
+  border: 0.5px solid var(--console-hairline);
+  background: color-mix(in srgb, var(--console-secondary-panel) 82%, transparent);
 }
 
 .governance-topbar-status span {
   min-height: 30px;
   border-radius: 999px;
   padding: 7px 10px;
-  color: rgba(17, 24, 39, 0.68);
+  color: var(--console-text-secondary);
   font-size: 11px;
   white-space: nowrap;
 }
@@ -249,35 +263,35 @@
 .agent-switch.is-coral,
 .selected-agent-card.is-coral,
 .responsibility-dot.is-coral {
-  --node-color: #d66b58;
+  --node-color: var(--console-coral);
 }
 
 .topology-node.is-purple,
 .agent-switch.is-purple,
 .selected-agent-card.is-purple,
 .responsibility-dot.is-purple {
-  --node-color: #7b5da8;
+  --node-color: var(--console-purple);
 }
 
 .topology-node.is-blue,
 .agent-switch.is-blue,
 .selected-agent-card.is-blue,
 .responsibility-dot.is-blue {
-  --node-color: #2279a9;
+  --node-color: var(--console-route-blue);
 }
 
 .topology-node.is-amber,
 .agent-switch.is-amber,
 .selected-agent-card.is-amber,
 .responsibility-dot.is-amber {
-  --node-color: #b5892f;
+  --node-color: var(--console-caution-amber);
 }
 
 .topology-node.is-green,
 .agent-switch.is-green,
 .selected-agent-card.is-green,
 .responsibility-dot.is-green {
-  --node-color: #5f8b4a;
+  --node-color: var(--console-green);
 }
 
 .topology-node-index,

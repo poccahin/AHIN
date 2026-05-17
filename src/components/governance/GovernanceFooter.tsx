@@ -7,7 +7,8 @@ export default function GovernanceFooter() {
       <span>No LIFE++ transferred or burned</span>
       <span>Protocol execution disabled</span>
       <span>Security controls documented</span>
-      <span>Certification evidence pending</span>
+      <span>SOC 2 / ISO 27001 mapping: evidence pending</span>
+      <span>Certification status: not claimed</span>
       <span>Hash · {commitRef}</span>
     </footer>
   );

@@ -15,6 +15,7 @@
   "signingEnabled": false,
   "unverifiedTreasuryBalanceShown": false,
   "unverifiedCertificationClaimShown": false,
+  "hardcodedLiveSlotShown": false,
   "inlineScriptUsed": false,
   "transferBurnCopyAbsent": true,
   "wranglerRun": false,

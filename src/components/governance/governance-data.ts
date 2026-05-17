@@ -92,13 +92,14 @@ export const GOVERNANCE_AGENTS: GovernanceAgent[] = [
   }
 ];
 
+export const INSPECTOR_AGENT_ORDER: GovernanceAgentId[] = ["eco", "spark", "codex", "currents", "seal"];
+
 export const RESPONSIBILITY_STEPS = [
-  { index: "01", action: "ASSERT_INTENT", mode: "dry-run / readonly", status: "complete", duration: "mock 0.08s", agentId: "spark" },
-  { index: "02", action: "EVALUATE_POLICY", mode: "dry-run / readonly", status: "complete", duration: "mock 0.11s", agentId: "codex" },
-  { index: "03", action: "SIMULATE_ROUTE", mode: "dry-run / readonly", status: "running", duration: "readonly", agentId: "currents" },
-  { index: "04", action: "CREATE_SETTLEMENT_INTENT", mode: "dry-run / readonly", status: "pending", duration: "not executed", agentId: "seal" },
-  { index: "05", action: "ISSUE_DRY_RUN_CERTIFICATE", mode: "dry-run / readonly", status: "pending", duration: "not executed", agentId: "seal" },
-  { index: "06", action: "EMIT_FEEDBACK_EVENT", mode: "dry-run / readonly", status: "pending", duration: "not executed", agentId: "eco" }
+  { index: "01", action: "ASSERT_INTENT", mode: "dry-run", status: "complete", duration: "sample 0.08s", agentId: "spark" },
+  { index: "02", action: "EVALUATE_POLICY", mode: "dry-run", status: "complete", duration: "sample 0.11s", agentId: "codex" },
+  { index: "03", action: "SIMULATE_ROUTE", mode: "readonly", status: "running", duration: "readonly", agentId: "currents" },
+  { index: "04", action: "ISSUE_DRY_RUN_CERTIFICATE", mode: "dry-run", status: "pending", duration: "not executed", agentId: "seal" },
+  { index: "05", action: "EMIT_FEEDBACK_EVENT", mode: "dry-run", status: "pending", duration: "not executed", agentId: "eco" }
 ] as const;
 
 export function getGovernanceAgent(id: GovernanceAgentId) {
