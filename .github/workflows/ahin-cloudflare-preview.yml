@@ -1,0 +1,138 @@
+name: ahin Cloudflare readonly preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployPreview:
+        description: "Deploy readonly Cloudflare Pages preview after all gates pass"
+        required: true
+        default: false
+        type: boolean
+      target:
+        description: "Deployment target boundary"
+        required: true
+        default: preview
+        type: choice
+        options:
+          - preview
+
+env:
+  NEXT_PUBLIC_AHIN_ENV: preview
+  NEXT_PUBLIC_AHIN_TARGET_DOMAIN: gate.ahin.io
+  NEXT_PUBLIC_AHIN_GATE_MODE: mock
+  NEXT_PUBLIC_AHIN_DEBUG_MATRIX: "false"
+  NEXT_PUBLIC_AHIN_WALLET_MODE: mock
+  NEXT_PUBLIC_AHIN_REQUIRED_LIFE_USDT: "10"
+  NEXT_PUBLIC_AHIN_ENTRY_BURN_AMOUNT: "1"
+  AHIN_ORACLE_MODE: readonly
+  AHIN_PROTOCOL_EXECUTION_ENABLED: "false"
+  AHIN_REAL_WALLET_VERIFICATION: "false"
+  AHIN_REAL_LIFE_BALANCE_CHECK: "false"
+  AHIN_REAL_BURN_TRANSACTION: "false"
+
+jobs:
+  gates:
+    name: readonly preview gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Release lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: No secondary agent gates
+        run: npm run guard:no-agent-gates
+
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev
+
+      - name: Agent flow tests
+        run: npm run test:agents
+
+      - name: PoCC tests
+        run: npm run test:pocc
+
+      - name: Wallet UX tests
+        run: npm run test:wallet-ux
+
+      - name: Upload build and reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ahin-cloudflare-preview-gates
+          path: |
+            out
+            reports/*.json
+          if-no-files-found: warn
+
+  deploy-preview:
+    name: deploy readonly Cloudflare Pages preview
+    needs: gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: ${{ inputs.deployPreview == true && inputs.target == 'preview' }}
+    environment: cloudflare-preview
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_PROJECT_NAME: ${{ secrets.CLOUDFLARE_PROJECT_NAME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate readonly preview boundary
+        run: |
+          test "${NEXT_PUBLIC_AHIN_TARGET_DOMAIN}" = "gate.ahin.io"
+          test "${NEXT_PUBLIC_AHIN_GATE_MODE}" = "mock"
+          test "${AHIN_ORACLE_MODE}" = "readonly"
+          test "${AHIN_PROTOCOL_EXECUTION_ENABLED}" = "false"
+          test "${AHIN_REAL_WALLET_VERIFICATION}" = "false"
+          test "${AHIN_REAL_LIFE_BALANCE_CHECK}" = "false"
+          test "${AHIN_REAL_BURN_TRANSACTION}" = "false"
+          test -n "${CLOUDFLARE_API_TOKEN}"
+          test -n "${CLOUDFLARE_ACCOUNT_ID}"
+          test -n "${CLOUDFLARE_PROJECT_NAME}"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Re-run release gates before deploy
+        run: |
+          npm run lint
+          npm run typecheck
+          npm run build
+          npm run guard:no-agent-gates
+          npm audit --omit=dev
+          npm run test:agents
+          npm run test:pocc
+          npm run test:wallet-ux
+
+      - name: Deploy preview to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy out --project-name "${{ secrets.CLOUDFLARE_PROJECT_NAME }}" --branch preview

@@ -1,0 +1,27 @@
+{
+  "project": "ahin.io",
+  "reportType": "ci-production-gate",
+  "timestamp": "2026-05-13T16:34:32.908Z",
+  "gitCommit": null,
+  "nodeVersion": "v25.9.0",
+  "releaseBoundary": "Gate UI + Mock Verification + Agent Matrix Reveal",
+  "gateMode": "mock",
+  "realWalletVerification": false,
+  "realLifeBalanceCheck": false,
+  "realBurnTransaction": false,
+  "commands": {
+    "install": "npm install",
+    "lint": "npm run lint",
+    "typecheck": "npm run typecheck",
+    "build": "npm run build",
+    "noSecondaryGateGuard": "npm run guard:no-agent-gates",
+    "audit": "npm audit --omit=dev"
+  },
+  "installPassed": true,
+  "lintPassed": true,
+  "typecheckPassed": true,
+  "buildPassed": true,
+  "noSecondaryGateGuardPassed": true,
+  "auditPassed": true,
+  "productionBoundaryFrozen": true
+}

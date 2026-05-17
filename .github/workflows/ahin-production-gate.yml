@@ -1,0 +1,60 @@
+name: ahin production gate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  production-gate:
+    name: production release gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_AHIN_ENV: production
+      NEXT_PUBLIC_AHIN_TARGET_DOMAIN: ahin.io
+      NEXT_PUBLIC_AHIN_GATE_MODE: mock
+      NEXT_PUBLIC_AHIN_DEBUG_MATRIX: "false"
+      NEXT_PUBLIC_AHIN_WALLET_MODE: mock
+      NEXT_PUBLIC_AHIN_REQUIRED_LIFE_USDT: "10"
+      NEXT_PUBLIC_AHIN_ENTRY_BURN_AMOUNT: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Release lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: No secondary agent gates
+        run: npm run guard:no-agent-gates
+
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev
+
+      - name: Write CI production gate report
+        run: npm run report:ci-production-gate
+
+      - name: Upload release reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ahin-production-reports
+          path: reports/*.json
+          if-no-files-found: warn

@@ -1,0 +1,14 @@
+{
+  "phase": "Phase 4E",
+  "lifePlusMint": "7YdwpERJjzw7UVojxLpvu5ycKBRdYaxaKn4HvoHLpump",
+  "fixedSupply": true,
+  "currentSupply": "993953256.43115",
+  "admissionThresholdUsdEquivalent": 10,
+  "collaborationUsageRule": "min(1 USDT, 1 LIFE++)",
+  "jupiterReadonly": true,
+  "secretExposure": false,
+  "transferEnabled": false,
+  "burnEnabled": false,
+  "protocolExecutionEnabled": false,
+  "status": "readonly_mock_admission_policy_recorded"
+}

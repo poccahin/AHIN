@@ -1,0 +1,313 @@
+"use client";
+
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ChevronRight, ShieldCheck, Wallet } from "lucide-react";
+import { LIFE_PLUS_MINT } from "../config/life-plus";
+import { useEntrySignature } from "../hooks/useEntrySignature";
+import { readLifePlusBalanceRaw, readLifePlusDecimals } from "../lib/lifePlusSolana";
+import { connectWallet, discoverWallets, formatWalletConnectionError, type WalletConnection, type WalletDescriptor, type WalletId } from "../lib/walletAdapters";
+import { detectWalletProviders, type WalletDetectionStatus } from "../gate/wallet/wallet-detection";
+import { MOCK_FALLBACK_DISCLOSURE, type MockFallbackState } from "../gate/wallet/mock-fallback";
+import { formatTokenAmount, verifyNetworkEntry, type PoccEntryProof } from "../services/poccConsensus";
+import { useAuthStore } from "../store/authStore";
+
+interface GatekeeperProps {
+  children?: ReactNode;
+}
+
+const MOCK_WALLET = "0xMockAhinGate...2026";
+const LIFE_PLUS_MINT_SHORT = `${LIFE_PLUS_MINT.slice(0, 5)}...${LIFE_PLUS_MINT.slice(-4)}`;
+const READONLY_QUOTE_UNAVAILABLE = "Readonly quote unavailable. You can continue with mock verification.";
+const LIVE_WALLETS: Array<{ id: WalletId; label: string }> = [
+  { id: "phantom_solana", label: "Phantom" },
+  { id: "okx_solana", label: "OKX Wallet" },
+  { id: "binance_evm", label: "Binance Wallet" },
+  { id: "metamask", label: "MetaMask" }
+];
+
+type LiveWalletButton = { id: WalletId; label: string; installed: boolean | null; detectionStatus: WalletDetectionStatus | null };
+
+type PoccStatus =
+  | { state: "idle"; proof: null; message: string }
+  | { state: "checking"; proof: null; message: string }
+  | { state: "verified"; proof: PoccEntryProof; message: string }
+  | { state: "blocked"; proof: PoccEntryProof | null; message: string };
+
+export default function Gatekeeper({ children }: GatekeeperProps) {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const gateMode = useAuthStore((state) => state.gateMode);
+  const grantAccess = useAuthStore((state) => state.grantAccess);
+  const { requestEntry, isProcessing, authError } = useEntrySignature();
+  const [connectedWallet, setConnectedWallet] = useState<string | null>(null);
+  const [liveConnection, setLiveConnection] = useState<WalletConnection | null>(null);
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const [liveWallets, setLiveWallets] = useState<LiveWalletButton[]>(() =>
+    LIVE_WALLETS.map((wallet) => ({ ...wallet, installed: null, detectionStatus: null }))
+  );
+  const [mockFallbackState, setMockFallbackState] = useState<MockFallbackState | null>(null);
+  const [poccStatus, setPoccStatus] = useState<PoccStatus>({
+    state: "idle",
+    proof: null,
+    message: "Awaiting wallet proof"
+  });
+  const fallbackTimers = useRef<number[]>([]);
+  const connectedAddress = liveConnection?.address ?? connectedWallet;
+  const liveGateMode = gateMode === "live";
+  const mockFallbackEnabled = gateMode === "mock";
+  const isLiveSolana = liveGateMode && liveConnection?.rail === "solana";
+  const isSolanaPoccVerified = !isLiveSolana || poccStatus.state === "verified";
+  const processing = isProcessing;
+  const transactionError = authError;
+
+  useEffect(() => {
+    return () => {
+      fallbackTimers.current.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!liveGateMode) {
+      return;
+    }
+    const discovered = discoverWallets();
+    const detection = detectWalletProviders();
+    setLiveWallets(
+      LIVE_WALLETS.map((wallet) => ({
+        ...wallet,
+        installed: Boolean(discovered.find((candidate: WalletDescriptor) => candidate.id === wallet.id)?.installed),
+        detectionStatus:
+          detection.find((candidate) => {
+            if (wallet.id === "phantom_solana") return candidate.id === "phantom";
+            if (wallet.id === "okx_solana") return candidate.id === "okx";
+            if (wallet.id === "binance_evm") return candidate.id === "binance";
+            return candidate.id === "metamask";
+          })?.status ?? "unknown"
+      }))
+    );
+  }, [liveGateMode]);
+
+  async function continueWithMockVerification() {
+    fallbackTimers.current.forEach((timer) => window.clearTimeout(timer));
+    fallbackTimers.current = [];
+    setWalletError(null);
+    setLiveConnection(null);
+    setConnectedWallet(MOCK_WALLET);
+    setMockFallbackState("wallet_connected_mock");
+
+    const states: MockFallbackState[] = ["asset_detected_mock", "signature_verified_mock", "matrix_revealing"];
+    states.forEach((state, index) => {
+      const timer = window.setTimeout(() => setMockFallbackState(state), 260 + index * 360);
+      fallbackTimers.current.push(timer);
+    });
+
+    try {
+      const receipt = await requestEntry(MOCK_WALLET);
+      if (receipt.confirmed) {
+        setMockFallbackState("matrix_active");
+        grantAccess(MOCK_WALLET);
+      }
+    } catch {
+      setWalletError("Mock verification unavailable. You can retry in dry-run mode.");
+    }
+  }
+
+  async function verifySolanaPocc(connection: WalletConnection) {
+    setPoccStatus({ state: "checking", proof: null, message: "Checking PoCC threshold" });
+    try {
+      const [decimals, balanceRaw] = await Promise.all([readLifePlusDecimals(connection), readLifePlusBalanceRaw(connection)]);
+      const proof = await verifyNetworkEntry(balanceRaw, decimals);
+      if (proof.fallback) {
+        setPoccStatus({ state: "blocked", proof, message: READONLY_QUOTE_UNAVAILABLE });
+        setWalletError(READONLY_QUOTE_UNAVAILABLE);
+        return;
+      }
+      setPoccStatus({
+        state: proof.eligible ? "verified" : "blocked",
+        proof,
+        message: proof.eligible
+          ? `PoCC threshold verified (${formatTokenAmount(BigInt(proof.lifeBalanceRaw), proof.lifeDecimals)} LIFE++)`
+          : proof.reason
+      });
+      if (!proof.eligible) {
+        setWalletError(proof.reason);
+      }
+    } catch (error) {
+      setPoccStatus({ state: "blocked", proof: null, message: READONLY_QUOTE_UNAVAILABLE });
+      setWalletError(READONLY_QUOTE_UNAVAILABLE);
+    }
+  }
+
+  async function connectLiveWallet(walletId: WalletId) {
+    setWalletError(null);
+    setPoccStatus({ state: "idle", proof: null, message: "Awaiting wallet proof" });
+    try {
+      const connection = await connectWallet(walletId);
+      setLiveConnection(connection);
+      setConnectedWallet(connection.address);
+      if (connection.rail === "solana") {
+        await verifySolanaPocc(connection);
+      }
+    } catch (error) {
+      const walletLabel = LIVE_WALLETS.find((wallet) => wallet.id === walletId)?.label ?? walletId;
+      const message = formatWalletConnectionError(walletLabel, error);
+      console.error("[ahin.io] Wallet connection failed", { walletId, error });
+      setWalletError(message);
+    }
+  }
+
+  async function enter() {
+    if (!connectedAddress) {
+      return;
+    }
+    try {
+      if (isLiveSolana) {
+        if (!isSolanaPoccVerified) {
+          setWalletError("Readonly LIFE++ admission proof is not verified.");
+          return;
+        }
+        grantAccess(connectedAddress);
+        return;
+      }
+      const receipt = await requestEntry(connectedAddress);
+      if (receipt.confirmed) {
+        grantAccess(connectedAddress);
+      }
+    } catch {
+      // Signature hooks own the user-facing authError state.
+    }
+  }
+
+  if (isAuthenticated) {
+    return <>{children}</>;
+  }
+
+  return (
+    <main className="min-h-screen overflow-hidden bg-[#050505] text-white">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(255,255,255,0.08),transparent_30%),radial-gradient(circle_at_18%_18%,rgba(3,169,244,0.11),transparent_30%),radial-gradient(circle_at_84%_18%,rgba(255,87,34,0.09),transparent_28%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.026)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.018)_1px,transparent_1px)] bg-[size:88px_88px] [mask-image:radial-gradient(circle_at_center,black,transparent_72%)]" />
+
+      {gateMode === "mock" ? (
+        <div className="absolute left-4 top-4 z-10 text-[10px] uppercase tracking-[0.22em] text-white/[0.36]">
+          Mock verification only / protocol execution disabled
+        </div>
+      ) : null}
+
+      <section className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10" aria-label="ahin.io mock gatekeeper">
+        <div className="w-[min(92vw,440px)] rounded-[28px] border border-white/20 bg-white/[0.055] px-6 py-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_38px_120px_rgba(0,0,0,0.62)] backdrop-blur-[40px] sm:px-8 sm:py-8">
+          <div className="mb-8 flex items-start justify-between gap-5">
+            <div>
+              <p className="mb-2 text-[11px] uppercase text-white/40">Multi-Agent Zero-Trust Network</p>
+              <h1 className="text-[48px] font-semibold leading-none text-white sm:text-[64px]">ahin.io</h1>
+            </div>
+            <div className="grid h-12 w-12 place-items-center rounded-[18px] border border-white/20 bg-white/[0.06] text-white/[0.85]">
+              <ShieldCheck className="h-5 w-5" aria-hidden="true" />
+            </div>
+          </div>
+
+          <div className="mb-5 rounded-2xl border border-white/15 bg-white/[0.045] p-3 text-sm text-white/[0.72]">
+            <div className="mb-2 flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-[#7dfb8d] shadow-[0_0_14px_rgba(125,251,141,0.88)]" />
+              <span>Zero-Trust Tunnel: Secure</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-xs">
+              <span>{connectedAddress ? connectedAddress : "Wallet session unbound"}</span>
+              <strong className="font-medium text-white/[0.88]">
+                {mockFallbackState
+                  ? mockFallbackState.replaceAll("_", " ")
+                  : isLiveSolana
+                      ? poccStatus.message
+                    : connectedAddress
+                      ? "Readonly LIFE++ holding ready"
+                      : "Awaiting wallet proof"}
+              </strong>
+            </div>
+          </div>
+
+          {!connectedAddress ? (
+            liveGateMode ? (
+              <div className="grid grid-cols-2 gap-3">
+                {liveWallets.map((wallet) => (
+                  <button
+                    key={wallet.id}
+                    type="button"
+                    disabled={wallet.installed === false}
+                    onClick={() => connectLiveWallet(wallet.id)}
+                    title={wallet.installed === false ? `${wallet.label} is not installed or not exposed to this browser.` : undefined}
+                    className="flex min-h-14 items-center justify-center gap-2 rounded-[18px] border border-white/20 bg-white/[0.07] text-sm font-medium text-white/[0.86] transition hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:bg-white/[0.035] disabled:text-white/[0.58]"
+                  >
+                    <Wallet className="h-4 w-4" aria-hidden="true" />
+                    <span>{wallet.label}</span>
+                    {wallet.installed === false ? <span className="text-[10px] uppercase text-amber-200/70">Not detected</span> : null}
+                    {wallet.detectionStatus === "provider_conflict" ? <span className="text-[10px] uppercase text-amber-200/70">Conflict</span> : null}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={continueWithMockVerification}
+                  disabled={processing}
+                  className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] border border-white/20 bg-white/[0.07] text-sm font-medium text-white/[0.86] transition hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Wallet className="h-4 w-4" aria-hidden="true" />
+                  Continue with Mock Verification
+                </button>
+                <p className="text-center text-[11px] leading-5 text-white/[0.42]">
+                  Mock verification mode. On-chain wallet adapters are not enabled in this build. {MOCK_FALLBACK_DISCLOSURE}
+                </p>
+              </div>
+            )
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-4">
+                <p className="text-[12px] uppercase text-white/[0.38]">Proof of Assets</p>
+                <p className="mt-1 text-sm text-white/[0.82]">
+                  {isLiveSolana ? (poccStatus.state === "verified" ? "Readonly LIFE++ holding verified" : poccStatus.message) : "Readonly LIFE++ holding proof ready"}
+                </p>
+                <div className="mt-3 grid gap-1.5 text-xs leading-5 text-white/[0.46]">
+                  <p>Admission threshold: ≥ 10 USDT-equivalent LIFE++</p>
+                  <p>LIFE++ mint: {LIFE_PLUS_MINT_SHORT}</p>
+                  <p>Quote source: Jupiter readonly</p>
+                  <p>No transfer or burn will be executed</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={enter}
+                disabled={processing || (isLiveSolana && !isSolanaPoccVerified)}
+                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] border border-white/25 bg-white text-sm font-semibold text-[#050505] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-white/[0.12] disabled:text-white/[0.34]"
+              >
+                {processing
+                  ? "Dry-run proof pending"
+                  : isLiveSolana && !isSolanaPoccVerified
+                    ? "Verify 10 USDT-equivalent LIFE++ Holding"
+                    : "Enter with Dry-Run Proof"}
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
+              </button>
+              {isLiveSolana && poccStatus.state === "blocked" ? (
+                <button
+                  type="button"
+                  onClick={continueWithMockVerification}
+                  disabled={processing}
+                  className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[18px] border border-white/20 bg-white/[0.07] text-sm font-medium text-white/[0.86] transition hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Continue with Mock Verification
+                </button>
+              ) : null}
+              <p className="text-center text-[11px] leading-5 text-white/[0.42]">{MOCK_FALLBACK_DISCLOSURE}</p>
+            </div>
+          )}
+
+          {walletError ? <p className="mt-4 text-center text-xs leading-5 text-amber-200">{walletError}</p> : null}
+          {transactionError ? <p className="mt-4 text-center text-xs leading-5 text-red-300">{transactionError}</p> : null}
+          {mockFallbackEnabled ? (
+            <p className="mx-auto mt-5 max-w-[360px] text-center text-[11px] leading-5 text-white/[0.42]">
+              Mock verification mode. On-chain wallet adapters are not enabled in this build. {MOCK_FALLBACK_DISCLOSURE}
+            </p>
+          ) : null}
+        </div>
+      </section>
+    </main>
+  );
+}

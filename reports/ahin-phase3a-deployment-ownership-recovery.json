@@ -1,0 +1,48 @@
+{
+  "project": "ahin.io",
+  "phase": "Phase 3A",
+  "status": "BLOCKED",
+  "timestamp": "2026-05-13T16:42:38Z",
+  "deployExecuted": false,
+  "currentWorkingDirectory": "/Users/lee/Downloads/ahin.io",
+  "gitRepoFound": false,
+  "parentGitReposFound": [],
+  "vercelLinked": false,
+  "vercelProject": null,
+  "missingSecrets": [
+    "VERCEL_TOKEN",
+    "VERCEL_ORG_ID",
+    "VERCEL_PROJECT_ID"
+  ],
+  "missingPublicEnv": [
+    "NEXT_PUBLIC_AHIN_ENV",
+    "NEXT_PUBLIC_AHIN_TARGET_DOMAIN",
+    "NEXT_PUBLIC_AHIN_GATE_MODE",
+    "NEXT_PUBLIC_AHIN_DEBUG_MATRIX"
+  ],
+  "operatorCommands": [
+    "cd /path/to/real/ahin.io/repo",
+    "git status --short",
+    "npx vercel link"
+  ],
+  "currentDomain": "https://ahin.io",
+  "currentDomainResponds": true,
+  "currentDomainHttpStatus": 200,
+  "currentDomainContentType": "text/html",
+  "currentDomainMarkers": {
+    "containsAhinIo": false,
+    "containsZeroTrustTunnel": false,
+    "containsMock": false,
+    "containsAhinCognitiveNetwork": true,
+    "containsGatekeeper": false
+  },
+  "currentDomainIsThisBuild": false,
+  "currentDomainLikelyExistingSite": true,
+  "recommendedFirstDeployTarget": "gate.ahin.io or Vercel preview URL",
+  "safePromotionRequired": true,
+  "deploymentRecommendation": "Do not overwrite the ahin.io root domain until Vercel ownership, production env, and the existing AHIN Cognitive Network routing are confirmed. Deploy first to gate.ahin.io or a Vercel preview URL.",
+  "protocolExecutionEnabled": false,
+  "realWalletVerification": false,
+  "realLifeBalanceCheck": false,
+  "realBurnTransaction": false
+}

@@ -1,0 +1,33 @@
+{
+  "project": "ahin.io",
+  "phase": "Phase 3C",
+  "target": "gate.ahin.io or Vercel preview URL",
+  "timestamp": "2026-05-13T16:51:11.775Z",
+  "deployExecuted": false,
+  "blockerReasons": [
+    "Current working directory is not a git repository",
+    ".vercel/project.json is missing; run npx vercel link",
+    "VERCEL_TOKEN is missing",
+    "VERCEL_ORG_ID is missing",
+    "VERCEL_PROJECT_ID is missing",
+    "NEXT_PUBLIC_AHIN_ENV is missing",
+    "NEXT_PUBLIC_AHIN_TARGET_DOMAIN is missing",
+    "NEXT_PUBLIC_AHIN_GATE_MODE is missing",
+    "NEXT_PUBLIC_AHIN_DEBUG_MATRIX is missing",
+    "Preview deployment was not executed",
+    "Root ahin.io remains untouched and serves AHIN Cognitive Network"
+  ],
+  "previewUrl": null,
+  "homepageCheckPassed": false,
+  "httpsCheckPassed": false,
+  "mockVerificationVisible": false,
+  "verificationSkipped": true,
+  "rootDomain": "https://ahin.io",
+  "rootDomainUntouched": true,
+  "protocolExecutionEnabled": false,
+  "realWalletVerification": false,
+  "realLifeBalanceCheck": false,
+  "realBurnTransaction": false,
+  "safePromotionRequired": true,
+  "status": "BLOCKED"
+}

@@ -1,0 +1,31 @@
+{
+  "phase": "Phase 4C-CI-Preview-Gates",
+  "status": "BLOCKED",
+  "timestamp": "2026-05-15T12:52:53+08:00",
+  "deploymentExecuted": false,
+  "workflowDispatched": false,
+  "deployPreview": false,
+  "target": "preview",
+  "ciRunner": "ubuntu-latest",
+  "nodeVersion": 22,
+  "gatesPassed": false,
+  "deployJobSkipped": true,
+  "rootDomainUntouched": true,
+  "protocolExecutionEnabled": false,
+  "realWalletVerification": false,
+  "realLifeBalanceCheck": false,
+  "realBurnTransaction": false,
+  "signingEnabled": false,
+  "workflowFileExists": true,
+  "workflowDispatchConfigured": true,
+  "deployPreviewDefaultFalse": true,
+  "targetDefaultPreview": true,
+  "deployJobGated": true,
+  "githubCliAuthenticated": true,
+  "workflowRunUrl": null,
+  "blockers": [
+    "Current workspace is not a git repository, so no GitHub remote, branch, or repository slug could be safely resolved.",
+    "The gates-only workflow was not dispatched because triggering an unknown repository could run the wrong workflow.",
+    "Operator must provide the target GitHub repository slug or push the workflow to the intended repository before dispatch."
+  ]
+}

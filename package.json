@@ -1,0 +1,56 @@
+{
+  "name": "ahin-io-gatekeeper-refactor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "lint": "node ./scripts/release-lint.mjs",
+    "build": "next build",
+    "typecheck": "tsc --noEmit",
+    "attest:deployment": "node scripts/ahin-deployment-attestation.mjs",
+    "attest:preview": "node scripts/ahin-preview-deployment-attestation.mjs",
+    "preflight:cloudflare": "node scripts/ahin-cloudflare-preflight.mjs",
+    "deploy:cloudflare:preview": "node scripts/ahin-cloudflare-pages-deploy.mjs preview",
+    "deploy:cloudflare:production": "node scripts/ahin-cloudflare-pages-deploy.mjs production",
+    "attest:cloudflare": "node scripts/ahin-cloudflare-attestation.mjs",
+    "report:ci-production-gate": "node scripts/ahin-ci-production-gate-report.mjs",
+    "legacy:backup": "bash ./scripts/backup_and_restructure_chippmf.sh",
+    "guard:no-agent-gates": "bash ./scripts/assert_no_agent_gatekeepers.sh",
+    "test:pocc": "tsx scripts/test-pocc.mts",
+    "test:agents": "tsx src/agents/five-elements/__tests__/agent-flow-machine.test.ts",
+    "test:solana-transfer": "tsx scripts/test-solana-transfer-instructions.mts",
+    "test:wallet-ux": "tsx scripts/test-wallet-ux.mts",
+    "report:oracle-preview-readiness": "node scripts/ahin-oracle-preview-readiness-report.mjs"
+  },
+  "dependencies": {
+    "@solana/wallet-adapter-react": "^0.15.39",
+    "@solana/web3.js": "^1.98.4",
+    "@tanstack/react-query": "^5.100.10",
+    "buffer": "^6.0.3",
+    "framer-motion": "^12.0.0",
+    "jose": "^6.0.0",
+    "lucide-react": "^0.475.0",
+    "next": "^16.2.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.0.0",
+    "viem": "^2.48.0",
+    "vite": "^6.0.0",
+    "wagmi": "^3.6.14",
+    "zustand": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.5.14",
+    "tailwindcss": "^3.4.17",
+    "tsx": "^4.21.0",
+    "typescript": "^5.8.0"
+  },
+  "overrides": {
+    "postcss": "^8.5.14"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "phase": "Phase 4C-CI-Deploy-Path",
+  "status": "READY_NOT_DEPLOYED",
+  "timestamp": "2026-05-15T01:38:54+08:00",
+  "deploymentExecuted": false,
+  "localToolchainBlocked": true,
+  "ciPreviewPathPrepared": true,
+  "workflow": ".github/workflows/ahin-cloudflare-preview.yml",
+  "documentation": "docs/deployment/ahin-cloudflare-ci-preview-deploy.md",
+  "manualTriggerOnly": true,
+  "deployPreviewDefault": false,
+  "target": "preview",
+  "requiredSecrets": [
+    "CLOUDFLARE_API_TOKEN",
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CLOUDFLARE_PROJECT_NAME"
+  ],
+  "kvConfigured": true,
+  "rootDomainUntouched": true,
+  "protocolExecutionEnabled": false,
+  "realWalletVerification": false,
+  "realLifeBalanceCheck": false,
+  "realBurnTransaction": false,
+  "signingEnabled": false
+}

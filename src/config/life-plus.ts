@@ -1,0 +1,11 @@
+export const LIFE_PLUS_MINT = "7YdwpERJjzw7UVojxLpvu5ycKBRdYaxaKn4HvoHLpump";
+export const LIFE_PLUS_CHAIN = "solana";
+export const LIFE_PLUS_FIXED_SUPPLY = true;
+export const LIFE_PLUS_CURRENT_SUPPLY = "993953256.43115";
+export const AHIN_AGENT_ADMISSION_USD_THRESHOLD = 10;
+export const AHIN_COLLABORATION_USAGE_RULE = "min(1 USDT, 1 LIFE++)";
+export const JUPITER_BASE_URL = "https://api.jup.ag";
+export const JUPITER_ULTRA_BASE_URL = "https://api.jup.ag/ultra";
+export const TRANSFER_ENABLED = false;
+export const BURN_ENABLED = false;
+export const PROTOCOL_EXECUTION_ENABLED = false;

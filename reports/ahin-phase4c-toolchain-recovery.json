@@ -1,0 +1,43 @@
+{
+  "phase": "Phase 4C-Toolchain Recovery",
+  "status": "BLOCKED",
+  "deploymentExecuted": false,
+  "wranglerVersion": null,
+  "nodeVersion": "v24.14.0",
+  "npmVersion": "11.9.0",
+  "os": "Darwin LeedeMac-mini.local 25.3.0 Darwin Kernel Version 25.3.0: Wed Jan 28 20:54:55 PST 2026; root:xnu-12377.91.3~2/RELEASE_ARM64_T8132 arm64",
+  "nodePath": "/usr/local/bin/node",
+  "npmPath": "/usr/local/bin/npm",
+  "wranglerDependencyInstalled": false,
+  "wranglerWhoamiPassed": false,
+  "workerdProbeIssueDetected": true,
+  "cachesInspected": true,
+  "cachesCleaned": true,
+  "npmCacheVerified": true,
+  "controlledWranglerInstallAttempted": true,
+  "controlledWranglerInstallCompleted": false,
+  "kvConfigured": true,
+  "rootDomainUntouched": true,
+  "protocolExecutionEnabled": false,
+  "realWalletVerification": false,
+  "realLifeBalanceCheck": false,
+  "realBurnTransaction": false,
+  "signingEnabled": false,
+  "localValidation": {
+    "npm run lint": "PASS",
+    "npm run typecheck": "PASS",
+    "npm run build": "PASS",
+    "npm run guard:no-agent-gates": "PASS",
+    "npm audit --omit=dev": "PASS",
+    "npm run test:agents": "PASS",
+    "npm run test:pocc": "PASS",
+    "npm run test:wallet-ux": "PASS"
+  },
+  "blockers": [
+    "npx wrangler --version timed out after 45 seconds while attempting to install/probe wrangler@4.91.0.",
+    "npx wrangler whoami --log-level debug timed out after 45 seconds.",
+    "npm install -D wrangler@latest did not complete; it hung during node install.js probes for workerd --version and esbuild --version and was terminated.",
+    "npm exec -- wrangler whoami --log-level debug also timed out after the failed install attempt.",
+    "No deploy was executed because Wrangler auth/toolchain preflight did not pass."
+  ]
+}

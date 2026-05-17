@@ -1,0 +1,21 @@
+{
+  "project": "ahin.io",
+  "releaseName": "Gate UI + Mock Verification + Agent Matrix Reveal",
+  "timestamp": "2026-05-13T16:34:51.265Z",
+  "gitCommit": null,
+  "deploymentProvider": "vercel",
+  "productionUrl": "https://ahin.io",
+  "deploymentExecuted": false,
+  "gateMode": "mock",
+  "realWalletVerification": false,
+  "realLifeBalanceCheck": false,
+  "realBurnTransaction": false,
+  "buildPassed": true,
+  "lintPassed": true,
+  "typecheckPassed": true,
+  "auditPassed": true,
+  "homepageCheckPassed": false,
+  "httpsCheckPassed": false,
+  "verificationSkipped": true,
+  "productionBoundaryFrozen": true
+}

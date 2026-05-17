@@ -1,0 +1,23 @@
+{
+  "app": "ahin.io",
+  "releaseType": "production-ui-gate",
+  "siteUrl": "https://ahin.io",
+  "productionDefaultState": "gatekeeper",
+  "debugMatrixEnabled": false,
+  "walletMode": "mock",
+  "lifeThresholdUsdt": 10,
+  "entryBurnAmount": 1,
+  "logoBlackOutlineNeutralized": true,
+  "matrixRevealEnabled": true,
+  "reducedMotionSupported": true,
+  "mobileResponsive": true,
+  "typecheckPassed": true,
+  "lintPassed": true,
+  "buildPassed": true,
+  "realWalletVerification": false,
+  "notes": [
+    "Production build uses mock wallet and mock asset verification.",
+    "Real on-chain LIFE++ verification is not claimed in this release.",
+    "Matrix is gated behind simulated burn/signature flow unless debug flag is enabled."
+  ]
+}

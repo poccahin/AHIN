@@ -1,0 +1,1008 @@
+.matrix4f-scene {
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  overflow: hidden;
+  padding: 22px;
+  color: #f7f7f5;
+  background:
+    radial-gradient(circle at 50% 44%, rgba(3, 169, 244, 0.075), transparent 31%),
+    radial-gradient(circle at 50% 64%, rgba(255, 255, 255, 0.035), transparent 24%),
+    #050505;
+}
+
+.matrix4f-background,
+.matrix4f-background > span {
+  position: absolute;
+  pointer-events: none;
+}
+
+.matrix4f-background {
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.matrix4f-glow {
+  width: 46vw;
+  height: 46vw;
+  border-radius: 999px;
+  opacity: 0.09;
+  filter: blur(92px) saturate(72%);
+  animation: matrix4f-glow-drift 24s ease-in-out infinite alternate;
+}
+
+.matrix4f-glow.is-orange {
+  top: -13%;
+  left: -10%;
+  background: #ff5722;
+}
+
+.matrix4f-glow.is-purple {
+  top: -12%;
+  right: -9%;
+  background: #9c27b0;
+  animation-delay: -3s;
+}
+
+.matrix4f-glow.is-blue {
+  top: 20%;
+  left: 27%;
+  background: #03a9f4;
+  opacity: 0.2;
+  filter: blur(104px) saturate(118%);
+  animation-delay: -6s;
+}
+
+.matrix4f-glow.is-gold {
+  bottom: -20%;
+  left: 2%;
+  background: #ffc107;
+  opacity: 0.075;
+  animation-delay: -8s;
+}
+
+.matrix4f-glow.is-green {
+  right: -8%;
+  bottom: -18%;
+  background: #8bc34a;
+  opacity: 0.085;
+  animation-delay: -10s;
+}
+
+.matrix4f-mist {
+  inset: 16% 12% 10%;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 50% 46%, rgba(255, 255, 255, 0.11), transparent 20%),
+    radial-gradient(circle at 50% 50%, rgba(3, 169, 244, 0.2), transparent 38%),
+    radial-gradient(circle at 58% 54%, rgba(255, 193, 7, 0.045), transparent 48%);
+  filter: blur(48px);
+  opacity: 0.68;
+}
+
+.matrix4f-grid {
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 96px 96px;
+  opacity: 0.7;
+  mask-image: radial-gradient(circle at 50% 48%, black, transparent 74%);
+}
+
+.matrix4f-coordinate-lines {
+  inset: 10% 8%;
+  background:
+    linear-gradient(90deg, transparent 49.9%, rgba(255, 255, 255, 0.032) 50%, transparent 50.1%),
+    linear-gradient(transparent 49.9%, rgba(255, 255, 255, 0.026) 50%, transparent 50.1%);
+  opacity: 0.24;
+  mask-image: radial-gradient(ellipse at 50% 50%, black, transparent 66%);
+}
+
+.matrix4f-floating-particles {
+  inset: 0;
+  background-image:
+    radial-gradient(circle, rgba(255, 255, 255, 0.28) 0 1px, transparent 1.4px),
+    radial-gradient(circle, rgba(3, 169, 244, 0.2) 0 1px, transparent 1.4px);
+  background-position:
+    0 0,
+    34px 42px;
+  background-size:
+    118px 118px,
+    164px 164px;
+  opacity: 0.11;
+  animation: matrix4f-particle-drift 32s linear infinite;
+}
+
+.matrix4f-shell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: calc(100vh - 56px);
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 14px;
+}
+
+.matrix4f-header,
+.matrix4f-inspector,
+.matrix4f-flow-rail,
+.matrix4f-disclosure,
+.matrix4f-modal-panel {
+  border: 1px solid rgba(255, 255, 255, 0.105);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)),
+    rgba(255, 255, 255, 0.034);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 22px 72px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(46px) saturate(142%);
+  -webkit-backdrop-filter: blur(46px) saturate(142%);
+}
+
+.matrix4f-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  border-color: rgba(255, 255, 255, 0.09);
+  border-radius: 30px;
+  padding: 13px 16px 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.062), rgba(255, 255, 255, 0.018)),
+    rgba(255, 255, 255, 0.022);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 18px 52px rgba(0, 0, 0, 0.3);
+}
+
+.matrix4f-title-stack {
+  min-width: 0;
+}
+
+.matrix4f-title-stack p,
+.matrix4f-title-stack span {
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 11px;
+}
+
+.matrix4f-title-stack p {
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+
+.matrix4f-title-stack h1 {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.96);
+  font-size: clamp(32px, 5vw, 64px);
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.matrix4f-title-stack span {
+  display: block;
+  margin-top: 7px;
+  line-height: 1.45;
+}
+
+.matrix4f-status-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+  max-width: 560px;
+  padding-top: 2px;
+}
+
+.matrix4f-status-pill {
+  display: inline-flex;
+  min-height: 29px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.105);
+  border-radius: 999px;
+  padding: 0 10px;
+  color: rgba(255, 255, 255, 0.66);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.matrix4f-status-pill.is-green {
+  color: rgba(188, 255, 190, 0.94);
+  border-color: rgba(125, 251, 141, 0.36);
+}
+
+.matrix4f-status-pill.is-amber {
+  color: rgba(255, 218, 150, 0.92);
+  border-color: rgba(255, 193, 7, 0.28);
+}
+
+.matrix4f-command-area {
+  display: grid;
+  min-height: 600px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  gap: 18px;
+  align-items: stretch;
+}
+
+.matrix4f-stage {
+  position: relative;
+  min-height: 600px;
+  overflow: hidden;
+  border-radius: 42px;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(3, 169, 244, 0.105), transparent 24%),
+    radial-gradient(circle at 50% 58%, rgba(255, 255, 255, 0.035), transparent 28%);
+  transform-style: preserve-3d;
+  perspective: 1500px;
+}
+
+.matrix4f-orbit,
+.matrix4f-proof-pulse {
+  position: absolute;
+  pointer-events: none;
+}
+
+.matrix4f-orbit {
+  left: 50%;
+  top: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 50%;
+  transform: translate(-50%, -50%) rotate(-8deg);
+  opacity: 0.34;
+}
+
+.matrix4f-orbit.is-outer {
+  width: min(760px, 88%);
+  height: min(480px, 70%);
+}
+
+.matrix4f-orbit.is-middle {
+  width: min(610px, 72%);
+  height: min(360px, 56%);
+  opacity: 0.2;
+  transform: translate(-50%, -50%) rotate(12deg);
+}
+
+.matrix4f-orbit.is-inner {
+  width: min(340px, 42%);
+  height: min(230px, 34%);
+  opacity: 0.18;
+  transform: translate(-50%, -50%) rotate(24deg);
+}
+
+.matrix4f-proof-pulse {
+  left: 50%;
+  top: 50%;
+  width: min(760px, 88%);
+  height: min(480px, 70%);
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, transparent, rgba(3, 169, 244, 0.32), rgba(255, 255, 255, 0.18), transparent 13%);
+  opacity: 0.17;
+  mask-image: radial-gradient(circle, transparent 59%, black 60%, black 61%, transparent 63%);
+  transform: translate(-50%, -50%);
+  animation: matrix4f-flow-pulse 8s linear infinite;
+}
+
+.matrix4f-flow-line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(520px, 64%);
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.105), transparent);
+  opacity: 0.16;
+  transform-origin: 0 50%;
+}
+
+.matrix4f-flow-line.is-one {
+  transform: rotate(28deg) translateX(-50%);
+}
+
+.matrix4f-flow-line.is-two {
+  transform: rotate(145deg) translateX(-50%);
+}
+
+.matrix4f-flow-line.is-three {
+  transform: rotate(-31deg) translateX(-50%);
+}
+
+.matrix4f-flow-line.is-four {
+  transform: rotate(-148deg) translateX(-50%);
+}
+
+.matrix4f-agent {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: var(--agent-color);
+  background: transparent;
+  transform-style: preserve-3d;
+}
+
+.matrix4f-agent:not(.agent-compute-blue):not(.is-selected) .matrix4f-agent-body {
+  opacity: 0.78;
+  filter: saturate(0.78) brightness(0.88);
+}
+
+.matrix4f-agent.agent-compute-blue .matrix4f-agent-body,
+.matrix4f-agent.is-selected .matrix4f-agent-body {
+  opacity: 1;
+  filter: saturate(1.08) brightness(1.04);
+}
+
+.matrix4f-slot-center {
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -47%);
+}
+
+.matrix4f-slot-northwest {
+  left: 13%;
+  top: 10%;
+}
+
+.matrix4f-slot-northeast {
+  right: 13%;
+  top: 10%;
+}
+
+.matrix4f-slot-southwest {
+  left: 19%;
+  bottom: 8%;
+}
+
+.matrix4f-slot-southeast {
+  right: 19%;
+  bottom: 8%;
+}
+
+.matrix4f-agent-halo,
+.matrix4f-agent-aura {
+  position: absolute;
+  border-radius: 999px;
+  background: radial-gradient(circle at center, currentColor, transparent 64%);
+  filter: blur(22px);
+  pointer-events: none;
+}
+
+.matrix4f-agent-halo {
+  inset: -30px;
+  opacity: 0.12;
+}
+
+.matrix4f-agent.is-selected .matrix4f-agent-halo {
+  opacity: 0.38;
+  filter: blur(30px);
+}
+
+.matrix4f-agent.agent-compute-blue .matrix4f-agent-halo {
+  opacity: 0.34;
+  filter: blur(34px);
+}
+
+.matrix4f-agent-body {
+  position: relative;
+  display: grid;
+  width: 188px;
+  min-height: 248px;
+  place-items: center;
+  transform-style: preserve-3d;
+}
+
+.matrix4f-agent-aura {
+  inset: 18px 10px 58px;
+  opacity: 0.16;
+}
+
+.matrix4f-agent.agent-compute-blue .matrix4f-agent-aura,
+.matrix4f-agent.is-selected .matrix4f-agent-aura {
+  opacity: 0.34;
+}
+
+.matrix4f-particles {
+  position: absolute;
+  inset: 18px 8px 68px;
+  pointer-events: none;
+}
+
+.matrix4f-particle {
+  position: absolute;
+  left: var(--particle-x);
+  top: var(--particle-y);
+  width: var(--particle-size);
+  height: var(--particle-size);
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow:
+    0 0 8px currentColor,
+    0 0 18px currentColor;
+  opacity: 0.42;
+  animation: matrix4f-particle-breathe var(--particle-duration) ease-in-out var(--particle-delay) infinite;
+}
+
+.matrix4f-agent.is-selected .matrix4f-particle,
+.matrix4f-agent.agent-compute-blue .matrix4f-particle {
+  opacity: 0.68;
+}
+
+.matrix4f-capsule {
+  position: relative;
+  display: grid;
+  width: 158px;
+  height: 158px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 46px;
+  background:
+    radial-gradient(circle at 50% 54%, color-mix(in srgb, currentColor 24%, transparent), transparent 44%),
+    radial-gradient(circle at 48% 25%, rgba(255, 255, 255, 0.19), transparent 24%),
+    linear-gradient(155deg, rgba(255, 255, 255, 0.135), rgba(255, 255, 255, 0.026) 58%, rgba(255, 255, 255, 0.07)),
+    rgba(255, 255, 255, 0.032);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    inset 0 -18px 42px rgba(255, 255, 255, 0.035),
+    inset 0 0 42px color-mix(in srgb, currentColor 14%, transparent),
+    0 30px 78px rgba(0, 0, 0, 0.52),
+    0 0 44px color-mix(in srgb, currentColor 13%, transparent);
+  backdrop-filter: blur(28px) saturate(150%);
+  -webkit-backdrop-filter: blur(28px) saturate(150%);
+  transform: translateZ(24px);
+}
+
+.matrix4f-capsule::before,
+.matrix4f-capsule::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+}
+
+.matrix4f-capsule::before {
+  inset: 18px;
+  border-radius: 999px;
+  background: radial-gradient(circle, currentColor, transparent 68%);
+  filter: blur(18px);
+  opacity: 0.23;
+}
+
+.matrix4f-capsule::after {
+  inset: 1px;
+  border-radius: inherit;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(circle at 25% 18%, rgba(255, 255, 255, 0.22), transparent 18%),
+    linear-gradient(118deg, rgba(255, 255, 255, 0.12), transparent 31%, rgba(255, 255, 255, 0.055) 68%, transparent);
+}
+
+.matrix4f-capsule-glass,
+.matrix4f-capsule-highlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.matrix4f-capsule-glass {
+  background:
+    radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 0.16), transparent 30%),
+    radial-gradient(circle at 50% 64%, currentColor, transparent 70%);
+  opacity: 0.44;
+}
+
+.matrix4f-capsule-highlight {
+  background:
+    linear-gradient(120deg, rgba(255, 255, 255, 0.28), transparent 21%),
+    linear-gradient(285deg, rgba(255, 255, 255, 0.12), transparent 32%);
+  opacity: 0.68;
+}
+
+.matrix4f-capsule img {
+  position: relative;
+  z-index: 2;
+  width: 130px;
+  height: 130px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 18px currentColor);
+}
+
+.matrix4f-voxel-fallback {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  width: 104px;
+  height: 104px;
+  grid-template-columns: repeat(8, 1fr);
+  grid-template-rows: repeat(8, 1fr);
+  gap: 3px;
+}
+
+.matrix4f-voxel-fallback span.is-lit {
+  border-radius: 2px;
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
+}
+
+.matrix4f-agent-label,
+.matrix4f-agent-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.038);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.matrix4f-agent-label {
+  gap: 7px;
+  min-height: 34px;
+  margin-top: 14px;
+  padding: 0 13px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+}
+
+.matrix4f-agent-action {
+  min-height: 24px;
+  margin-top: 7px;
+  padding: 0 9px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+}
+
+.matrix4f-inspector {
+  align-self: center;
+  border-color: color-mix(in srgb, currentColor 15%, rgba(255, 255, 255, 0.08));
+  border-radius: 32px;
+  padding: 24px;
+  color: white;
+  background:
+    radial-gradient(circle at 76% 8%, color-mix(in srgb, currentColor 16%, transparent), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.018)),
+    rgba(6, 8, 10, 0.34);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 28px 0 70px color-mix(in srgb, currentColor 5%, transparent),
+    0 24px 74px rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(52px) saturate(136%);
+  -webkit-backdrop-filter: blur(52px) saturate(136%);
+}
+
+.matrix4f-inspector-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.matrix4f-inspector-top p,
+.matrix4f-inspector-role,
+.matrix4f-inspector-description,
+.matrix4f-inspector-list dt,
+.matrix4f-flow-step small,
+.matrix4f-disclosure {
+  color: rgba(255, 255, 255, 0.52);
+}
+
+.matrix4f-inspector-top h2 {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 25px;
+  font-weight: 560;
+}
+
+.matrix4f-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(125, 251, 141, 0.24);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: rgba(188, 255, 190, 0.94);
+  background: rgba(125, 251, 141, 0.055);
+  font-size: 11px;
+}
+
+.matrix4f-inspector-role {
+  margin: 16px 0 0;
+  font-size: 13px;
+}
+
+.matrix4f-inspector-description {
+  margin: 12px 0 22px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.matrix4f-inspector-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  font-size: 12px;
+}
+
+.matrix4f-inspector-list div {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 11px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.matrix4f-proof-grid div {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.matrix4f-inspector-list dd,
+.matrix4f-proof-grid dd {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.84);
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.matrix4f-proof-button,
+.matrix4f-modal-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.84);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.matrix4f-proof-button {
+  width: 100%;
+  min-height: 44px;
+  gap: 8px;
+  margin-top: 20px;
+  border-radius: 16px;
+}
+
+.matrix4f-flow-rail {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  align-items: center;
+  border-radius: 24px;
+  padding: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.014)),
+    rgba(255, 255, 255, 0.022);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 16px 42px rgba(0, 0, 0, 0.3);
+}
+
+.matrix4f-flow-step {
+  position: relative;
+  display: grid;
+  min-width: 132px;
+  grid-template-columns: auto 1fr;
+  gap: 3px 7px;
+  align-items: center;
+  justify-items: start;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  padding: 9px 10px;
+  color: white;
+  background: rgba(255, 255, 255, 0.018);
+  opacity: 0.48;
+}
+
+.matrix4f-flow-step.is-active {
+  border-color: currentColor;
+  background:
+    radial-gradient(circle at 14% 50%, color-mix(in srgb, currentColor 15%, transparent), transparent 48%),
+    rgba(255, 255, 255, 0.052);
+  opacity: 1;
+}
+
+.matrix4f-flow-node {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 14px currentColor;
+  grid-row: 1 / span 2;
+}
+
+.matrix4f-flow-step.is-active .matrix4f-flow-node {
+  animation: matrix4f-node-pulse 1.8s ease-in-out infinite;
+}
+
+.matrix4f-flow-label {
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.matrix4f-disclosure {
+  width: fit-content;
+  max-width: 100%;
+  justify-self: end;
+  border-color: rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.018)),
+    rgba(255, 255, 255, 0.026);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 14px 34px rgba(0, 0, 0, 0.28);
+  font-size: 10.5px;
+}
+
+.matrix4f-mobile-selector {
+  display: none;
+}
+
+.matrix4f-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.matrix4f-modal-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.58);
+}
+
+.matrix4f-modal-panel {
+  position: relative;
+  z-index: 1;
+  width: min(620px, 100%);
+  border-radius: 32px;
+  padding: 22px;
+  color: white;
+}
+
+.matrix4f-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.matrix4f-modal-header p {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+
+.matrix4f-modal-header h2 {
+  margin: 4px 0 0;
+  font-size: 26px;
+}
+
+.matrix4f-modal-close {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 auto;
+  border-radius: 14px;
+}
+
+.matrix4f-proof-grid {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.matrix4f-proof-grid dt {
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.matrix4f-modal-note {
+  margin: 18px 0 0;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+
+.agent-genesis-orange {
+  color: #ff5722;
+}
+
+.agent-rule-purple {
+  color: #9c27b0;
+}
+
+.agent-compute-blue {
+  color: #03a9f4;
+}
+
+.agent-contract-gold {
+  color: #ffc107;
+}
+
+.agent-eco-green {
+  color: #8bc34a;
+}
+
+@media (max-width: 1100px) {
+  .matrix4f-command-area {
+    grid-template-columns: 1fr;
+  }
+
+  .matrix4f-inspector {
+    width: min(460px, 100%);
+    justify-self: end;
+  }
+}
+
+@media (max-width: 760px) {
+  .matrix4f-scene {
+    padding: 14px;
+  }
+
+  .matrix4f-shell {
+    min-height: calc(100vh - 28px);
+  }
+
+  .matrix4f-header {
+    display: grid;
+    border-radius: 26px;
+  }
+
+  .matrix4f-status-grid {
+    justify-content: flex-start;
+  }
+
+  .matrix4f-command-area {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .matrix4f-stage {
+    display: flex;
+    min-height: 340px;
+    gap: 18px;
+    overflow-x: auto;
+    padding: 32px 24px 18px;
+    scroll-snap-type: x mandatory;
+  }
+
+  .matrix4f-orbit,
+  .matrix4f-proof-pulse,
+  .matrix4f-flow-line {
+    display: none;
+  }
+
+  .matrix4f-agent {
+    position: relative;
+    inset: auto;
+    flex: 0 0 232px;
+    scroll-snap-align: center;
+    transform: none;
+  }
+
+  .matrix4f-agent-body {
+    width: 180px;
+  }
+
+  .matrix4f-mobile-selector {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .matrix4f-mobile-selector button {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+    justify-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    padding: 8px 4px;
+    color: rgba(255, 255, 255, 0.58);
+    background: rgba(255, 255, 255, 0.045);
+    font-size: 11px;
+  }
+
+  .matrix4f-mobile-selector button span {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: currentColor;
+    box-shadow: 0 0 12px currentColor;
+  }
+
+  .matrix4f-mobile-selector button.is-selected {
+    color: currentColor;
+    border-color: currentColor;
+    background: rgba(255, 255, 255, 0.085);
+  }
+
+  .matrix4f-inspector {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .matrix4f-disclosure {
+    justify-self: stretch;
+    border-radius: 22px;
+    text-align: center;
+  }
+}
+
+@keyframes matrix4f-glow-drift {
+  from {
+    transform: translate3d(-2%, -1%, 0) scale(0.98);
+  }
+
+  to {
+    transform: translate3d(2%, 2%, 0) scale(1.04);
+  }
+}
+
+@keyframes matrix4f-particle-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+
+  to {
+    transform: translate3d(-80px, -120px, 0);
+  }
+}
+
+@keyframes matrix4f-flow-pulse {
+  from {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+@keyframes matrix4f-particle-breathe {
+  0%,
+  100% {
+    opacity: 0.18;
+    transform: translate3d(0, 0, 0) scale(0.68);
+  }
+
+  50% {
+    opacity: 0.86;
+    transform: translate3d(6px, -12px, 0) scale(1.08);
+  }
+}
+
+@keyframes matrix4f-node-pulse {
+  0%,
+  100% {
+    opacity: 0.58;
+    transform: scale(0.86);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.16);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .matrix4f-scene *,
+  .matrix4f-scene *::before,
+  .matrix4f-scene *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

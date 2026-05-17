@@ -1,0 +1,28 @@
+"$schema" = "./node_modules/wrangler/config-schema.json"
+name = "ahin-gate-preview"
+compatibility_date = "2026-05-14"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "out"
+
+[vars]
+NEXT_PUBLIC_AHIN_ENV = "preview"
+NEXT_PUBLIC_AHIN_TARGET_DOMAIN = "gate.ahin.io"
+NEXT_PUBLIC_AHIN_GATE_MODE = "mock"
+NEXT_PUBLIC_AHIN_DEBUG_MATRIX = "false"
+NEXT_PUBLIC_AHIN_WALLET_MODE = "mock"
+NEXT_PUBLIC_AHIN_REQUIRED_LIFE_USDT = "10"
+NEXT_PUBLIC_AHIN_ENTRY_BURN_AMOUNT = "1"
+NEXT_PUBLIC_LIFE_PLUS_CA = "7YdwpERJjzw7UVojxLpvu5ycKBRdYaxaKn4HvoHLpump"
+NEXT_PUBLIC_LIFE_PLUS_FOUNDATION_SOLANA_ADDRESS = "J8ez8GMsHtd8x4ucd1Q1LuA1k4GJ9dHYFVoa3PpetFDu"
+NEXT_PUBLIC_LIFE_PLUS_MAX_SUPPLY = "993953256.43115"
+JUPITER_API_URL = "https://api.jup.ag"
+AHIN_ORACLE_MODE = "readonly"
+AHIN_PROTOCOL_EXECUTION_ENABLED = "false"
+AHIN_REAL_WALLET_VERIFICATION = "false"
+AHIN_REAL_LIFE_BALANCE_CHECK = "false"
+AHIN_REAL_BURN_TRANSACTION = "false"
+
+[[kv_namespaces]]
+binding = "AHIN_ORACLE_KV"
+id = "a7aa5c04dd674507802ecba08bdadd7b"
+preview_id = "b5d283d9d45d43879f9a21167cec1779"

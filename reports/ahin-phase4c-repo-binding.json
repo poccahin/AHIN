@@ -1,0 +1,108 @@
+{
+  "phase": "Phase 4C-Repo Binding",
+  "status": "NEEDS_OPERATOR_CONFIRMATION",
+  "deploymentExecuted": false,
+  "workflowDispatched": false,
+  "currentFolder": "/Users/lee/Downloads/ahin.io",
+  "currentFolderGitRepo": false,
+  "repoBound": false,
+  "repoSlug": null,
+  "repoPath": null,
+  "workflowDispatchSafe": false,
+  "candidateRepos": [
+    {
+      "repoPath": "/Users/lee/Developer/ahinpocc",
+      "branch": "main",
+      "remote": "origin https://github.com/poccahin/pocc.git",
+      "repoSlug": "poccahin/pocc",
+      "packageName": "@pocc/repo",
+      "evidence": {
+        "packageJson": true,
+        "workflow": false,
+        "srcGate": false,
+        "gatekeeper": false,
+        "readonlyOracle": false,
+        "wranglerToml": false,
+        "phase4fReport": false,
+        "ciDeployPathReport": false
+      },
+      "evidenceScore": 1,
+      "assessment": "Weak candidate. Remote is known, but it does not contain the Phase 4C workflow or Gate UI/oracle fingerprints."
+    },
+    {
+      "repoPath": "/Users/lee/Life++AHIN POC CAI",
+      "branch": "main",
+      "remote": null,
+      "repoSlug": null,
+      "packageName": null,
+      "evidence": {
+        "packageJson": false,
+        "workflow": false,
+        "srcGate": false,
+        "gatekeeper": false,
+        "readonlyOracle": false,
+        "wranglerToml": true,
+        "phase4fReport": false,
+        "ciDeployPathReport": false
+      },
+      "evidenceScore": 1,
+      "assessment": "Weak candidate. It has a wrangler.toml but no remote and none of the current Gate UI workflow/source fingerprints."
+    },
+    {
+      "repoPath": "/Users/lee/Documents/ahinpocc/lifepp-agent-os",
+      "branch": "main",
+      "remote": null,
+      "repoSlug": null,
+      "packageName": "lifepp-agent-os",
+      "evidence": {
+        "packageJson": true,
+        "workflow": false,
+        "srcGate": false,
+        "gatekeeper": false,
+        "readonlyOracle": false,
+        "wranglerToml": false,
+        "phase4fReport": false,
+        "ciDeployPathReport": false
+      },
+      "evidenceScore": 1,
+      "assessment": "Weak candidate. It appears to be an agent OS repo, not the current ahin.io Gate UI repo."
+    }
+  ],
+  "fingerprintSearch": {
+    "workflowPath": "/Users/lee/Downloads/ahin.io/.github/workflows/ahin-cloudflare-preview.yml",
+    "gatekeeperPath": "/Users/lee/Downloads/ahin.io/src/components/Gatekeeper.tsx",
+    "readonlyOraclePath": "/Users/lee/Downloads/ahin.io/functions/api/oracle/jupiter/lifepp.ts",
+    "matchedGitRepo": false
+  },
+  "localValidation": {
+    "folder": "/Users/lee/Downloads/ahin.io",
+    "nodeAtStart": "v25.9.0",
+    "nodeRetried": "v24.14.1",
+    "lint": "PASS",
+    "typecheck": "PASS",
+    "build": "PASS",
+    "guardNoAgentGates": "PASS",
+    "auditOmitDev": "PASS",
+    "testAgents": "PASS",
+    "testPocc": "TIMED_OUT_15S",
+    "testWalletUx": "TIMED_OUT_15S",
+    "summary": "Core gates passed, but two tsx-based fixture tests hung under both the current Node v25 shell and a Node v24.14.1 retry. No protocol or UI files were changed to mask this."
+  },
+  "rootDomainUntouched": true,
+  "protocolExecutionEnabled": false,
+  "realWalletVerification": false,
+  "realLifeBalanceCheck": false,
+  "realBurnTransaction": false,
+  "signingEnabled": false,
+  "blockers": [
+    "Current folder is not a git repository.",
+    "No searched git candidate contains the Phase 4C workflow plus Gate UI and readonly oracle fingerprints.",
+    "No safe GitHub repo slug can be inferred without operator confirmation.",
+    "Local validation is partially blocked by test:pocc and test:wallet-ux hanging in the local Node/tsx runtime."
+  ],
+  "recommendedNextActions": [
+    "Provide the correct OWNER/REPO for the ahin.io Gate UI repository, or move/sync /Users/lee/Downloads/ahin.io into the intended git repository after operator confirmation.",
+    "After repo slug confirmation, dispatch gates-only with deployPreview=false and target=preview.",
+    "Investigate the local Node/tsx hang for test:pocc and test:wallet-ux separately if it reproduces in CI."
+  ]
+}
