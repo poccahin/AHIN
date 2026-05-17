@@ -1,11 +1,38 @@
 {
   "phase": "Phase 4C-CI-Preview-Gates-2",
-  "status": "BLOCKED_BEFORE_DISPATCH_REMOTE_PATCH_NOT_PUSHED",
-  "checkedAt": "2026-05-17T07:40:18Z",
+  "status": "PASS",
+  "checkedAt": "2026-05-17T07:51:04Z",
   "deploymentExecuted": false,
-  "workflowDispatched": false,
+  "workflowDispatched": true,
   "deployPreview": false,
   "target": "preview",
+  "workflowRun": {
+    "runId": "25985074944",
+    "runUrl": "https://github.com/poccahin/AHIN/actions/runs/25985074944",
+    "event": "workflow_dispatch",
+    "headBranch": "main",
+    "headSha": "1a40d96f6e3c00f7bdfec36bdc4593bb06da84ed",
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "ciRunner": "ubuntu-latest",
+  "nodeVersion": 22,
+  "gates": {
+    "install": "PASS",
+    "lint": "PASS",
+    "typecheck": "PASS",
+    "build": "PASS",
+    "guardNoAgentGates": "PASS",
+    "audit": "PASS",
+    "testAgents": "PASS",
+    "testPocc": "PASS",
+    "testWalletUx": "PASS"
+  },
+  "deployJob": {
+    "name": "deploy readonly Cloudflare Pages preview",
+    "conclusion": "skipped",
+    "skipped": true
+  },
   "repo": {
     "localPath": "/Users/lee/Downloads/ahin.io",
     "localGitRepo": true,
@@ -13,11 +40,11 @@
     "branch": "main",
     "remote": "https://github.com/poccahin/ahin.git"
   },
-  "blocker": "Local Phase 4C oracle default outputMint patch is not yet committed/pushed to poccahin/AHIN, so dispatching gates-only would validate old remote code.",
+  "blocker": null,
   "remoteOracleEvidence": {
-    "containsValidateLifeMint": true,
-    "containsReadonlyV2CacheKey": false,
-    "containsQuoteUnavailableFailSoft": false
+    "containsValidateLifeMint": false,
+    "containsReadonlyV2CacheKey": true,
+    "containsQuoteUnavailableFailSoft": true
   },
   "localPatchFiles": [
     "functions/api/oracle/jupiter/lifepp.ts",
@@ -36,5 +63,5 @@
   "realWalletTransfer": false,
   "realBurnTransaction": false,
   "signingEnabled": false,
-  "nextSafeAction": "Operator approval is required to commit/push the oracle patch before running gh workflow run with deployPreview=false."
+  "nextSafeAction": "Phase 4C-CI-Preview-Deploy-2 may run with deployPreview=true after operator confirmation."
 }
