@@ -18,6 +18,7 @@ interface GatekeeperProps {
 const MOCK_WALLET = "0xMockAhinGate...2026";
 const LIFE_PLUS_MINT_SHORT = `${LIFE_PLUS_MINT.slice(0, 5)}...${LIFE_PLUS_MINT.slice(-4)}`;
 const READONLY_QUOTE_UNAVAILABLE = "Readonly quote unavailable. You can continue with mock verification.";
+const AHIN_FOUNDATION_TREASURY_MULTISIG = "5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo";
 const LIVE_WALLETS: Array<{ id: WalletId; label: string }> = [
   { id: "phantom_solana", label: "Phantom" },
   { id: "okx_solana", label: "OKX Wallet" },
@@ -193,7 +194,8 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
       ) : null}
 
       <section className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10" aria-label="ahin.io mock gatekeeper">
-        <div className="w-[min(92vw,440px)] rounded-[28px] border border-white/20 bg-white/[0.055] px-6 py-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_38px_120px_rgba(0,0,0,0.62)] backdrop-blur-[40px] sm:px-8 sm:py-8">
+        <div className="grid w-[min(94vw,1040px)] items-stretch gap-5 lg:grid-cols-[minmax(360px,440px)_minmax(360px,1fr)]">
+          <div className="w-full rounded-[28px] border border-white/20 bg-white/[0.055] px-6 py-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_38px_120px_rgba(0,0,0,0.62)] backdrop-blur-[40px] sm:px-8 sm:py-8">
           <div className="mb-8 flex items-start justify-between gap-5">
             <div>
               <p className="mb-2 text-[11px] uppercase text-white/40">Multi-Agent Zero-Trust Network</p>
@@ -306,6 +308,72 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
               Mock verification mode. On-chain wallet adapters are not enabled in this build. {MOCK_FALLBACK_DISCLOSURE}
             </p>
           ) : null}
+        </div>
+
+          <aside
+            className="relative overflow-hidden rounded-[32px] border border-white/15 bg-white/[0.052] px-6 py-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_34px_110px_rgba(0,0,0,0.56)] backdrop-blur-[44px] sm:px-7 lg:self-center"
+            aria-label="LIFE++ AHIN governance gate"
+          >
+          <div
+            className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_82%_12%,rgba(3,169,244,0.16),transparent_28%),radial-gradient(circle_at_18%_86%,rgba(255,193,7,0.105),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.075),transparent_38%)]"
+            aria-hidden="true"
+          />
+          <div className="relative">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[0.055] px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] text-white/55">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-200 shadow-[0_0_14px_rgba(255,218,150,0.72)]" />
+              LIFE++ / AHIN Governance Gate
+            </div>
+
+            <div className="mb-6">
+              <h2 className="text-[30px] font-semibold leading-[1.02] text-white sm:text-[40px]">
+                Phase G1
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-white/62">Treasury Funding Readiness Evidence</p>
+            </div>
+
+            <div className="mb-5 rounded-[24px] border border-white/[0.12] bg-black/[0.18] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.09)]">
+              <p className="text-[11px] uppercase tracking-[0.16em] text-white/42">AHIN Foundation Squads multisig</p>
+              <p className="mt-2 text-sm font-medium text-white/86">Archived and corrected</p>
+              <p className="mt-3 break-all rounded-[18px] border border-white/[0.1] bg-white/[0.045] px-3 py-3 font-mono text-[12px] leading-5 text-sky-100/88">
+                {AHIN_FOUNDATION_TREASURY_MULTISIG}
+              </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-[20px] border border-white/[0.105] bg-white/[0.038] p-3">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-white/36">Governance threshold</p>
+                <p className="mt-1 text-sm font-medium text-white/84">2-of-3</p>
+              </div>
+              <div className="rounded-[20px] border border-white/[0.105] bg-white/[0.038] p-3">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-white/36">Members</p>
+                <p className="mt-1 text-sm font-medium text-white/84">3</p>
+              </div>
+              <div className="rounded-[20px] border border-white/[0.105] bg-white/[0.038] p-3">
+                <p className="text-[10px] uppercase tracking-[0.14em] text-white/36">Source</p>
+                <p className="mt-1 text-sm font-medium leading-5 text-white/84">Squads dashboard visual confirmation</p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-2.5 text-[13px] leading-5 text-white/68">
+              <div className="flex items-start justify-between gap-4 rounded-[18px] border border-amber-200/15 bg-amber-200/[0.045] px-3 py-2.5">
+                <span>Treasury funding</span>
+                <strong className="text-right font-medium text-amber-100/90">Blocked pending approval evidence</strong>
+              </div>
+              <div className="flex items-start justify-between gap-4 rounded-[18px] border border-white/[0.095] bg-white/[0.032] px-3 py-2.5">
+                <span>Protocol execution</span>
+                <strong className="text-right font-medium text-white/86">Disabled</strong>
+              </div>
+              <div className="flex items-start justify-between gap-4 rounded-[18px] border border-white/[0.095] bg-white/[0.032] px-3 py-2.5">
+                <span>LIFE++ transfer / burn / signing</span>
+                <strong className="text-right font-medium text-white/86">Disabled</strong>
+              </div>
+              <div className="flex items-start justify-between gap-4 rounded-[18px] border border-white/[0.095] bg-white/[0.032] px-3 py-2.5">
+                <span>Root domain takeover</span>
+                <strong className="text-right font-medium text-white/86">Approved by operator, but not yet deployed in this patch</strong>
+              </div>
+            </div>
+          </div>
+          </aside>
         </div>
       </section>
     </main>

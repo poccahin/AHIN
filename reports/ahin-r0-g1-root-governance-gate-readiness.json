@@ -1,0 +1,38 @@
+{
+  "phase": "Phase R0-G1 — ahin.io Root Governance Gate Deploy",
+  "status": "READY_NOT_DEPLOYED",
+  "targetDomain": "ahin.io",
+  "cloudflareProjectName": "LIFE++AHIN",
+  "rootOverwriteApproved": true,
+  "canonicalTreasuryMultisigAddress": "5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo",
+  "governanceThreshold": "2-of-3",
+  "members": 3,
+  "source": "Squads dashboard visual confirmation",
+  "treasuryFundingEnabled": false,
+  "treasuryFundingStatus": "blocked pending approval evidence",
+  "protocolExecutionEnabled": false,
+  "realWalletTransfer": false,
+  "realBurnTransaction": false,
+  "signingEnabled": false,
+  "deploymentExecuted": false,
+  "workflowDispatched": false,
+  "wranglerRun": false,
+  "treasuryMultisigLogicModified": false,
+  "rootGovernanceGateCopyPrepared": true,
+  "incorrectAddressUsed": false,
+  "localValidation": {
+    "npm run lint": "PASS",
+    "npm run typecheck": "TIMEOUT_300S_LOCAL_RUNTIME",
+    "npm run build": "TIMEOUT_300S_LOCAL_RUNTIME",
+    "npm run guard:no-agent-gates": "PASS",
+    "npm audit --omit=dev": "FAIL_BIGINT_BUFFER_VIA_EXISTING_SQDS_MULTISIG_DEPENDENCY",
+    "npm run test:agents": "TIMEOUT_300S_LOCAL_RUNTIME",
+    "npm run test:pocc": "TIMEOUT_300S_LOCAL_RUNTIME",
+    "npm run test:wallet-ux": "TIMEOUT_300S_LOCAL_RUNTIME"
+  },
+  "validationNotes": [
+    "The local validation run did not execute deployment, workflow dispatch, wrangler, protocol execution, transfer, burn, signing, or treasury logic changes.",
+    "The audit finding is the existing bigint-buffer chain through @sqds/multisig and was not introduced by this root governance gate copy patch.",
+    "Several Node/Next/tsx commands timed out locally without emitting diagnostics in the current runtime environment."
+  ]
+}
