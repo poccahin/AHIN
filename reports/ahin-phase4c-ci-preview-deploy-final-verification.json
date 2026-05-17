@@ -1,0 +1,113 @@
+{
+  "phase": "Phase 4C-CI-Preview-Deploy Final URL Verification",
+  "status": "BLOCKED_ORACLE_DEFAULT_ROUTE",
+  "checkedAt": "2026-05-17T07:13:35Z",
+  "workflowRun": {
+    "repo": "poccahin/AHIN",
+    "runId": "25984124487",
+    "runUrl": "https://github.com/poccahin/AHIN/actions/runs/25984124487",
+    "event": "workflow_dispatch",
+    "headBranch": "main",
+    "headSha": "e2d05ad3d7e3d60fa02b91ccd7df4687fd60104d",
+    "status": "completed",
+    "conclusion": "success",
+    "gatesJobPassed": true,
+    "deployJobPassed": true
+  },
+  "deployment": {
+    "cloudflarePagesPreviewDeploy": "SUCCESS",
+    "deploymentExecutedByThisVerification": false,
+    "rootDomainDeploymentExecuted": false,
+    "previewUrl": "https://9ed5dbe2.ahin-gate-preview.pages.dev",
+    "branchPreviewUrl": "https://preview.ahin-gate-preview.pages.dev"
+  },
+  "homepageVerification": {
+    "previewHeadStatus": 200,
+    "branchPreviewHeadStatus": 200,
+    "previewHomepageAccessible": true,
+    "visibleSignals": [
+      "ahin.io",
+      "Zero-Trust Tunnel",
+      "Readonly / mock verification only",
+      "No LIFE++ transferred or burned"
+    ],
+    "mockReadonlyBoundaryVisible": true
+  },
+  "oracleVerification": {
+    "requestedSolToLifeRoute": {
+      "url": "/api/oracle/jupiter/lifepp?inputMint=So11111111111111111111111111111111111111112&amount=1000000&slippageBps=50",
+      "status": 400,
+      "response": {
+        "error": "Invalid LIFE++ readonly quote request."
+      },
+      "passed": false,
+      "blocker": "The deployed oracle rejects SOL inputMint when outputMint is omitted. Phase 4E required LIFE++ to be the default outputMint if omitted."
+    },
+    "lifeToUsdcReadonlyRoute": {
+      "url": "/api/oracle/jupiter/lifepp?inputMint=7YdwpERJjzw7UVojxLpvu5ycKBRdYaxaKn4HvoHLpump&outputMint=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&amount=1000000&slippageBps=50",
+      "status": 200,
+      "mode": "readonly",
+      "protocolExecutionEnabled": false,
+      "realWalletTransfer": false,
+      "realBurnTransaction": false,
+      "admissionThresholdUsd": 10,
+      "collaborationUsageRule": "min(1 USDT, 1 LIFE++)",
+      "lifePlusMint": "7YdwpERJjzw7UVojxLpvu5ycKBRdYaxaKn4HvoHLpump",
+      "quoteHashPresent": true,
+      "timestampPresent": true,
+      "passed": true
+    },
+    "omittedOutputMintLifeInputRoute": {
+      "status": 502,
+      "response": {
+        "error": "Jupiter Ultra readonly quote failed."
+      },
+      "rawPayloadEchoBlocked": true
+    },
+    "rawPayloadEchoBlocked": true,
+    "secretExposure": false,
+    "transactionObjectExposed": false,
+    "swapExecution": false,
+    "burnInstructionExposed": false,
+    "transferInstructionExposed": false
+  },
+  "mutationGuards": {
+    "postRejected": true,
+    "postStatus": 405,
+    "invalidParamsRejected": true,
+    "invalidParamsStatus": 400
+  },
+  "rootDomainVerification": {
+    "rootUrl": "https://ahin.io",
+    "rootDomainUntouched": true,
+    "rootSignal": "AHIN Cognitive Network",
+    "rootReplacedByGatePreview": false
+  },
+  "protocolBoundary": {
+    "protocolExecutionEnabled": false,
+    "realWalletVerification": false,
+    "realLifeBalanceCheck": false,
+    "realWalletTransfer": false,
+    "realBurnTransaction": false,
+    "signingEnabled": false,
+    "oracleMode": "readonly"
+  },
+  "phase4Complete": false,
+  "phase5Correction": {
+    "nextPhaseName": "Phase 5A — Mainnet Dry-Run Readiness Certificate",
+    "mainnetIgnition": false,
+    "rootDomainTakeover": false,
+    "burnBreakerRelease": false,
+    "protocolExecutionEnablement": false,
+    "requiredPhase5AFlags": {
+      "AHIN_REAL_BURN_TRANSACTION": false,
+      "AHIN_REAL_WALLET_TRANSFER": false,
+      "PROTOCOL_EXECUTION_ENABLED": false,
+      "SIGNING_ENABLED": false
+    }
+  },
+  "blockers": [
+    "Final requested readonly oracle URL did not return readonly metadata: SOL input with omitted outputMint returned 400.",
+    "Do not declare Phase 4 COMPLETE until the oracle default outputMint behavior is corrected or operator explicitly updates the acceptance command."
+  ]
+}

@@ -38,7 +38,8 @@ const lifePlusConfig = read("src/config/life-plus.ts");
 const oracle = read("functions/api/oracle/jupiter/lifepp.ts");
 const policyReport = JSON.parse(read("reports/ahin-lifeplus-admission-policy.json"));
 const srcFiles = listFiles("src").filter((file) => /\.(css|ts|tsx)$/.test(file));
-const srcSource = srcFiles.map((file) => read(file)).join("\n");
+const functionFiles = listFiles("functions").filter((file) => /\.(ts|tsx|js|mjs)$/.test(file));
+const srcAndFunctionSource = [...srcFiles, ...functionFiles].map((file) => read(file)).join("\n");
 const srcNonTestSource = srcFiles
   .filter((file) => !file.includes("__tests__"))
   .map((file) => read(file))
@@ -161,15 +162,15 @@ check(
 );
 check(
   "No wallet signing API exists in src",
-  !srcSource.includes("signAndSendTransaction"),
-  "src must not expose signAndSendTransaction."
+  !srcAndFunctionSource.includes("signAndSendTransaction"),
+  "src/functions must not expose signAndSendTransaction."
 );
 check(
   "No Solana transfer instruction path exists in src",
   !/(transferLifePlusToFoundation|createTransferCheckedInstruction|createAssociatedTokenAccountIdempotentInstruction|sendRawTransaction|TransactionInstruction|SystemProgram|SYSVAR_RENT_PUBKEY)/.test(
-    srcSource
+    srcAndFunctionSource
   ),
-  "src must not include Solana transfer instruction helpers or submission paths."
+  "src/functions must not include Solana transfer instruction helpers or submission paths."
 );
 check(
   "Protocol execution remains disabled",
@@ -188,6 +189,8 @@ check(
     oracle.includes("admissionThresholdUsd") &&
     oracle.includes("collaborationUsageRule") &&
     oracle.includes("lifePlusMint") &&
+    oracle.includes("inputMint") &&
+    oracle.includes("outputMint") &&
     oracle.includes("quoteHash") &&
     oracle.includes("realWalletTransfer: false") &&
     oracle.includes("realBurnTransaction: false"),
@@ -210,10 +213,29 @@ check(
 );
 check(
   "Phase 4E-2 Oracle parse errors fail soft",
-  oracle.includes('return json({ error: "Jupiter Ultra readonly quote failed." }, { status: 502 })') &&
+  oracle.includes("createUnavailableBody") &&
+    oracle.includes('status: "quote_unavailable"') &&
+    oracle.includes("Readonly quote unavailable. You can continue with mock verification.") &&
     !oracle.includes("return json({ error: error instanceof Error ? error.message") &&
-    !oracle.slice(oracle.indexOf("const body")).includes("payload.error"),
+    !oracle.slice(oracle.indexOf("createBaseMetadata")).includes("payload.error"),
   "Oracle must not echo raw Jupiter payload errors or API failure details."
+);
+check(
+  "Phase 4C oracle defaults omitted outputMint to LIFE++",
+  oracle.includes('const inputMint = validateSolanaMint(requestUrl.searchParams.get("inputMint"), "inputMint")') &&
+    oracle.includes('const outputMint = validateSolanaMint(requestUrl.searchParams.get("outputMint") ?? lifeMint, "outputMint")') &&
+    oracle.includes("lifepp:readonly:v2") &&
+    oracle.includes("status: \"quote_unavailable\"") &&
+    !oracle.includes("validateLifeMint"),
+  "Oracle must require inputMint, default omitted outputMint to LIFE++, and avoid rejecting SOL->LIFE++ as an invalid LIFE++ route."
+);
+check(
+  "Phase 4C oracle mutation and invalid params guards remain",
+  oracle.includes('context.request.method !== "GET"') &&
+    oracle.includes("status: 405") &&
+    oracle.includes("validateAmount") &&
+    oracle.includes("status: 400"),
+  "Oracle must keep GET-only behavior, 405 mutation rejection, and 400 invalid-param rejection."
 );
 check(
   "Phase 4F command deck safety copy is visible",

@@ -1,0 +1,40 @@
+{
+  "phase": "Phase 4C-CI-Preview-Gates-2",
+  "status": "BLOCKED_BEFORE_DISPATCH_REMOTE_PATCH_NOT_PUSHED",
+  "checkedAt": "2026-05-17T07:40:18Z",
+  "deploymentExecuted": false,
+  "workflowDispatched": false,
+  "deployPreview": false,
+  "target": "preview",
+  "repo": {
+    "localPath": "/Users/lee/Downloads/ahin.io",
+    "localGitRepo": true,
+    "repoSlug": "poccahin/AHIN",
+    "branch": "main",
+    "remote": "https://github.com/poccahin/ahin.git"
+  },
+  "blocker": "Local Phase 4C oracle default outputMint patch is not yet committed/pushed to poccahin/AHIN, so dispatching gates-only would validate old remote code.",
+  "remoteOracleEvidence": {
+    "containsValidateLifeMint": true,
+    "containsReadonlyV2CacheKey": false,
+    "containsQuoteUnavailableFailSoft": false
+  },
+  "localPatchFiles": [
+    "functions/api/oracle/jupiter/lifepp.ts",
+    "scripts/release-lint.mjs",
+    "reports/ahin-phase4c-oracle-default-outputmint-fix.json"
+  ],
+  "localGeneratedFiles": [
+    "reports/ahin-phase4c-ci-preview-deploy-final-verification.json",
+    "reports/ahin-phase4c-ci-preview-gates-2.json"
+  ],
+  "localBuildArtifactDirty": [
+    "tsconfig.tsbuildinfo"
+  ],
+  "rootDomainUntouched": true,
+  "protocolExecutionEnabled": false,
+  "realWalletTransfer": false,
+  "realBurnTransaction": false,
+  "signingEnabled": false,
+  "nextSafeAction": "Operator approval is required to commit/push the oracle patch before running gh workflow run with deployPreview=false."
+}

@@ -30,7 +30,7 @@ interface PagesContext {
   request: Request;
 }
 
-interface QuoteResponseBody {
+interface ReadonlyQuoteMetadata {
   mode: "readonly";
   protocolExecutionEnabled: false;
   realWalletTransfer: false;
@@ -38,12 +38,24 @@ interface QuoteResponseBody {
   admissionThresholdUsd: 10;
   collaborationUsageRule: "min(1 USDT, 1 LIFE++)";
   lifePlusMint: string;
+  inputMint: string;
+  outputMint: string;
   quoteSource: "jupiter_readonly_proxy";
   cacheStatus: CacheStatus;
   quoteHash: string;
   timestamp: string;
+}
+
+interface QuoteSuccessResponseBody extends ReadonlyQuoteMetadata {
   quote: ReturnType<typeof parseLifePlusUltraQuote>;
 }
+
+interface QuoteUnavailableResponseBody extends ReadonlyQuoteMetadata {
+  status: "quote_unavailable";
+  quoteUnavailableReason: "Readonly quote unavailable. You can continue with mock verification.";
+}
+
+type QuoteResponseBody = QuoteSuccessResponseBody | QuoteUnavailableResponseBody;
 
 function json(payload: unknown, init: ResponseInit = {}) {
   return new Response(JSON.stringify(payload), {
@@ -68,14 +80,6 @@ function validateSolanaMint(value: string | null, label: string) {
   return value;
 }
 
-function validateLifeMint(value: string | null, label: string) {
-  const mint = validateSolanaMint(value, label);
-  if (mint !== LIFE_PLUS_MINT) {
-    throw new Error(`${label} is outside the LIFE++ readonly oracle route.`);
-  }
-  return mint;
-}
-
 function validateAmount(value: string | null) {
   if (!value || !/^\d+$/.test(value) || BigInt(value) <= 0n) {
     throw new Error("amount must be a positive integer in raw token units.");
@@ -84,7 +88,10 @@ function validateAmount(value: string | null) {
 }
 
 function validateSlippageBps(value: string | null) {
-  if (!value || !/^\d+$/.test(value)) {
+  if (value === null) {
+    return "50";
+  }
+  if (!/^\d+$/.test(value)) {
     throw new Error("slippageBps must be an integer.");
   }
   const parsed = Number.parseInt(value, 10);
@@ -119,6 +126,61 @@ async function readCachedQuote(kv: ReadonlyQuoteKV | undefined, cacheKey: string
   return JSON.parse(cached) as QuoteResponseBody;
 }
 
+function createBaseMetadata(input: {
+  inputMint: string;
+  outputMint: string;
+  cacheStatus: CacheStatus;
+  quoteHash: string;
+  timestamp: string;
+}): ReadonlyQuoteMetadata {
+  return {
+    mode: "readonly",
+    protocolExecutionEnabled: false,
+    realWalletTransfer: false,
+    realBurnTransaction: false,
+    admissionThresholdUsd: AHIN_AGENT_ADMISSION_USD_THRESHOLD,
+    collaborationUsageRule: AHIN_COLLABORATION_USAGE_RULE,
+    lifePlusMint: LIFE_PLUS_MINT,
+    inputMint: input.inputMint,
+    outputMint: input.outputMint,
+    quoteSource: "jupiter_readonly_proxy",
+    cacheStatus: input.cacheStatus,
+    quoteHash: input.quoteHash,
+    timestamp: input.timestamp
+  };
+}
+
+async function createUnavailableBody(input: {
+  inputMint: string;
+  outputMint: string;
+  amount: string;
+  slippageBps: string;
+  cacheStatus: CacheStatus;
+  reason: "upstream" | "parse" | "unsupported_route";
+}) {
+  const timestamp = new Date().toISOString();
+  const quoteHash = await sha256Hex({
+    mode: "readonly",
+    status: "quote_unavailable",
+    inputMint: input.inputMint,
+    outputMint: input.outputMint,
+    amount: input.amount,
+    slippageBps: input.slippageBps,
+    reason: input.reason
+  });
+  return {
+    ...createBaseMetadata({
+      inputMint: input.inputMint,
+      outputMint: input.outputMint,
+      cacheStatus: input.cacheStatus,
+      quoteHash,
+      timestamp
+    }),
+    status: "quote_unavailable",
+    quoteUnavailableReason: "Readonly quote unavailable. You can continue with mock verification."
+  } satisfies QuoteUnavailableResponseBody;
+}
+
 export async function onRequest(context: PagesContext) {
   if (context.request.method !== "GET") {
     return json({ error: "Method not allowed. Use GET for readonly LIFE++ oracle quotes." }, { status: 405 });
@@ -133,11 +195,11 @@ export async function onRequest(context: PagesContext) {
   try {
     const requestUrl = new URL(context.request.url);
     const lifeMint = LIFE_PLUS_MINT;
-    const inputMint = validateLifeMint(requestUrl.searchParams.get("inputMint") ?? lifeMint, "inputMint");
+    const inputMint = validateSolanaMint(requestUrl.searchParams.get("inputMint"), "inputMint");
     const outputMint = validateSolanaMint(requestUrl.searchParams.get("outputMint") ?? lifeMint, "outputMint");
     const amount = validateAmount(requestUrl.searchParams.get("amount"));
     const slippageBps = validateSlippageBps(requestUrl.searchParams.get("slippageBps"));
-    const cacheKey = `lifepp:readonly:${inputMint}:${outputMint}:${amount}:${slippageBps}`;
+    const cacheKey = `lifepp:readonly:v2:${inputMint}:${outputMint}:${amount}:${slippageBps}`;
 
     let cacheStatus: CacheStatus = "kv_unavailable";
     try {
@@ -149,6 +211,8 @@ export async function onRequest(context: PagesContext) {
     } catch {
       cacheStatus = "kv_error";
     }
+
+    const parseAsLifePlusToUsd = inputMint === lifeMint && outputMint !== lifeMint;
 
     const jupiterApiUrl = envValue(context.env, "JUPITER_API_URL", JUPITER_BASE_URL).replace(/\/+$/, "");
     const jupiterUltraApiUrl = envValue(context.env, "JUPITER_ULTRA_API_URL", JUPITER_ULTRA_BASE_URL).replace(/\/+$/, "");
@@ -166,7 +230,11 @@ export async function onRequest(context: PagesContext) {
     const response = await fetch(quoteUrl, { headers });
     const payload = (await response.json().catch(() => null)) as JupiterUltraOrderPayload | null;
     if (!response.ok) {
-      return json({ error: "Jupiter Ultra readonly quote failed." }, { status: 502 });
+      return json(await createUnavailableBody({ inputMint, outputMint, amount, slippageBps, cacheStatus, reason: "upstream" }));
+    }
+
+    if (!parseAsLifePlusToUsd) {
+      return json(await createUnavailableBody({ inputMint, outputMint, amount, slippageBps, cacheStatus, reason: "unsupported_route" }));
     }
 
     const timestamp = new Date().toISOString();
@@ -181,21 +249,11 @@ export async function onRequest(context: PagesContext) {
         checkedAt: timestamp
       });
     } catch {
-      return json({ error: "Jupiter Ultra readonly quote failed." }, { status: 502 });
+      return json(await createUnavailableBody({ inputMint, outputMint, amount, slippageBps, cacheStatus, reason: "parse" }));
     }
     const quoteHash = await sha256Hex({ inputMint, outputMint, amount, slippageBps, quote });
-    const body: QuoteResponseBody = {
-      mode: "readonly",
-      protocolExecutionEnabled: false,
-      realWalletTransfer: false,
-      realBurnTransaction: false,
-      admissionThresholdUsd: AHIN_AGENT_ADMISSION_USD_THRESHOLD,
-      collaborationUsageRule: AHIN_COLLABORATION_USAGE_RULE,
-      lifePlusMint: lifeMint,
-      quoteSource: "jupiter_readonly_proxy",
-      cacheStatus,
-      quoteHash,
-      timestamp,
+    const body: QuoteSuccessResponseBody = {
+      ...createBaseMetadata({ inputMint, outputMint, cacheStatus, quoteHash, timestamp }),
       quote
     };
 
