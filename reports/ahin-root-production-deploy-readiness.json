@@ -1,0 +1,42 @@
+{
+  "phase": "Phase R0 — ahin.io Root Gate Production Deploy",
+  "status": "READY_NOT_DEPLOYED",
+  "targetDomain": "ahin.io",
+  "cloudflareProjectName": "LIFE++AHIN",
+  "rootOverwriteApproved": true,
+  "workflowPath": ".github/workflows/ahin-cloudflare-root-production.yml",
+  "workflowDispatchOnly": true,
+  "deploymentExecuted": false,
+  "workflowDispatched": false,
+  "protocolExecutionEnabled": false,
+  "realWalletVerification": false,
+  "realLifeBalanceCheck": false,
+  "realBurnTransaction": false,
+  "signingEnabled": false,
+  "oracleMode": "readonly",
+  "gateMode": "mock/readonly",
+  "treasuryActionEnabled": false,
+  "lifePlusTransferEnabled": false,
+  "lifePlusBurnEnabled": false,
+  "transactionSubmissionEnabled": false,
+  "requiredConfirmation": "I_CONFIRM_ROOT_AHIN_IO_OVERWRITE",
+  "requiredTarget": "ahin.io",
+  "buildOutputDir": "out",
+  "cloudflareSecretsRequired": [
+    "CLOUDFLARE_API_TOKEN",
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CLOUDFLARE_PROJECT_NAME"
+  ],
+  "postDeployChecks": {
+    "homepage": [
+      "ahin.io",
+      "Zero-Trust Tunnel or AHIN Agent Matrix",
+      "Readonly / mock verification only",
+      "No LIFE++ transferred or burned",
+      "Protocol execution disabled"
+    ],
+    "oracleReadonly": true,
+    "postMutationRejected": 405,
+    "invalidParamsRejected": 400
+  }
+}

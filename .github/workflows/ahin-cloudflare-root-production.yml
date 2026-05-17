@@ -1,0 +1,141 @@
+name: ahin Cloudflare root production
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmRootOverwrite:
+        description: "Type I_CONFIRM_ROOT_AHIN_IO_OVERWRITE"
+        required: true
+        type: string
+      target:
+        description: "Production root target domain"
+        required: true
+        default: ahin.io
+        type: string
+
+env:
+  NEXT_PUBLIC_AHIN_ENV: production
+  NEXT_PUBLIC_AHIN_TARGET_DOMAIN: ahin.io
+  NEXT_PUBLIC_AHIN_GATE_MODE: mock
+  NEXT_PUBLIC_AHIN_DEBUG_MATRIX: "false"
+  NEXT_PUBLIC_AHIN_WALLET_MODE: mock
+  NEXT_PUBLIC_AHIN_REQUIRED_LIFE_USDT: "10"
+  NEXT_PUBLIC_AHIN_ENTRY_BURN_AMOUNT: "1"
+  AHIN_ORACLE_MODE: readonly
+  AHIN_PROTOCOL_EXECUTION_ENABLED: "false"
+  AHIN_REAL_WALLET_VERIFICATION: "false"
+  AHIN_REAL_LIFE_BALANCE_CHECK: "false"
+  AHIN_REAL_BURN_TRANSACTION: "false"
+
+jobs:
+  deploy-root-production:
+    name: deploy ahin.io root production
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: cloudflare-production
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_PROJECT_NAME: ${{ secrets.CLOUDFLARE_PROJECT_NAME }}
+    steps:
+      - name: Authorize root overwrite
+        run: |
+          test "${{ inputs.confirmRootOverwrite }}" = "I_CONFIRM_ROOT_AHIN_IO_OVERWRITE"
+          test "${{ inputs.target }}" = "ahin.io"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Validate production readonly boundary
+        run: |
+          test "${NEXT_PUBLIC_AHIN_TARGET_DOMAIN}" = "ahin.io"
+          test "${NEXT_PUBLIC_AHIN_GATE_MODE}" = "mock"
+          test "${AHIN_ORACLE_MODE}" = "readonly"
+          test "${AHIN_PROTOCOL_EXECUTION_ENABLED}" = "false"
+          test "${AHIN_REAL_WALLET_VERIFICATION}" = "false"
+          test "${AHIN_REAL_LIFE_BALANCE_CHECK}" = "false"
+          test "${AHIN_REAL_BURN_TRANSACTION}" = "false"
+          test -n "${CLOUDFLARE_API_TOKEN}"
+          test -n "${CLOUDFLARE_ACCOUNT_ID}"
+          test -n "${CLOUDFLARE_PROJECT_NAME}"
+          grep -q 'AHIN_ORACLE_MODE = "readonly"' wrangler.toml
+          grep -q 'AHIN_PROTOCOL_EXECUTION_ENABLED = "false"' wrangler.toml
+          grep -q 'AHIN_REAL_WALLET_VERIFICATION = "false"' wrangler.toml
+          grep -q 'AHIN_REAL_LIFE_BALANCE_CHECK = "false"' wrangler.toml
+          grep -q 'AHIN_REAL_BURN_TRANSACTION = "false"' wrangler.toml
+          ! grep -R -nE 'signAndSendTransaction' src functions
+          ! grep -R -nE 'SystemProgram\.transfer|createTransferInstruction|sendRawTransaction|sendAndConfirmTransaction|submitTransaction' src functions
+          ! grep -R -nE 'createBurnInstruction|burnChecked|burn instruction submission|burn transaction submission' src functions
+          ! grep -R -nEi 'protocol live|mainnet transfer' src functions
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Release lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+      - name: No secondary agent gates
+        run: npm run guard:no-agent-gates
+
+      - name: Audit runtime dependencies
+        run: npm audit --omit=dev
+
+      - name: Agent flow tests
+        run: npm run test:agents
+
+      - name: PoCC tests
+        run: npm run test:pocc
+
+      - name: Wallet UX tests
+        run: npm run test:wallet-ux
+
+      - name: Deploy ahin.io root production to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy out --project-name "${{ secrets.CLOUDFLARE_PROJECT_NAME }}" --branch main
+
+      - name: Verify ahin.io homepage
+        run: |
+          curl -I https://ahin.io
+          curl -L https://ahin.io -o /tmp/ahin-root-homepage.html
+          grep -q 'ahin.io' /tmp/ahin-root-homepage.html
+          grep -Eq 'Zero-Trust Tunnel|AHIN Agent Matrix' /tmp/ahin-root-homepage.html
+          grep -q 'Readonly / mock verification only' /tmp/ahin-root-homepage.html
+          grep -q 'No LIFE++ transferred or burned' /tmp/ahin-root-homepage.html
+          grep -Eiq 'Protocol execution disabled|Protocol Execution: Disabled' /tmp/ahin-root-homepage.html
+
+      - name: Verify readonly oracle
+        run: |
+          curl -fsS "https://ahin.io/api/oracle/jupiter/lifepp?inputMint=So11111111111111111111111111111111111111112&amount=1000000&slippageBps=50" -o /tmp/ahin-root-oracle.json
+          node - <<'NODE'
+          const fs = require("fs");
+          const body = JSON.parse(fs.readFileSync("/tmp/ahin-root-oracle.json", "utf8"));
+          const expectedMint = "7YdwpERJjzw7UVojxLpvu5ycKBRdYaxaKn4HvoHLpump";
+          if (body.mode !== "readonly") throw new Error("Oracle mode is not readonly.");
+          if (body.protocolExecutionEnabled !== false) throw new Error("Protocol execution is not disabled.");
+          if (body.realWalletTransfer !== false) throw new Error("Real wallet transfer is not false.");
+          if (body.realBurnTransaction !== false) throw new Error("Real burn transaction is not false.");
+          if (body.admissionThresholdUsd !== 10) throw new Error("Admission threshold mismatch.");
+          if (body.lifePlusMint !== expectedMint) throw new Error("LIFE++ mint mismatch.");
+          NODE
+
+      - name: Verify oracle rejects mutations and invalid params
+        run: |
+          post_status="$(curl -s -o /tmp/ahin-root-post.json -w "%{http_code}" -X POST "https://ahin.io/api/oracle/jupiter/lifepp")"
+          test "${post_status}" = "405"
+          invalid_status="$(curl -s -o /tmp/ahin-root-invalid.json -w "%{http_code}" "https://ahin.io/api/oracle/jupiter/lifepp?inputMint=bad&amount=-1&slippageBps=999999")"
+          test "${invalid_status}" = "400"
