@@ -1,0 +1,41 @@
+{
+  "phase": "Phase G0 — AHIN Foundation Genesis Multisig Creation",
+  "status": "ARCHIVED_WITH_LOCAL_VALIDATION_BLOCKERS_DISCLOSED",
+  "archiveOnly": true,
+  "network": "solana-mainnet",
+  "treasuryMultisigPda": "6ptousxVRcq84HYuxkaZfrCSVu1HWEzTvYRXNW4t49w6",
+  "governanceThreshold": "2-of-3",
+  "transactionSignature": "3q5PFdQVzKP5GRu8hjpvZL236LqFP993vwdC1jPfd7nZHEnG2UqwDtJ4Poj2XomXMUauS7c1ArnUQwe7D61gQtMK",
+  "solscanUrl": "https://solscan.io/tx/3q5PFdQVzKP5GRu8hjpvZL236LqFP993vwdC1jPfd7nZHEnG2UqwDtJ4Poj2XomXMUauS7c1ArnUQwe7D61gQtMK",
+  "rootDomainTakenOver": false,
+  "lifePlusBurnEnabled": false,
+  "protocolExecutionEnabled": false,
+  "automatedTransferEnabled": false,
+  "treasuryFundingAuthorized": false,
+  "deploymentExecuted": false,
+  "verificationChecklist": {
+    "squadsUiOwnershipVisible": "REVIEW_REQUIRED",
+    "signerSetReviewed": "REVIEW_REQUIRED",
+    "thresholdReviewed": "REVIEW_REQUIRED",
+    "transactionFinalityReviewed": "REVIEW_REQUIRED",
+    "memoConfigOnlyProposalTestRecommended": true
+  },
+  "safetyBoundary": {
+    "liveTransfer": false,
+    "burn": false,
+    "signingAutomation": false,
+    "protocolExecution": false,
+    "rootTakeover": false
+  },
+  "localValidation": {
+    "npm run lint": "PASS",
+    "npm run typecheck": "TIMEOUT_LOCAL_REPO_STATE",
+    "npm run build": "TIMEOUT_120S_LOCAL_REPO_STATE",
+    "npm run guard:no-agent-gates": "PASS",
+    "npm audit --omit=dev": "FAIL_BIGINT_BUFFER_VIA_UNRELATED_SQDS_MULTISIG_DEPENDENCY"
+  },
+  "validationNotes": [
+    "The validation blockers appeared in the current local repo state, which already had unrelated package.json/package-lock.json changes and untracked deployment scripts before this archive was staged.",
+    "This archive does not modify dependencies, deployment scripts, protocol execution, burn, transfer, signing, or root domain routing."
+  ]
+}
