@@ -4,11 +4,11 @@
   min-height: 100vh;
   overflow: hidden;
   padding: 22px;
-  color: #f7f7f5;
+  color: rgba(255, 255, 255, 0.92);
   background:
-    radial-gradient(circle at 50% 44%, rgba(3, 169, 244, 0.075), transparent 31%),
-    radial-gradient(circle at 50% 64%, rgba(255, 255, 255, 0.035), transparent 24%),
-    #050505;
+    radial-gradient(circle at 50% 42%, rgba(3, 169, 244, 0.086), transparent 28%),
+    radial-gradient(circle at 50% 65%, rgba(192, 198, 205, 0.038), transparent 25%),
+    linear-gradient(180deg, #030507, #050607 54%, #030405);
 }
 
 .matrix4f-background,
@@ -27,8 +27,8 @@
   width: 46vw;
   height: 46vw;
   border-radius: 999px;
-  opacity: 0.09;
-  filter: blur(92px) saturate(72%);
+  opacity: 0.055;
+  filter: blur(96px) saturate(56%);
   animation: matrix4f-glow-drift 24s ease-in-out infinite alternate;
 }
 
@@ -49,8 +49,8 @@
   top: 20%;
   left: 27%;
   background: #03a9f4;
-  opacity: 0.2;
-  filter: blur(104px) saturate(118%);
+  opacity: 0.18;
+  filter: blur(110px) saturate(92%);
   animation-delay: -6s;
 }
 
@@ -74,11 +74,11 @@
   inset: 16% 12% 10%;
   border-radius: 999px;
   background:
-    radial-gradient(circle at 50% 46%, rgba(255, 255, 255, 0.11), transparent 20%),
-    radial-gradient(circle at 50% 50%, rgba(3, 169, 244, 0.2), transparent 38%),
-    radial-gradient(circle at 58% 54%, rgba(255, 193, 7, 0.045), transparent 48%);
-  filter: blur(48px);
-  opacity: 0.68;
+    radial-gradient(circle at 50% 46%, rgba(255, 255, 255, 0.075), transparent 20%),
+    radial-gradient(circle at 50% 50%, rgba(3, 169, 244, 0.18), transparent 36%),
+    radial-gradient(circle at 58% 54%, rgba(139, 195, 74, 0.035), transparent 48%);
+  filter: blur(56px);
+  opacity: 0.58;
 }
 
 .matrix4f-grid {
@@ -87,7 +87,7 @@
     linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
   background-size: 96px 96px;
-  opacity: 0.7;
+  opacity: 0.46;
   mask-image: radial-gradient(circle at 50% 48%, black, transparent 74%);
 }
 
@@ -96,7 +96,7 @@
   background:
     linear-gradient(90deg, transparent 49.9%, rgba(255, 255, 255, 0.032) 50%, transparent 50.1%),
     linear-gradient(transparent 49.9%, rgba(255, 255, 255, 0.026) 50%, transparent 50.1%);
-  opacity: 0.24;
+  opacity: 0.18;
   mask-image: radial-gradient(ellipse at 50% 50%, black, transparent 66%);
 }
 
@@ -111,7 +111,7 @@
   background-size:
     118px 118px,
     164px 164px;
-  opacity: 0.11;
+  opacity: 0.075;
   animation: matrix4f-particle-drift 32s linear infinite;
 }
 
@@ -127,33 +127,39 @@
 .matrix4f-header,
 .matrix4f-inspector,
 .matrix4f-flow-rail,
+.matrix4f-treasury-panel,
 .matrix4f-disclosure,
 .matrix4f-modal-panel {
-  border: 1px solid rgba(255, 255, 255, 0.105);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025)),
-    rgba(255, 255, 255, 0.034);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.064), rgba(255, 255, 255, 0.018)),
+    rgba(12, 14, 18, 0.64);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 22px 72px rgba(0, 0, 0, 0.38);
-  backdrop-filter: blur(46px) saturate(142%);
-  -webkit-backdrop-filter: blur(46px) saturate(142%);
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 18px 54px rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(44px) saturate(128%);
+  -webkit-backdrop-filter: blur(44px) saturate(128%);
 }
 
 .matrix4f-header {
+  display: grid;
+  gap: 12px;
+  border-color: rgba(218, 224, 232, 0.13);
+  border-radius: 28px;
+  padding: 14px 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.014)),
+    rgba(10, 12, 16, 0.58);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 14px 42px rgba(0, 0, 0, 0.28);
+}
+
+.matrix4f-header-main {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 20px;
-  border-color: rgba(255, 255, 255, 0.09);
-  border-radius: 30px;
-  padding: 13px 16px 14px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.062), rgba(255, 255, 255, 0.018)),
-    rgba(255, 255, 255, 0.022);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 18px 52px rgba(0, 0, 0, 0.3);
 }
 
 .matrix4f-title-stack {
@@ -162,21 +168,22 @@
 
 .matrix4f-title-stack p,
 .matrix4f-title-stack span {
-  color: rgba(255, 255, 255, 0.52);
+  color: rgba(255, 255, 255, 0.58);
   font-size: 11px;
 }
 
 .matrix4f-title-stack p {
   margin: 0 0 6px;
   text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
 .matrix4f-title-stack h1 {
   margin: 0;
-  color: rgba(255, 255, 255, 0.96);
-  font-size: clamp(32px, 5vw, 64px);
+  color: rgba(255, 255, 255, 0.94);
+  font-size: clamp(31px, 4.6vw, 58px);
   line-height: 1;
-  font-weight: 600;
+  font-weight: 580;
   letter-spacing: 0;
 }
 
@@ -191,7 +198,7 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 7px;
-  max-width: 560px;
+  max-width: 650px;
   padding-top: 2px;
 }
 
@@ -200,29 +207,74 @@
   min-height: 29px;
   align-items: center;
   gap: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.105);
+  border: 1px solid rgba(255, 255, 255, 0.11);
   border-radius: 999px;
   padding: 0 10px;
-  color: rgba(255, 255, 255, 0.66);
-  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.64);
+  background: rgba(255, 255, 255, 0.034);
   font-size: 10.5px;
   white-space: nowrap;
 }
 
 .matrix4f-status-pill.is-green {
-  color: rgba(188, 255, 190, 0.94);
-  border-color: rgba(125, 251, 141, 0.36);
+  color: rgba(196, 232, 182, 0.94);
+  border-color: rgba(139, 195, 74, 0.32);
 }
 
 .matrix4f-status-pill.is-amber {
-  color: rgba(255, 218, 150, 0.92);
-  border-color: rgba(255, 193, 7, 0.28);
+  color: rgba(230, 205, 145, 0.9);
+  border-color: rgba(255, 193, 7, 0.22);
+}
+
+.matrix4f-trust-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  border-top: 1px solid rgba(255, 255, 255, 0.065);
+  padding-top: 11px;
+}
+
+.matrix4f-trust-pill {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.095);
+  border-radius: 999px;
+  padding: 0 10px;
+  color: rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 10.5px;
+}
+
+.matrix4f-trust-pill strong {
+  color: rgba(255, 255, 255, 0.86);
+  font-weight: 560;
+}
+
+.matrix4f-trust-pill::before {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.34);
+  content: "";
+}
+
+.matrix4f-trust-pill.is-green::before {
+  background: rgba(139, 195, 74, 0.92);
+  box-shadow: 0 0 10px rgba(139, 195, 74, 0.36);
+}
+
+.matrix4f-trust-pill.is-amber::before {
+  background: rgba(255, 193, 7, 0.72);
+  box-shadow: 0 0 10px rgba(255, 193, 7, 0.24);
 }
 
 .matrix4f-command-area {
   display: grid;
   min-height: 600px;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  grid-template-columns: minmax(0, 1fr) minmax(318px, 386px);
   gap: 18px;
   align-items: stretch;
 }
@@ -233,8 +285,9 @@
   overflow: hidden;
   border-radius: 42px;
   background:
-    radial-gradient(circle at 50% 48%, rgba(3, 169, 244, 0.105), transparent 24%),
-    radial-gradient(circle at 50% 58%, rgba(255, 255, 255, 0.035), transparent 28%);
+    radial-gradient(circle at 50% 48%, rgba(3, 169, 244, 0.095), transparent 24%),
+    radial-gradient(circle at 50% 58%, rgba(255, 255, 255, 0.028), transparent 28%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.022), rgba(255, 255, 255, 0.006));
   transform-style: preserve-3d;
   perspective: 1500px;
 }
@@ -248,10 +301,10 @@
 .matrix4f-orbit {
   left: 50%;
   top: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(218, 224, 232, 0.052);
   border-radius: 50%;
   transform: translate(-50%, -50%) rotate(-8deg);
-  opacity: 0.34;
+  opacity: 0.28;
 }
 
 .matrix4f-orbit.is-outer {
@@ -279,8 +332,8 @@
   width: min(760px, 88%);
   height: min(480px, 70%);
   border-radius: 50%;
-  background: conic-gradient(from 0deg, transparent, rgba(3, 169, 244, 0.32), rgba(255, 255, 255, 0.18), transparent 13%);
-  opacity: 0.17;
+  background: conic-gradient(from 0deg, transparent, rgba(3, 169, 244, 0.24), rgba(255, 255, 255, 0.12), transparent 12%);
+  opacity: 0.13;
   mask-image: radial-gradient(circle, transparent 59%, black 60%, black 61%, transparent 63%);
   transform: translate(-50%, -50%);
   animation: matrix4f-flow-pulse 8s linear infinite;
@@ -293,8 +346,8 @@
   width: min(520px, 64%);
   height: 1px;
   pointer-events: none;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.105), transparent);
-  opacity: 0.16;
+  background: linear-gradient(90deg, transparent, rgba(218, 224, 232, 0.08), transparent);
+  opacity: 0.12;
   transform-origin: 0 50%;
 }
 
@@ -326,14 +379,14 @@
 }
 
 .matrix4f-agent:not(.agent-compute-blue):not(.is-selected) .matrix4f-agent-body {
-  opacity: 0.78;
-  filter: saturate(0.78) brightness(0.88);
+  opacity: 0.72;
+  filter: saturate(0.68) brightness(0.84);
 }
 
 .matrix4f-agent.agent-compute-blue .matrix4f-agent-body,
 .matrix4f-agent.is-selected .matrix4f-agent-body {
   opacity: 1;
-  filter: saturate(1.08) brightness(1.04);
+  filter: saturate(0.98) brightness(1.03);
 }
 
 .matrix4f-slot-center {
@@ -373,16 +426,16 @@
 
 .matrix4f-agent-halo {
   inset: -30px;
-  opacity: 0.12;
+  opacity: 0.08;
 }
 
 .matrix4f-agent.is-selected .matrix4f-agent-halo {
-  opacity: 0.38;
-  filter: blur(30px);
+  opacity: 0.24;
+  filter: blur(28px);
 }
 
 .matrix4f-agent.agent-compute-blue .matrix4f-agent-halo {
-  opacity: 0.34;
+  opacity: 0.28;
   filter: blur(34px);
 }
 
@@ -397,12 +450,12 @@
 
 .matrix4f-agent-aura {
   inset: 18px 10px 58px;
-  opacity: 0.16;
+  opacity: 0.11;
 }
 
 .matrix4f-agent.agent-compute-blue .matrix4f-agent-aura,
 .matrix4f-agent.is-selected .matrix4f-agent-aura {
-  opacity: 0.34;
+  opacity: 0.24;
 }
 
 .matrix4f-particles {
@@ -422,13 +475,13 @@
   box-shadow:
     0 0 8px currentColor,
     0 0 18px currentColor;
-  opacity: 0.42;
+  opacity: 0.3;
   animation: matrix4f-particle-breathe var(--particle-duration) ease-in-out var(--particle-delay) infinite;
 }
 
 .matrix4f-agent.is-selected .matrix4f-particle,
 .matrix4f-agent.agent-compute-blue .matrix4f-particle {
-  opacity: 0.68;
+  opacity: 0.54;
 }
 
 .matrix4f-capsule {
@@ -438,21 +491,21 @@
   height: 158px;
   place-items: center;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 46px;
+  border: 1px solid rgba(218, 224, 232, 0.16);
+  border-radius: 48px;
   background:
-    radial-gradient(circle at 50% 54%, color-mix(in srgb, currentColor 24%, transparent), transparent 44%),
-    radial-gradient(circle at 48% 25%, rgba(255, 255, 255, 0.19), transparent 24%),
-    linear-gradient(155deg, rgba(255, 255, 255, 0.135), rgba(255, 255, 255, 0.026) 58%, rgba(255, 255, 255, 0.07)),
-    rgba(255, 255, 255, 0.032);
+    radial-gradient(circle at 50% 54%, color-mix(in srgb, currentColor 18%, transparent), transparent 43%),
+    radial-gradient(circle at 48% 22%, rgba(255, 255, 255, 0.17), transparent 22%),
+    linear-gradient(155deg, rgba(255, 255, 255, 0.115), rgba(255, 255, 255, 0.022) 58%, rgba(255, 255, 255, 0.062)),
+    rgba(12, 14, 18, 0.42);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.24),
-    inset 0 -18px 42px rgba(255, 255, 255, 0.035),
-    inset 0 0 42px color-mix(in srgb, currentColor 14%, transparent),
-    0 30px 78px rgba(0, 0, 0, 0.52),
-    0 0 44px color-mix(in srgb, currentColor 13%, transparent);
-  backdrop-filter: blur(28px) saturate(150%);
-  -webkit-backdrop-filter: blur(28px) saturate(150%);
+    inset 0 1px 0 rgba(255, 255, 255, 0.2),
+    inset 0 -18px 42px rgba(255, 255, 255, 0.025),
+    inset 0 0 34px color-mix(in srgb, currentColor 10%, transparent),
+    0 26px 70px rgba(0, 0, 0, 0.52),
+    0 0 34px color-mix(in srgb, currentColor 9%, transparent);
+  backdrop-filter: blur(30px) saturate(126%);
+  -webkit-backdrop-filter: blur(30px) saturate(126%);
   transform: translateZ(24px);
 }
 
@@ -468,7 +521,7 @@
   border-radius: 999px;
   background: radial-gradient(circle, currentColor, transparent 68%);
   filter: blur(18px);
-  opacity: 0.23;
+  opacity: 0.16;
 }
 
 .matrix4f-capsule::after {
@@ -476,8 +529,8 @@
   border-radius: inherit;
   border: 1px solid rgba(255, 255, 255, 0.12);
   background:
-    radial-gradient(circle at 25% 18%, rgba(255, 255, 255, 0.22), transparent 18%),
-    linear-gradient(118deg, rgba(255, 255, 255, 0.12), transparent 31%, rgba(255, 255, 255, 0.055) 68%, transparent);
+    radial-gradient(circle at 25% 18%, rgba(255, 255, 255, 0.2), transparent 17%),
+    linear-gradient(118deg, rgba(255, 255, 255, 0.11), transparent 31%, rgba(255, 255, 255, 0.05) 68%, transparent);
 }
 
 .matrix4f-capsule-glass,
@@ -491,14 +544,14 @@
   background:
     radial-gradient(circle at 50% 28%, rgba(255, 255, 255, 0.16), transparent 30%),
     radial-gradient(circle at 50% 64%, currentColor, transparent 70%);
-  opacity: 0.44;
+  opacity: 0.34;
 }
 
 .matrix4f-capsule-highlight {
   background:
     linear-gradient(120deg, rgba(255, 255, 255, 0.28), transparent 21%),
     linear-gradient(285deg, rgba(255, 255, 255, 0.12), transparent 32%);
-  opacity: 0.68;
+  opacity: 0.58;
 }
 
 .matrix4f-capsule img {
@@ -508,7 +561,7 @@
   height: 130px;
   object-fit: contain;
   image-rendering: pixelated;
-  filter: drop-shadow(0 0 18px currentColor);
+  filter: drop-shadow(0 0 12px color-mix(in srgb, currentColor 78%, transparent));
 }
 
 .matrix4f-voxel-fallback {
@@ -535,7 +588,7 @@
   justify-content: center;
   border: 1px solid rgba(255, 255, 255, 0.13);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.038);
+  background: rgba(12, 14, 18, 0.48);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
@@ -559,20 +612,84 @@
 
 .matrix4f-inspector {
   align-self: center;
-  border-color: color-mix(in srgb, currentColor 15%, rgba(255, 255, 255, 0.08));
-  border-radius: 32px;
-  padding: 24px;
+  border-color: color-mix(in srgb, currentColor 11%, rgba(218, 224, 232, 0.1));
+  border-radius: 28px;
+  padding: 22px;
   color: white;
   background:
-    radial-gradient(circle at 76% 8%, color-mix(in srgb, currentColor 16%, transparent), transparent 30%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.018)),
-    rgba(6, 8, 10, 0.34);
+    radial-gradient(circle at 76% 8%, color-mix(in srgb, currentColor 9%, transparent), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.016)),
+    rgba(8, 10, 14, 0.66);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    inset 28px 0 70px color-mix(in srgb, currentColor 5%, transparent),
-    0 24px 74px rgba(0, 0, 0, 0.42);
-  backdrop-filter: blur(52px) saturate(136%);
-  -webkit-backdrop-filter: blur(52px) saturate(136%);
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 28px 0 70px color-mix(in srgb, currentColor 3%, transparent),
+    0 20px 58px rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(52px) saturate(122%);
+  -webkit-backdrop-filter: blur(52px) saturate(122%);
+}
+
+.matrix4f-side-stack {
+  display: grid;
+  gap: 12px;
+  align-content: center;
+}
+
+.matrix4f-treasury-panel {
+  border-radius: 26px;
+  padding: 16px;
+  color: white;
+}
+
+.matrix4f-treasury-panel > p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.matrix4f-treasury-panel h2 {
+  margin: 6px 0 14px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 17px;
+  font-weight: 560;
+}
+
+.matrix4f-treasury-panel dl {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.matrix4f-treasury-panel dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 11.5px;
+}
+
+.matrix4f-treasury-panel dt {
+  color: rgba(255, 255, 255, 0.48);
+}
+
+.matrix4f-treasury-panel dd {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.84);
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.matrix4f-treasury-panel > span {
+  display: block;
+  margin-top: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  border-radius: 16px;
+  padding: 9px 10px;
+  color: rgba(196, 226, 250, 0.86);
+  background: rgba(255, 255, 255, 0.027);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 10.5px;
+  overflow-wrap: anywhere;
 }
 
 .matrix4f-inspector-top {
@@ -583,18 +700,19 @@
 }
 
 .matrix4f-inspector-top p,
+.matrix4f-selected-agent,
 .matrix4f-inspector-role,
 .matrix4f-inspector-description,
 .matrix4f-inspector-list dt,
 .matrix4f-flow-step small,
 .matrix4f-disclosure {
-  color: rgba(255, 255, 255, 0.52);
+  color: rgba(255, 255, 255, 0.58);
 }
 
 .matrix4f-inspector-top h2 {
   margin: 4px 0 0;
-  color: rgba(255, 255, 255, 0.94);
-  font-size: 25px;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 24px;
   font-weight: 560;
 }
 
@@ -602,12 +720,17 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border: 1px solid rgba(125, 251, 141, 0.24);
+  border: 1px solid rgba(139, 195, 74, 0.24);
   border-radius: 999px;
   padding: 7px 10px;
-  color: rgba(188, 255, 190, 0.94);
-  background: rgba(125, 251, 141, 0.055);
+  color: rgba(196, 232, 182, 0.94);
+  background: rgba(139, 195, 74, 0.05);
   font-size: 11px;
+}
+
+.matrix4f-selected-agent {
+  margin: 12px 0 0;
+  font-size: 11.5px;
 }
 
 .matrix4f-inspector-role {
@@ -634,7 +757,7 @@
   justify-content: space-between;
   gap: 18px;
   padding: 11px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid rgba(255, 255, 255, 0.065);
 }
 
 .matrix4f-proof-grid div {
@@ -668,53 +791,84 @@
   gap: 8px;
   margin-top: 20px;
   border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.022)),
+    rgba(255, 255, 255, 0.032);
 }
 
 .matrix4f-flow-rail {
+  display: grid;
+  gap: 7px;
+  border-radius: 22px;
+  padding: 9px 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.038), rgba(255, 255, 255, 0.012)),
+    rgba(10, 12, 16, 0.56);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.075),
+    0 14px 36px rgba(0, 0, 0, 0.28);
+}
+
+.matrix4f-rail-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 2px 2px;
+}
+
+.matrix4f-rail-heading span {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 11px;
+  font-weight: 560;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.matrix4f-rail-heading small {
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 10.5px;
+}
+
+.matrix4f-flow-scroll {
   display: flex;
   gap: 7px;
   overflow-x: auto;
   align-items: center;
-  border-radius: 24px;
-  padding: 8px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.014)),
-    rgba(255, 255, 255, 0.022);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.09),
-    0 16px 42px rgba(0, 0, 0, 0.3);
 }
 
 .matrix4f-flow-step {
   position: relative;
   display: grid;
-  min-width: 132px;
+  min-width: 136px;
   grid-template-columns: auto 1fr;
   gap: 3px 7px;
   align-items: center;
   justify-items: start;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 16px;
-  padding: 9px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 15px;
+  padding: 8px 10px;
   color: white;
-  background: rgba(255, 255, 255, 0.018);
-  opacity: 0.48;
+  background: rgba(255, 255, 255, 0.016);
+  opacity: 0.42;
+  filter: saturate(0.66);
 }
 
 .matrix4f-flow-step.is-active {
-  border-color: currentColor;
+  border-color: color-mix(in srgb, currentColor 32%, rgba(255, 255, 255, 0.12));
   background:
-    radial-gradient(circle at 14% 50%, color-mix(in srgb, currentColor 15%, transparent), transparent 48%),
-    rgba(255, 255, 255, 0.052);
+    radial-gradient(circle at 14% 50%, color-mix(in srgb, currentColor 11%, transparent), transparent 48%),
+    rgba(255, 255, 255, 0.04);
   opacity: 1;
+  filter: saturate(0.95);
 }
 
 .matrix4f-flow-node {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 999px;
   background: currentColor;
-  box-shadow: 0 0 14px currentColor;
+  box-shadow: 0 0 10px currentColor;
   grid-row: 1 / span 2;
 }
 
@@ -839,9 +993,13 @@
     grid-template-columns: 1fr;
   }
 
-  .matrix4f-inspector {
-    width: min(460px, 100%);
+  .matrix4f-side-stack {
+    width: min(520px, 100%);
     justify-self: end;
+  }
+
+  .matrix4f-inspector {
+    width: 100%;
   }
 }
 
@@ -859,8 +1017,22 @@
     border-radius: 26px;
   }
 
+  .matrix4f-header-main {
+    display: grid;
+  }
+
   .matrix4f-status-grid {
     justify-content: flex-start;
+  }
+
+  .matrix4f-trust-bar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 2px;
+  }
+
+  .matrix4f-trust-pill {
+    flex: 0 0 auto;
   }
 
   .matrix4f-command-area {
@@ -932,6 +1104,16 @@
   .matrix4f-inspector {
     width: 100%;
     justify-self: stretch;
+  }
+
+  .matrix4f-side-stack {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .matrix4f-rail-heading {
+    display: grid;
+    gap: 3px;
   }
 
   .matrix4f-disclosure {

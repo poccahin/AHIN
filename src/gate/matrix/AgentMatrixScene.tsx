@@ -11,6 +11,7 @@ import { CENTER_AGENT_ID, MATRIX_AGENTS, getMatrixAgent, type MatrixAgentId } fr
 import { agentContainerVariants, sceneVariants } from "./matrix-motion";
 
 const MATRIX_DISCLOSURE = "Readonly / mock verification only · No LIFE++ transferred or burned · Protocol execution disabled";
+const AHIN_TREASURY_MULTISIG = "5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo";
 
 export default function AgentMatrixScene() {
   const [selectedId, setSelectedId] = useState<MatrixAgentId>(CENTER_AGENT_ID);
@@ -55,7 +56,36 @@ export default function AgentMatrixScene() {
             ))}
           </motion.div>
 
-          <AgentInspector agent={selectedAgent} onViewProof={() => setProofOpen(true)} />
+          <div className="matrix4f-side-stack">
+            <aside className="matrix4f-treasury-panel" aria-label="AHIN Foundation Treasury">
+              <p>AHIN Foundation Treasury</p>
+              <h2>Governance custody state</h2>
+              <dl>
+                <div>
+                  <dt>Multisig</dt>
+                  <dd>5Coh...CzRo</dd>
+                </div>
+                <div>
+                  <dt>Threshold</dt>
+                  <dd>2-of-3</dd>
+                </div>
+                <div>
+                  <dt>Members</dt>
+                  <dd>3</dd>
+                </div>
+                <div>
+                  <dt>Phase</dt>
+                  <dd>G1 Evidence Collection</dd>
+                </div>
+                <div>
+                  <dt>Funding</dt>
+                  <dd>Blocked pending approval evidence</dd>
+                </div>
+              </dl>
+              <span>{AHIN_TREASURY_MULTISIG}</span>
+            </aside>
+            <AgentInspector agent={selectedAgent} onViewProof={() => setProofOpen(true)} />
+          </div>
         </div>
 
         <div className="matrix4f-mobile-selector" aria-label="Agent selector">

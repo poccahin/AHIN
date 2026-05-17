@@ -15,7 +15,7 @@ export default function AgentInspector({ agent, onViewProof }: AgentInspectorPro
     <motion.aside className={`matrix4f-inspector ${agent.glowClass}`} variants={inspectorVariants} initial="hidden" animate="visible">
       <div className="matrix4f-inspector-top">
         <div>
-          <p>{agent.cnName}</p>
+          <p>Governance Inspector</p>
           <h2>{agent.enName}</h2>
         </div>
         <span className="matrix4f-live-pill">
@@ -23,6 +23,7 @@ export default function AgentInspector({ agent, onViewProof }: AgentInspectorPro
           Active
         </span>
       </div>
+      <p className="matrix4f-selected-agent">Selected Agent · {agent.cnName}</p>
       <p className="matrix4f-inspector-role">{agent.role}</p>
       <p className="matrix4f-inspector-description">{agent.description}</p>
       <dl className="matrix4f-inspector-list">
@@ -49,6 +50,14 @@ export default function AgentInspector({ agent, onViewProof }: AgentInspectorPro
         <div>
           <dt>Risk / Proof</dt>
           <dd>{agent.proofStatus}</dd>
+        </div>
+        <div>
+          <dt>Treasury Funding</dt>
+          <dd>Blocked</dd>
+        </div>
+        <div>
+          <dt>Execution Authority</dt>
+          <dd>Disabled</dd>
         </div>
       </dl>
       <button type="button" className="matrix4f-proof-button" onClick={onViewProof}>
