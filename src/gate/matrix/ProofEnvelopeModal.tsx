@@ -11,7 +11,7 @@ interface ProofEnvelopeModalProps {
   onClose: () => void;
 }
 
-function mockHash(prefix: string, value: string) {
+function dryRunHash(prefix: string, value: string) {
   const encoded = Array.from(value)
     .map((char) => char.charCodeAt(0).toString(16).padStart(2, "0"))
     .join("")
@@ -25,9 +25,9 @@ export default function ProofEnvelopeModal({ agent, open, onClose }: ProofEnvelo
     envelopeId: `ahin-proof-${agent.id}`,
     agentId: agent.id,
     action: agent.lastAction,
-    inputHash: mockHash("in", `${agent.id}:${agent.lastAction}`),
-    outputHash: mockHash("out", `${agent.ahinAnchor}:${agent.mode}`),
-    previousEnvelopeHash: mockHash("prev", agent.ahinAnchor),
+    inputHash: dryRunHash("in", `${agent.id}:${agent.lastAction}`),
+    outputHash: dryRunHash("out", `${agent.ahinAnchor}:${agent.mode}`),
+    previousEnvelopeHash: dryRunHash("prev", agent.ahinAnchor),
     mode: "dry_run",
     protocolExecutionEnabled: false,
     realWalletTransfer: false,
@@ -42,7 +42,7 @@ export default function ProofEnvelopeModal({ agent, open, onClose }: ProofEnvelo
           <motion.div className="matrix4f-modal-panel" variants={modalPanelVariants}>
             <div className="matrix4f-modal-header">
               <div>
-                <p>Mock Proof Envelope</p>
+                <p>Dry-run Proof Envelope</p>
                 <h2>{agent.enName}</h2>
               </div>
               <button type="button" className="matrix4f-modal-close" onClick={onClose} aria-label="Close proof envelope">

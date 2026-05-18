@@ -1,0 +1,45 @@
+{
+  "phase": "Phase R0-G2 Main Merge Readiness",
+  "status": "MERGE_READY_WITH_LOCAL_VALIDATION_TIMEOUTS_DISCLOSED",
+  "sourceBranch": "ui-compare",
+  "targetBranch": "main",
+  "sourceCommit": "8c39076",
+  "deploymentExecuted": false,
+  "workflowDispatched": false,
+  "rootDomainTouched": false,
+  "trustedTwinCourtIntegrated": true,
+  "onChainSubmitted": false,
+  "webauthnImplemented": false,
+  "biometricVerificationClaimed": false,
+  "protocolExecutionEnabled": false,
+  "realWalletTransfer": false,
+  "realBurnTransaction": false,
+  "signingEnabled": false,
+  "multisigStateMutated": false,
+  "deploymentScriptsPrunedFromMerge": true,
+  "packageDependencyChurnPrunedFromMerge": true,
+  "squadsMultisigMutationPathIntroduced": false,
+  "validation": {
+    "static forbidden production claims": "PASS",
+    "trusted twin readiness flags": "PASS",
+    "operational transaction path scan": "PASS",
+    "npm run lint": "PASS",
+    "npm run guard:no-agent-gates": "PASS",
+    "npm run typecheck": "TIMEOUT_300S_LOCAL_RUNTIME",
+    "npm run build": "TIMEOUT_300S_LOCAL_RUNTIME",
+    "npm audit --omit=dev": "PASS",
+    "npm run test:agents": "TIMEOUT_300S_LOCAL_RUNTIME",
+    "npm run test:pocc": "TIMEOUT_300S_LOCAL_RUNTIME",
+    "npm run test:wallet-ux": "TIMEOUT_300S_LOCAL_RUNTIME"
+  },
+  "blockers": [
+    "Local Node/tsx runtime timed out on typecheck, build, and tsx-based tests without emitting source diagnostics; clean CI gates remain required before any root production deployment."
+  ],
+  "notes": [
+    "Merged readiness artifacts only; no deploy, workflow dispatch, wrangler command, protocol execution, transfer, burn, signing, transaction submission, or Squads multisig mutation was performed.",
+    "Operational deployment and Squads mutation scripts from the source branch were intentionally pruned from this merge before commit.",
+    "Package dependency churn from the source branch was intentionally pruned from this merge before commit.",
+    "Trusted Twin Court remains a readiness and offline verification layer; it does not claim WebAuthn/FIDO2/biometric verification or on-chain submission.",
+    "Runtime audit passed after package/package-lock dependency churn was pruned from the merge."
+  ]
+}

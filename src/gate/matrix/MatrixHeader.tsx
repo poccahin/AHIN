@@ -6,7 +6,7 @@ import { headerVariants } from "./matrix-motion";
 
 const STATUS = [
   { label: "Gate: Passed", tone: "green", Icon: CheckCircle2 },
-  { label: "Mode: Mock / Readonly", tone: "amber", Icon: CircleDashed },
+  { label: "Mode: Readonly / Dry-run", tone: "amber", Icon: CircleDashed },
   { label: "Oracle: Readonly", tone: "neutral", Icon: DatabaseZap },
   { label: "Protocol Execution: Disabled", tone: "neutral", Icon: ShieldCheck },
   { label: "LIFE++ Transfer: Disabled", tone: "neutral", Icon: LockKeyhole }

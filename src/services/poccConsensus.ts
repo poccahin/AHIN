@@ -5,7 +5,7 @@ import type { LifePlusOracleQuote } from "../lib/jupiterUltra";
 export const MIN_HOLDING_USDT_RAW = 10n * 10n ** BigInt(USDC_DECIMALS);
 export const COLLABORATION_USDT_RAW = 10n;
 export const FALLBACK_ENTRY_LIFE_PLUS = 10_000n;
-export const READONLY_QUOTE_UNAVAILABLE = "Readonly quote unavailable. You can continue with mock verification.";
+export const READONLY_QUOTE_UNAVAILABLE = "Readonly quote unavailable. You can continue in readonly evidence mode.";
 
 export interface PoccEntryProof {
   eligible: boolean;

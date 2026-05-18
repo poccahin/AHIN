@@ -15,7 +15,7 @@ export interface MatrixAgent {
   ahinAnchor: string;
   mode: "Dry-run / Readonly";
   lastAction: string;
-  proofStatus: "Passed / Mock / Dry-run";
+  proofStatus: "Passed / Dry-run Evidence";
   description: string;
   glowClass: string;
   slotClass: string;
@@ -36,7 +36,7 @@ export const MATRIX_AGENTS: MatrixAgent[] = [
     ahinAnchor: "0xA11F...57C9",
     mode: "Dry-run / Readonly",
     lastAction: "ASSERT_INTENT",
-    proofStatus: "Passed / Mock / Dry-run",
+    proofStatus: "Passed / Dry-run Evidence",
     description: "Asserts user intent into the AHIN semantic field before any downstream policy or route simulation.",
     glowClass: "agent-genesis-orange",
     slotClass: "matrix4f-slot-northwest",
@@ -55,8 +55,8 @@ export const MATRIX_AGENTS: MatrixAgent[] = [
     ahinAnchor: "0xD0C4...92B1",
     mode: "Dry-run / Readonly",
     lastAction: "EVALUATE_POLICY",
-    proofStatus: "Passed / Mock / Dry-run",
-    description: "Evaluates policy constraints and keeps mock admission inside the readonly safety boundary.",
+    proofStatus: "Passed / Dry-run Evidence",
+    description: "Evaluates policy constraints and keeps admission evidence inside the readonly safety boundary.",
     glowClass: "agent-rule-purple",
     slotClass: "matrix4f-slot-northeast",
     imageCandidates: ["/agents/lifepp-rule-purple.png", "/rule-purple-skull.png", "/agent-rule-purple.png", "/skull-purple.png"],
@@ -74,7 +74,7 @@ export const MATRIX_AGENTS: MatrixAgent[] = [
     ahinAnchor: "0x0CF1...38EA",
     mode: "Dry-run / Readonly",
     lastAction: "SIMULATE_ROUTE",
-    proofStatus: "Passed / Mock / Dry-run",
+    proofStatus: "Passed / Dry-run Evidence",
     description: "Coordinates readonly quote context, route simulation, and proof-envelope continuity.",
     glowClass: "agent-compute-blue",
     slotClass: "matrix4f-slot-center",
@@ -93,8 +93,8 @@ export const MATRIX_AGENTS: MatrixAgent[] = [
     ahinAnchor: "0xC01D...70AF",
     mode: "Dry-run / Readonly",
     lastAction: "ISSUE_DRY_RUN_CERTIFICATE",
-    proofStatus: "Passed / Mock / Dry-run",
-    description: "Issues the mock certificate that proves no transfer, burn, or protocol execution occurred.",
+    proofStatus: "Passed / Dry-run Evidence",
+    description: "Issues the dry-run evidence certificate that proves no transfer, burn, or protocol execution occurred.",
     glowClass: "agent-contract-gold",
     slotClass: "matrix4f-slot-southwest",
     imageCandidates: ["/agents/lifepp-contract-gold.png", "/contract-gold-skull.png", "/agent-contract-gold.png", "/skull-gold.png"],
@@ -112,7 +112,7 @@ export const MATRIX_AGENTS: MatrixAgent[] = [
     ahinAnchor: "0xECO5...41DA",
     mode: "Dry-run / Readonly",
     lastAction: "EMIT_FEEDBACK_EVENT",
-    proofStatus: "Passed / Mock / Dry-run",
+    proofStatus: "Passed / Dry-run Evidence",
     description: "Emits the final feedback event for the living collaboration field without executing a real protocol action.",
     glowClass: "agent-eco-green",
     slotClass: "matrix4f-slot-southeast",

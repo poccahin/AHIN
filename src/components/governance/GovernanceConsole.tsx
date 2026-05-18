@@ -8,6 +8,7 @@ import GovernancePhaseStrip from "./GovernancePhaseStrip";
 import GovernanceTopBar from "./GovernanceTopBar";
 import ResponsibilityRail from "./ResponsibilityRail";
 import TreasuryCustodyCard from "./TreasuryCustodyCard";
+import TrustedTwinCourt from "../trusted-twin/TrustedTwinCourt";
 import type { GovernanceAgentId } from "./governance-data";
 
 export default function GovernanceConsole() {
@@ -29,6 +30,8 @@ export default function GovernanceConsole() {
             <GovernanceInspector selectedAgentId={selectedAgentId} onSelectAgent={setSelectedAgentId} />
           </div>
         </div>
+
+        <TrustedTwinCourt />
 
         <GovernanceFooter />
       </div>

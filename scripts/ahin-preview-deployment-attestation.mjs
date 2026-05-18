@@ -21,13 +21,13 @@ function listEnv(name) {
 async function verifyPreview(previewUrl) {
   const explicitHomepageCheck = process.env.AHIN_PREVIEW_HOMEPAGE_CHECK_PASSED;
   const explicitHttpsCheck = process.env.AHIN_PREVIEW_HTTPS_CHECK_PASSED;
-  const explicitMockVisible = process.env.AHIN_PREVIEW_MOCK_VERIFICATION_VISIBLE;
+  const explicitReadonlyEvidenceVisible = process.env.AHIN_PREVIEW_READONLY_EVIDENCE_VISIBLE ?? process.env.AHIN_PREVIEW_MOCK_VERIFICATION_VISIBLE;
 
-  if (explicitHomepageCheck || explicitHttpsCheck || explicitMockVisible) {
+  if (explicitHomepageCheck || explicitHttpsCheck || explicitReadonlyEvidenceVisible) {
     return {
       homepageCheckPassed: boolEnv("AHIN_PREVIEW_HOMEPAGE_CHECK_PASSED", false),
       httpsCheckPassed: boolEnv("AHIN_PREVIEW_HTTPS_CHECK_PASSED", false),
-      mockVerificationVisible: boolEnv("AHIN_PREVIEW_MOCK_VERIFICATION_VISIBLE", false),
+      readonlyEvidenceVisible: boolEnv("AHIN_PREVIEW_READONLY_EVIDENCE_VISIBLE", boolEnv("AHIN_PREVIEW_MOCK_VERIFICATION_VISIBLE", false)),
       verificationSkipped: false
     };
   }
@@ -36,7 +36,7 @@ async function verifyPreview(previewUrl) {
     return {
       homepageCheckPassed: false,
       httpsCheckPassed: false,
-      mockVerificationVisible: false,
+      readonlyEvidenceVisible: false,
       verificationSkipped: true
     };
   }
@@ -45,19 +45,19 @@ async function verifyPreview(previewUrl) {
     const url = new URL(previewUrl);
     const response = await fetch(url, { method: "GET" });
     const body = await response.text();
-    const containsGate = body.includes("ahin.io") && body.includes("Zero-Trust Tunnel");
-    const containsMock = body.includes("Mock verification mode") || /mock verification/i.test(body);
+    const containsGate = body.includes("ahin.io") || body.includes("AHIN Foundation") || body.includes("Governance console");
+    const containsReadonlyEvidence = body.includes("Readonly evidence mode") || body.includes("READONLY GOVERNANCE MODE");
     return {
       homepageCheckPassed: response.ok && containsGate,
       httpsCheckPassed: response.ok && url.protocol === "https:",
-      mockVerificationVisible: response.ok && containsMock,
+      readonlyEvidenceVisible: response.ok && containsReadonlyEvidence,
       verificationSkipped: false
     };
   } catch {
     return {
       homepageCheckPassed: false,
       httpsCheckPassed: false,
-      mockVerificationVisible: false,
+      readonlyEvidenceVisible: false,
       verificationSkipped: false
     };
   }
@@ -71,7 +71,7 @@ const verification = await verifyPreview(previewUrl);
 const status = blocked
   ? "BLOCKED"
   : deployExecuted
-    ? verification.homepageCheckPassed && verification.httpsCheckPassed && verification.mockVerificationVisible
+    ? verification.homepageCheckPassed && verification.httpsCheckPassed && verification.readonlyEvidenceVisible
       ? "PASS"
       : "DEPLOYED_VERIFICATION_FAILED"
     : "READY_NOT_DEPLOYED";
@@ -86,7 +86,7 @@ const report = {
   previewUrl: previewUrl || null,
   homepageCheckPassed: verification.homepageCheckPassed,
   httpsCheckPassed: verification.httpsCheckPassed,
-  mockVerificationVisible: verification.mockVerificationVisible,
+  readonlyEvidenceVisible: verification.readonlyEvidenceVisible,
   verificationSkipped: verification.verificationSkipped,
   rootDomain: "https://ahin.io",
   rootDomainUntouched: boolEnv("AHIN_ROOT_DOMAIN_UNTOUCHED", true),

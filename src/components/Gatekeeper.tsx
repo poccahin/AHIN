@@ -15,9 +15,9 @@ interface GatekeeperProps {
   children?: ReactNode;
 }
 
-const MOCK_WALLET = "0xMockAhinGate...2026";
+const MOCK_WALLET = "0xAhinReadonlyGate...2026";
 const LIFE_PLUS_MINT_SHORT = `${LIFE_PLUS_MINT.slice(0, 5)}...${LIFE_PLUS_MINT.slice(-4)}`;
-const READONLY_QUOTE_UNAVAILABLE = "Readonly quote unavailable. You can continue with mock verification.";
+const READONLY_QUOTE_UNAVAILABLE = "Readonly quote unavailable. You can continue in readonly evidence mode.";
 const AHIN_FOUNDATION_TREASURY_MULTISIG = "5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo";
 const LIVE_WALLETS: Array<{ id: WalletId; label: string }> = [
   { id: "phantom_solana", label: "Phantom" },
@@ -33,6 +33,17 @@ type PoccStatus =
   | { state: "checking"; proof: null; message: string }
   | { state: "verified"; proof: PoccEntryProof; message: string }
   | { state: "blocked"; proof: PoccEntryProof | null; message: string };
+
+function formatFallbackState(state: MockFallbackState) {
+  const labels: Record<MockFallbackState, string> = {
+    wallet_connected_mock: "readonly wallet session prepared",
+    asset_detected_mock: "readonly evidence detected",
+    signature_verified_mock: "dry-run evidence verified",
+    matrix_revealing: "governance console opening",
+    matrix_active: "governance console active"
+  };
+  return labels[state];
+}
 
 export default function Gatekeeper({ children }: GatekeeperProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -108,7 +119,7 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
         grantAccess(MOCK_WALLET);
       }
     } catch {
-      setWalletError("Mock verification unavailable. You can retry in dry-run mode.");
+      setWalletError("Readonly verification unavailable. You can retry in dry-run evidence mode.");
     }
   }
 
@@ -189,11 +200,11 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
 
       {gateMode === "mock" ? (
         <div className="absolute left-4 top-4 z-10 text-[10px] uppercase tracking-[0.22em] text-white/[0.36]">
-          Mock verification only / protocol execution disabled
+          READONLY GOVERNANCE MODE / protocol execution disabled
         </div>
       ) : null}
 
-      <section className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10" aria-label="ahin.io mock gatekeeper">
+      <section className="relative z-10 flex min-h-screen items-center justify-center px-4 py-10" aria-label="ahin.io readonly governance gatekeeper">
         <div className="grid w-[min(94vw,1040px)] items-stretch gap-5 lg:grid-cols-[minmax(360px,440px)_minmax(360px,1fr)]">
           <div className="w-full rounded-[28px] border border-white/20 bg-white/[0.055] px-6 py-7 shadow-[inset_0_1px_0_rgba(255,255,255,0.22),0_38px_120px_rgba(0,0,0,0.62)] backdrop-blur-[40px] sm:px-8 sm:py-8">
           <div className="mb-8 flex items-start justify-between gap-5">
@@ -215,7 +226,7 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
               <span>{connectedAddress ? connectedAddress : "Wallet session unbound"}</span>
               <strong className="font-medium text-white/[0.88]">
                 {mockFallbackState
-                  ? mockFallbackState.replaceAll("_", " ")
+                  ? formatFallbackState(mockFallbackState)
                   : isLiveSolana
                       ? poccStatus.message
                     : connectedAddress
@@ -253,10 +264,10 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
                   className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] border border-white/20 bg-white/[0.07] text-sm font-medium text-white/[0.86] transition hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Wallet className="h-4 w-4" aria-hidden="true" />
-                  Continue with Mock Verification
+                  Enter Governance Console
                 </button>
                 <p className="text-center text-[11px] leading-5 text-white/[0.42]">
-                  Mock verification mode. On-chain wallet adapters are not enabled in this build. {MOCK_FALLBACK_DISCLOSURE}
+                  Readonly evidence mode. On-chain wallet adapters are not enabled in this build. {MOCK_FALLBACK_DISCLOSURE}
                 </p>
               </div>
             )
@@ -294,7 +305,7 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
                   disabled={processing}
                   className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[18px] border border-white/20 bg-white/[0.07] text-sm font-medium text-white/[0.86] transition hover:bg-white/[0.11] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Continue with Mock Verification
+                  Enter Governance Console
                 </button>
               ) : null}
               <p className="text-center text-[11px] leading-5 text-white/[0.42]">{MOCK_FALLBACK_DISCLOSURE}</p>
@@ -305,7 +316,7 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
           {transactionError ? <p className="mt-4 text-center text-xs leading-5 text-red-300">{transactionError}</p> : null}
           {mockFallbackEnabled ? (
             <p className="mx-auto mt-5 max-w-[360px] text-center text-[11px] leading-5 text-white/[0.42]">
-              Mock verification mode. On-chain wallet adapters are not enabled in this build. {MOCK_FALLBACK_DISCLOSURE}
+              Readonly evidence mode. On-chain wallet adapters are not enabled in this build. {MOCK_FALLBACK_DISCLOSURE}
             </p>
           ) : null}
         </div>
@@ -366,6 +377,10 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
               <div className="flex items-start justify-between gap-4 rounded-[18px] border border-white/[0.095] bg-white/[0.032] px-3 py-2.5">
                 <span>LIFE++ transfer / burn / signing</span>
                 <strong className="text-right font-medium text-white/86">Disabled</strong>
+              </div>
+              <div className="flex items-start justify-between gap-4 rounded-[18px] border border-white/[0.095] bg-white/[0.032] px-3 py-2.5">
+                <span>No transaction submission</span>
+                <strong className="text-right font-medium text-white/86">Enforced</strong>
               </div>
               <div className="flex items-start justify-between gap-4 rounded-[18px] border border-white/[0.095] bg-white/[0.032] px-3 py-2.5">
                 <span>Root domain takeover</span>

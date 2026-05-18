@@ -31,7 +31,7 @@ export default function TreasuryCustodyCard() {
         </div>
         <div>
           <dt>Funding</dt>
-          <dd>Blocked pending approval evidence</dd>
+          <dd>Treasury funding blocked pending approval evidence</dd>
         </div>
         <div>
           <dt>Treasury funding enabled</dt>
@@ -42,7 +42,7 @@ export default function TreasuryCustodyCard() {
       <div className="readiness-meter" aria-label="G1 evidence readiness">
         <div>
           <span>Treasury funding readiness</span>
-          <strong>Funding blocked pending approval evidence</strong>
+          <strong>Treasury funding blocked pending approval evidence</strong>
         </div>
         <div className="readiness-bars" aria-hidden="true">
           <span />

@@ -23,7 +23,7 @@ try {
   const forbidden = formatWalletConnectionError("Phantom", new Error("403 Access forbidden: raw RPC response"));
   assert.equal(forbidden.includes("403"), false);
   assert.equal(forbidden.includes("Access forbidden"), false);
-  assert.match(forbidden, /continue in mock verification mode/);
+  assert.match(forbidden, /continue in readonly evidence mode/);
 
   let providerCalled = false;
   runtime.window = {

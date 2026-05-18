@@ -52,7 +52,7 @@ interface QuoteSuccessResponseBody extends ReadonlyQuoteMetadata {
 
 interface QuoteUnavailableResponseBody extends ReadonlyQuoteMetadata {
   status: "quote_unavailable";
-  quoteUnavailableReason: "Readonly quote unavailable. You can continue with mock verification.";
+  quoteUnavailableReason: "Readonly quote unavailable. You can continue in readonly evidence mode.";
 }
 
 type QuoteResponseBody = QuoteSuccessResponseBody | QuoteUnavailableResponseBody;
@@ -177,7 +177,7 @@ async function createUnavailableBody(input: {
       timestamp
     }),
     status: "quote_unavailable",
-    quoteUnavailableReason: "Readonly quote unavailable. You can continue with mock verification."
+    quoteUnavailableReason: "Readonly quote unavailable. You can continue in readonly evidence mode."
   } satisfies QuoteUnavailableResponseBody;
 }
 

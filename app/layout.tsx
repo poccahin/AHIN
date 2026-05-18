@@ -4,6 +4,7 @@ import "./globals.css";
 import "@/src/gate/ahin-gate.css";
 import "@/src/gate/matrix/matrix.css";
 import "@/src/components/governance/governance-console.css";
+import "@/src/components/trusted-twin/trusted-twin-court.css";
 
 export const metadata: Metadata = {
   title: "ahin.io Gate",

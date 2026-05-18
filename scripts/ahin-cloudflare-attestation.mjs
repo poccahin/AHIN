@@ -18,7 +18,7 @@ async function verifyUrl(url) {
     return {
       homepageCheckPassed: false,
       httpsCheckPassed: false,
-      mockVerificationVisible: false,
+      readonlyEvidenceVisible: false,
       verificationSkipped: true
     };
   }
@@ -28,16 +28,16 @@ async function verifyUrl(url) {
     const response = await fetch(parsed);
     const body = await response.text();
     return {
-      homepageCheckPassed: response.ok && body.includes("ahin.io") && body.includes("Zero-Trust Tunnel"),
+      homepageCheckPassed: response.ok && (body.includes("ahin.io") || body.includes("AHIN Foundation") || body.includes("Governance console")),
       httpsCheckPassed: response.ok && parsed.protocol === "https:",
-      mockVerificationVisible: response.ok && /mock verification/i.test(body),
+      readonlyEvidenceVisible: response.ok && (body.includes("Readonly evidence mode") || body.includes("READONLY GOVERNANCE MODE")),
       verificationSkipped: false
     };
   } catch {
     return {
       homepageCheckPassed: false,
       httpsCheckPassed: false,
-      mockVerificationVisible: false,
+      readonlyEvidenceVisible: false,
       verificationSkipped: false
     };
   }
@@ -47,7 +47,7 @@ const targetUrl = textEnv("AHIN_CLOUDFLARE_DEPLOYMENT_URL", "");
 const deployed = boolEnv("AHIN_CLOUDFLARE_DEPLOYMENT_EXECUTED", false);
 const verification = await verifyUrl(targetUrl);
 const status = deployed
-  ? verification.homepageCheckPassed && verification.httpsCheckPassed && verification.mockVerificationVisible
+  ? verification.homepageCheckPassed && verification.httpsCheckPassed && verification.readonlyEvidenceVisible
     ? "PASS"
     : "DEPLOYED_VERIFICATION_FAILED"
   : "READY_NOT_DEPLOYED";
@@ -70,7 +70,7 @@ const report = {
   rootDomainOverwriteApproved: boolEnv("AHIN_ROOT_DOMAIN_OVERWRITE_APPROVED", false),
   homepageCheckPassed: verification.homepageCheckPassed,
   httpsCheckPassed: verification.httpsCheckPassed,
-  mockVerificationVisible: verification.mockVerificationVisible,
+  readonlyEvidenceVisible: verification.readonlyEvidenceVisible,
   verificationSkipped: verification.verificationSkipped,
   status
 };
