@@ -2,7 +2,7 @@
 
 Phase R0-G2 integrates the Trusted Twin Court artifacts as a production-safe readiness layer for the AHIN governance console.
 
-This archive is evidence and UI readiness only. It does not deploy, dispatch workflows, run Wrangler, enable protocol execution, enable LIFE++ transfer, enable burn, enable signing, submit transactions, or mutate Squads multisig state.
+This archive is evidence and UI readiness only. It does not deploy, dispatch workflows, run Wrangler, enable protocol execution, enable LIFE++ transfer, enable burn, enable signing, enable transaction submission, or mutate Squads multisig state.
 
 ## Canonical Governance Context
 
@@ -12,7 +12,7 @@ This archive is evidence and UI readiness only. It does not deploy, dispatch wor
 - Threshold: 2-of-3
 - Runtime mode: readonly evidence mode
 - On-chain submission: false
-- WebAuthn/FIDO2 implementation: false
+- Human-auth hardware/passkey implementation: false
 - Biometric verification claim: false
 
 ## Integrated Artifacts
@@ -38,9 +38,8 @@ Production-facing UI uses these safe replacements:
 
 ## Explicit Non-Claims
 
-- No WebAuthn/FIDO2 flow is implemented in the app.
+- No hardware/passkey human-auth flow is implemented in the app.
 - No biometric verification is claimed.
 - No on-chain submission is claimed.
 - No Squads multisig state is mutated.
 - No protocol execution, transfer, burn, signing, or transaction submission is enabled.
-

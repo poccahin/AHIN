@@ -39,7 +39,7 @@
     "Merged readiness artifacts only; no deploy, workflow dispatch, wrangler command, protocol execution, transfer, burn, signing, transaction submission, or Squads multisig mutation was performed.",
     "Operational deployment and Squads mutation scripts from the source branch were intentionally pruned from this merge before commit.",
     "Package dependency churn from the source branch was intentionally pruned from this merge before commit.",
-    "Trusted Twin Court remains a readiness and offline verification layer; it does not claim WebAuthn/FIDO2/biometric verification or on-chain submission.",
+    "Trusted Twin Court remains a readiness and offline verification layer; it does not claim human-auth hardware/passkey verification, biometric verification, or on-chain submission.",
     "Runtime audit passed after package/package-lock dependency churn was pruned from the merge."
   ]
 }

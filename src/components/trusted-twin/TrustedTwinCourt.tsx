@@ -10,8 +10,8 @@ export default function TrustedTwinCourt() {
       <div className="trusted-twin-header">
         <div>
           <p>AHIN Trusted Twin Court v1.0</p>
-          <h2>Readiness layer</h2>
-          <span>Offline verifier prototype · causal replay · finality certificate draft</span>
+          <h2>Human Finality Evidence Layer</h2>
+          <span>Readonly evidence mode · causal replay terminal · readiness certificate payload</span>
         </div>
         <dl>
           <div>
@@ -23,7 +23,7 @@ export default function TrustedTwinCourt() {
             <dd>{CANONICAL_TREASURY_MULTISIG}</dd>
           </div>
           <div>
-            <dt>Chain submission</dt>
+            <dt>On-chain submitted</dt>
             <dd>{String(TRUSTED_TWIN_FLAGS.onChainSubmitted)}</dd>
           </div>
         </dl>
@@ -38,4 +38,3 @@ export default function TrustedTwinCourt() {
     </section>
   );
 }
-

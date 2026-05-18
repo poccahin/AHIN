@@ -1,25 +1,62 @@
 "use client";
 
 import { useState } from "react";
-import { CANDIDATE_EVIDENCE_HASH, CANONICAL_TREASURY_MULTISIG, G1_PHASE, READINESS_EVENTS, TRUSTED_TWIN_CASE_ID, TRUSTED_TWIN_FLAGS } from "./trusted-twin-data";
+import { CERTIFICATE_PAYLOAD, G1_PHASE, TRUSTED_TWIN_CASE_ID } from "./trusted-twin-data";
+
+type FinalityState = "idle" | "scanning" | "verified";
 
 export default function EndgameSealModal() {
   const [open, setOpen] = useState(false);
+  const [finalityState, setFinalityState] = useState<FinalityState>("idle");
+  const [copied, setCopied] = useState(false);
+  const certificateJson = JSON.stringify(CERTIFICATE_PAYLOAD, null, 2);
+
+  function advanceFinalitySlot() {
+    if (finalityState === "idle") {
+      setFinalityState("scanning");
+      return;
+    }
+    setFinalityState("verified");
+    setOpen(true);
+  }
+
+  async function copyCertificateJson() {
+    try {
+      await navigator.clipboard?.writeText(certificateJson);
+    } catch {
+      // Clipboard availability depends on browser security context; the terminal payload remains visible.
+    }
+    setCopied(true);
+  }
 
   return (
     <section className="twin-panel twin-endgame">
       <div className="twin-section-heading">
-        <span>Trusted Twin Court</span>
-        <strong>Finality readiness seal</strong>
+        <span>Human Finality Slot</span>
+        <strong>Readiness certificate gate</strong>
       </div>
-      <div className="twin-seal-summary">
-        <div className="twin-seal-mark" aria-hidden="true">
-          seal
+      <div className={`human-finality-slot is-${finalityState}`}>
+        <div className="slot-track" aria-hidden="true">
+          <span />
+          <span />
+          <span />
         </div>
         <div>
-          <p>本体终局意向已确认</p>
-          <h3>Readiness Certificate</h3>
-          <span>Candidate evidence hash · not submitted to chain execution</span>
+          <p>
+            {finalityState === "idle"
+              ? "置入本体授权意向"
+              : finalityState === "scanning"
+                ? "终局意向校验中"
+                : "本体终局意向已确认"}
+          </p>
+          <h3>
+            {finalityState === "idle"
+              ? "Readonly evidence mode · no signature request generated"
+              : finalityState === "scanning"
+                ? "Local readiness reconstruction · no chain execution"
+                : "Readiness certificate generated · onChainSubmitted=false"}
+          </h3>
+          <span>case {TRUSTED_TWIN_CASE_ID}</span>
         </div>
       </div>
       <dl className="twin-fact-list">
@@ -32,81 +69,44 @@ export default function EndgameSealModal() {
           <dd>{G1_PHASE}</dd>
         </div>
         <div>
-          <dt>Approvals</dt>
-          <dd>Required approvals: 2-of-3 · collected approvals pending evidence</dd>
+          <dt>Signature request generated</dt>
+          <dd>{String(CERTIFICATE_PAYLOAD.signatureRequestGenerated)}</dd>
         </div>
         <div>
-          <dt>Effect</dt>
-          <dd>待外部签名与链上提交后生效</dd>
+          <dt>On-chain submitted</dt>
+          <dd>{String(CERTIFICATE_PAYLOAD.onChainSubmitted)}</dd>
         </div>
       </dl>
-      <button type="button" className="twin-button" onClick={() => setOpen(true)}>
-        View readiness seal
+      <button type="button" className="twin-button" onClick={advanceFinalitySlot}>
+        {finalityState === "idle" ? "Insert finality intent" : finalityState === "scanning" ? "Generate readiness certificate" : "Open certificate terminal"}
       </button>
 
       {open ? (
-        <div className="twin-modal" role="dialog" aria-modal="true" aria-label="Trusted Twin Court readiness seal">
-          <button type="button" className="twin-modal-scrim" aria-label="Close readiness seal" onClick={() => setOpen(false)} />
-          <div className="twin-modal-card">
+        <div className="twin-modal" role="dialog" aria-modal="true" aria-label="Certificate payload terminal">
+          <button type="button" className="twin-modal-scrim" aria-label="Close certificate terminal" onClick={() => setOpen(false)} />
+          <div className="twin-modal-card certificate-terminal">
             <div className="twin-certificate-head">
               <div>
-                <span>AHIN Governance Court · Final Seal Draft</span>
+                <span>Certificate Payload Terminal</span>
                 <h2>Readiness Certificate</h2>
-                <p>Human finality intent confirmed · execution authority disabled</p>
+                <p>Readonly evidence mode · no transaction submitted · execution authority disabled</p>
               </div>
-              <div className="twin-stamp" aria-hidden="true">
-                ready
-              </div>
+              <strong className="terminal-led">onChainSubmitted=false</strong>
             </div>
 
-            <dl className="twin-certificate-grid">
-              <div>
-                <dt>Case ID</dt>
-                <dd>{TRUSTED_TWIN_CASE_ID}</dd>
-              </div>
-              <div>
-                <dt>Treasury multisig</dt>
-                <dd>{CANONICAL_TREASURY_MULTISIG}</dd>
-              </div>
-              <div>
-                <dt>Candidate evidence hash</dt>
-                <dd>{CANDIDATE_EVIDENCE_HASH}</dd>
-              </div>
-              <div>
-                <dt>On-chain submitted</dt>
-                <dd>{String(TRUSTED_TWIN_FLAGS.onChainSubmitted)}</dd>
-              </div>
-              <div>
-                <dt>Signing enabled</dt>
-                <dd>{String(TRUSTED_TWIN_FLAGS.signingEnabled)}</dd>
-              </div>
-              <div>
-                <dt>Protocol execution</dt>
-                <dd>{String(TRUSTED_TWIN_FLAGS.protocolExecutionEnabled)}</dd>
-              </div>
-            </dl>
+            <pre className="certificate-json">{certificateJson}</pre>
 
-            <div className="twin-event-stack">
-              {READINESS_EVENTS.map((event) => (
-                <div key={event.label}>
-                  <span>{event.label}</span>
-                  <strong>{event.hash}</strong>
-                  <small>{event.status}</small>
-                </div>
-              ))}
+            <div className="terminal-actions">
+              <button type="button" className="twin-button" onClick={copyCertificateJson}>
+                {copied ? "Certificate JSON copied" : "Copy certificate JSON"}
+              </button>
+              <button type="button" className="twin-button is-dark" onClick={() => setOpen(false)}>
+                Close terminal
+              </button>
             </div>
-
-            <p className="twin-judgment">
-              "This readiness certificate records candidate evidence only. It becomes operationally meaningful only after external signature evidence and verified chain submission are separately archived."
-            </p>
-
-            <button type="button" className="twin-button is-dark" onClick={() => setOpen(false)}>
-              Close
-            </button>
           </div>
         </div>
       ) : null}
     </section>
   );
 }
-

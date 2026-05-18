@@ -10,11 +10,11 @@ export default function ResponsibilityRail({ selectedAgentId, onSelectAgent }: R
   return (
     <section className="governance-panel responsibility-panel" aria-label="Responsibility rail">
       <div className="governance-section-heading">
-        <span>Responsibility rail</span>
-        <strong>No real execution</strong>
+        <span>Responsibility Rail</span>
+        <strong>Readonly reconstruction · no ledger state modified</strong>
       </div>
       <div className="responsibility-table-wrap">
-        <table className="responsibility-table">
+        <table className="terminal-table responsibility-table">
           <thead>
             <tr>
               <th>#</th>
@@ -30,8 +30,8 @@ export default function ResponsibilityRail({ selectedAgentId, onSelectAgent }: R
               return (
                 <tr key={`${step.index}-${step.action}`} className={selectedAgentId === step.agentId ? "is-selected" : ""} onClick={() => onSelectAgent(step.agentId)}>
                   <td>{step.index}</td>
-                  <td>
-                    <span className={`responsibility-dot is-${agent.tone}`} aria-hidden="true" />
+                  <td className={`is-${agent.tone}`}>
+                    <span className="terminal-dot" aria-hidden="true" />
                     {step.action}
                   </td>
                   <td>{step.mode}</td>

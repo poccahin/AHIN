@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CANDIDATE_EVIDENCE_HASH, TRUSTED_TWIN_CASE_ID } from "./trusted-twin-data";
+import { CANDIDATE_EVIDENCE_HASH, CAUSAL_REPLAY_FRAMES, TRUSTED_TWIN_CASE_ID } from "./trusted-twin-data";
 
 type VerificationState = "idle" | "ready" | "incomplete";
 
@@ -25,12 +25,32 @@ export default function OfflineVerifierPanel() {
   return (
     <section className="twin-panel twin-verifier">
       <div className="twin-section-heading">
-        <span>Offline verifier prototype</span>
-        <strong>Local verification readiness</strong>
+        <span>Causal Replay Terminal</span>
+        <strong>Readonly replay · no ledger state modified</strong>
       </div>
       <p className="twin-muted">
-        Paste a readiness certificate draft. This panel performs local structure checks only; the WASM trust kernel is archived but not wired into this browser build.
+        Paste a readiness certificate payload. This panel performs local structure checks only; the archived trust kernel is not wired into this browser build.
       </p>
+      <div className="causal-replay-table" aria-label="Readonly causal replay frames">
+        <div className="causal-replay-head">
+          <span>frame</span>
+          <span>authority</span>
+          <span>model</span>
+          <span>delta</span>
+          <span>hash</span>
+          <span>event</span>
+        </div>
+        {CAUSAL_REPLAY_FRAMES.map((frame) => (
+          <div key={frame.frame} className="causal-replay-row">
+            <span>{frame.frame}</span>
+            <span>{frame.authority}</span>
+            <span>{frame.modelVersion}</span>
+            <span>{frame.creditDelta}</span>
+            <span>{frame.cognitiveHash}</span>
+            <span>{frame.event}</span>
+          </div>
+        ))}
+      </div>
       <textarea
         className="twin-textarea"
         value={certificateText}
@@ -60,4 +80,3 @@ export default function OfflineVerifierPanel() {
     </section>
   );
 }
-

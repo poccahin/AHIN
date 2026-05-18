@@ -38,6 +38,7 @@ const lifePlusConfig = read("src/config/life-plus.ts");
 const oracle = read("functions/api/oracle/jupiter/lifepp.ts");
 const policyReport = JSON.parse(read("reports/ahin-lifeplus-admission-policy.json"));
 const trustedTwinReport = JSON.parse(read("reports/ahin-r0-g2-trusted-twin-court-readiness.json"));
+const terminalGovernanceReport = JSON.parse(read("reports/ahin-r0-g3-production-terminal-governance-console.json"));
 const srcFiles = listFiles("src").filter((file) => /\.(css|ts|tsx)$/.test(file));
 const functionFiles = listFiles("functions").filter((file) => /\.(ts|tsx|js|mjs)$/.test(file));
 const srcAndFunctionSource = [...srcFiles, ...functionFiles].map((file) => read(file)).join("\n");
@@ -277,7 +278,11 @@ check(
     "Treasury funding blocked",
     "Oracle readonly",
     "No transaction submission",
-    "Readonly evidence mode"
+    "Readonly evidence mode",
+    "AHIN Governance Terminal",
+    "LIFE++ Foundation Control Plane",
+    "Treasury Funding Readiness Evidence",
+    "onChainSubmitted=false"
   ].every((copy) => visibleGateCopy.includes(copy)),
   "Root governance console must expose production readonly/dry-run safety boundaries."
 );
@@ -308,18 +313,40 @@ check(
   "Trusted Twin Court readiness layer is visible and safe",
   [
     "AHIN Trusted Twin Court v1.0",
-    "Readiness layer",
+    "Human Finality Evidence Layer",
     "Readiness Certificate",
-    "Offline verifier prototype",
-    "Local verification readiness",
+    "Causal Replay Terminal",
+    "Readonly replay · no ledger state modified",
     "Circuit breaker draft",
     "Trilingual certificate draft",
     "onChainSubmitted",
+    "signatureRequestGenerated",
     "false"
   ].every((copy) => visibleGateCopy.includes(copy)) &&
     !visibleGateCopy.includes("<script") &&
     visibleGateCopy.includes("5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo"),
   "Trusted Twin Court UI must be a React readiness layer with safe certificate/verifier/circuit-breaker/trilingual copy."
+);
+check(
+  "Phase R0-G3 terminal governance console is recorded",
+  terminalGovernanceReport.phase === "Phase R0-G3 Production Terminal Governance Console" &&
+    terminalGovernanceReport.deploymentExecuted === false &&
+    terminalGovernanceReport.workflowDispatched === false &&
+    terminalGovernanceReport.rootDomainTouched === false &&
+    terminalGovernanceReport.mockFacingLanguageRemoved === true &&
+    terminalGovernanceReport.terminalGovernanceConsoleImplemented === true &&
+    terminalGovernanceReport.canonicalTreasuryMultisigAddress === "5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo" &&
+    terminalGovernanceReport.treasuryFundingEnabled === false &&
+    terminalGovernanceReport.protocolExecutionEnabled === false &&
+    terminalGovernanceReport.realWalletTransfer === false &&
+    terminalGovernanceReport.realBurnTransaction === false &&
+    terminalGovernanceReport.signingEnabled === false &&
+    terminalGovernanceReport.transactionSubmissionEnabled === false &&
+    terminalGovernanceReport.onChainSubmitted === false &&
+    terminalGovernanceReport.biometricVerificationClaimed === false &&
+    terminalGovernanceReport.webauthnImplemented === false &&
+    terminalGovernanceReport.certificationClaimed === false,
+  "R0-G3 report must record the production terminal UI and all disabled execution boundaries."
 );
 check(
   "Trusted Twin Court readiness report is recorded",

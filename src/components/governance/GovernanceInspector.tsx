@@ -20,13 +20,15 @@ export default function GovernanceInspector({ selectedAgentId, onSelectAgent }: 
     protocolExecutionEnabled: false,
     realWalletTransfer: false,
     realBurnTransaction: false,
-    signingEnabled: false
+    signingEnabled: false,
+    transactionSubmissionEnabled: false,
+    signatureRequestGenerated: false
   };
 
   return (
     <aside className="governance-panel governance-inspector" aria-label="Governance inspector">
       <div className="governance-section-heading">
-        <span>Governance inspector</span>
+        <span>Governance Inspector</span>
         <strong>Agent switcher</strong>
       </div>
 
@@ -113,28 +115,21 @@ export default function GovernanceInspector({ selectedAgentId, onSelectAgent }: 
       </dl>
 
       <button type="button" className="proof-envelope-button" onClick={() => setProofOpen(true)}>
-        View proof envelope
+        Open certificate terminal
       </button>
 
       {proofOpen ? (
-        <div className="governance-modal" role="dialog" aria-modal="true" aria-label="Local dry-run proof envelope">
-          <button type="button" className="governance-modal-scrim" aria-label="Close proof envelope" onClick={() => setProofOpen(false)} />
+        <div className="governance-modal" role="dialog" aria-modal="true" aria-label="Readonly evidence certificate terminal">
+          <button type="button" className="governance-modal-scrim" aria-label="Close certificate terminal" onClick={() => setProofOpen(false)} />
           <div className="governance-modal-panel">
             <div>
-              <p>Local dry-run proof envelope</p>
+              <p>Certificate Payload Terminal</p>
               <h2>{selectedAgent.name}</h2>
             </div>
-            <dl>
-              {Object.entries(proofEnvelope).map(([key, value]) => (
-                <div key={key}>
-                  <dt>{key}</dt>
-                  <dd>{String(value)}</dd>
-                </div>
-              ))}
-            </dl>
-            <p>No network call · No chain call · No signing · No LIFE++ transferred or burned</p>
+            <pre>{JSON.stringify(proofEnvelope, null, 2)}</pre>
+            <p>No network call · No chain call · no signature request generated · No LIFE++ transferred or burned</p>
             <button type="button" onClick={() => setProofOpen(false)}>
-              Close
+              Close terminal
             </button>
           </div>
         </div>

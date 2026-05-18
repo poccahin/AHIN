@@ -17,6 +17,14 @@ export default function GovernancePhaseStrip() {
         <span>Authority</span>
         <strong>No operational authority activated</strong>
       </div>
+      <div>
+        <span>Funding</span>
+        <strong>Treasury funding blocked</strong>
+      </div>
+      <div>
+        <span>Oracle</span>
+        <strong>Readonly evidence mode</strong>
+      </div>
     </section>
   );
 }
