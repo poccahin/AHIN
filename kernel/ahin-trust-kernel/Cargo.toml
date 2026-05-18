@@ -1,0 +1,30 @@
+[package]
+name = "ahin-trust-kernel"
+version = "0.1.0"
+edition = "2021"
+authors = ["AHIN Foundation <governance@ahin.io>"]
+description = "Readiness-only trust kernel archive for AHIN Trusted Twin Court evidence replay."
+license = "Apache-2.0"
+repository = "https://github.com/poccahin/AHIN"
+keywords = ["ahin", "merkle", "ed25519", "readiness", "verifier"]
+
+[lib]
+name = "ahin_trust_kernel"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+ed25519-dalek = { version = "2.1", default-features = false }
+sha2 = { version = "0.10", default-features = false }
+hex = { version = "0.4", default-features = false, features = ["alloc"] }
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+thiserror = "1.0"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+
+[features]
+default = ["std"]
+std = []
+wasm = []
+

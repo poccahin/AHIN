@@ -37,6 +37,7 @@ const env = read(".env.example");
 const lifePlusConfig = read("src/config/life-plus.ts");
 const oracle = read("functions/api/oracle/jupiter/lifepp.ts");
 const policyReport = JSON.parse(read("reports/ahin-lifeplus-admission-policy.json"));
+const trustedTwinReport = JSON.parse(read("reports/ahin-r0-g2-trusted-twin-court-readiness.json"));
 const srcFiles = listFiles("src").filter((file) => /\.(css|ts|tsx)$/.test(file));
 const functionFiles = listFiles("functions").filter((file) => /\.(ts|tsx|js|mjs)$/.test(file));
 const srcAndFunctionSource = [...srcFiles, ...functionFiles].map((file) => read(file)).join("\n");
@@ -63,7 +64,13 @@ const visibleGateCopy = [
   read("src/components/governance/ResponsibilityRail.tsx"),
   read("src/components/governance/TreasuryCustodyCard.tsx"),
   read("src/components/governance/GovernanceInspector.tsx"),
-  read("src/components/governance/GovernanceFooter.tsx")
+  read("src/components/governance/GovernanceFooter.tsx"),
+  read("src/components/trusted-twin/TrustedTwinCourt.tsx"),
+  read("src/components/trusted-twin/EndgameSealModal.tsx"),
+  read("src/components/trusted-twin/OfflineVerifierPanel.tsx"),
+  read("src/components/trusted-twin/CircuitBreakerCertificate.tsx"),
+  read("src/components/trusted-twin/TrilingualSeal.tsx"),
+  read("src/components/trusted-twin/trusted-twin-data.ts")
 ].join("\n");
 
 check(
@@ -287,9 +294,55 @@ check(
     "real burn",
     "unlock breaker",
     "SOC 2 Type II certified",
-    "ISO 27001 certified"
+    "ISO 27001 certified",
+    "本体已亲签",
+    "已写入链",
+    "FIDO2 · 指纹 · 私钥",
+    "链上凭证",
+    "2 / 3 已签",
+    "不可撤销之意志"
   ].every((copy) => !visibleGateCopy.toLowerCase().includes(copy.toLowerCase())),
   "Visible production UI must not claim live operation, fake certification, transfer, burn, signing, or transaction submission."
+);
+check(
+  "Trusted Twin Court readiness layer is visible and safe",
+  [
+    "AHIN Trusted Twin Court v1.0",
+    "Readiness layer",
+    "Readiness Certificate",
+    "Offline verifier prototype",
+    "Local verification readiness",
+    "Circuit breaker draft",
+    "Trilingual certificate draft",
+    "onChainSubmitted",
+    "false"
+  ].every((copy) => visibleGateCopy.includes(copy)) &&
+    !visibleGateCopy.includes("<script") &&
+    visibleGateCopy.includes("5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo"),
+  "Trusted Twin Court UI must be a React readiness layer with safe certificate/verifier/circuit-breaker/trilingual copy."
+);
+check(
+  "Trusted Twin Court readiness report is recorded",
+  trustedTwinReport.phase === "Phase R0-G2 Trusted Twin Court Readiness" &&
+    trustedTwinReport.deploymentExecuted === false &&
+    trustedTwinReport.workflowDispatched === false &&
+    trustedTwinReport.rootDomainTouched === false &&
+    trustedTwinReport.webauthnImplemented === false &&
+    trustedTwinReport.biometricVerificationClaimed === false &&
+    trustedTwinReport.onChainSubmitted === false &&
+    trustedTwinReport.multisigStateMutated === false &&
+    trustedTwinReport.protocolExecutionEnabled === false &&
+    trustedTwinReport.realWalletTransfer === false &&
+    trustedTwinReport.realBurnTransaction === false &&
+    trustedTwinReport.signingEnabled === false &&
+    trustedTwinReport.trustKernelArchived === true &&
+    trustedTwinReport.offlineVerifierArchived === true &&
+    trustedTwinReport.finalSealReadinessImplemented === true &&
+    trustedTwinReport.circuitBreakerReadinessImplemented === true &&
+    trustedTwinReport.trilingualCertificateArchived === true &&
+    trustedTwinReport.inlineScriptUsed === false &&
+    trustedTwinReport.canonicalTreasuryMultisigAddress === "5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo",
+  "Trusted Twin Court report must record readiness-only boundaries and canonical treasury multisig."
 );
 check(
   "Phase 4E admission policy report is recorded",
