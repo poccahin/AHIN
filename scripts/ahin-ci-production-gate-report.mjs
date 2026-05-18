@@ -16,7 +16,7 @@ const report = {
   timestamp: new Date().toISOString(),
   gitCommit: gitCommit(),
   nodeVersion: process.version,
-  releaseBoundary: "Gate UI + Mock Verification + Agent Matrix Reveal",
+  releaseBoundary: "Governance Console + Readonly Verification + Dry-run Evidence",
   gateMode: "mock",
   realWalletVerification: false,
   realLifeBalanceCheck: false,

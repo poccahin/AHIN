@@ -44,7 +44,7 @@ function delay(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-function mockReceipt(walletAddress: string, walletId = "mock_wallet", rail: EntryFeeReceipt["rail"] = "solana"): EntryFeeReceipt {
+function mockReceipt(walletAddress: string, walletId = "readonly_wallet", rail: EntryFeeReceipt["rail"] = "solana"): EntryFeeReceipt {
   const confirmedAt = new Date().toISOString();
   return {
     rail,
@@ -53,7 +53,7 @@ function mockReceipt(walletAddress: string, walletId = "mock_wallet", rail: Entr
     recipient: "AbzDBaC9AmG4ve1Jfemi5TFPCGLLcurqzwPaHj9Jidzr",
     asset: "LIFE++",
     amount: "1",
-    signature: `mock-lifepp-entry-${Date.now().toString(36)}`,
+    signature: `dry-run-lifepp-entry-${Date.now().toString(36)}`,
     confirmed: true,
     confirmedAt
   };
@@ -71,7 +71,7 @@ export function useEntrySignature() {
       setState({ charging: false, isProcessing: false, receipt, authError: null, error: null });
       return receipt;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Mock entry authorization failed.";
+      const message = error instanceof Error ? error.message : "Readonly entry authorization failed.";
       setState({ charging: false, isProcessing: false, receipt: null, authError: message, error: message });
       throw new Error(message);
     }
@@ -86,7 +86,7 @@ export function useEntrySignature() {
       setState({ charging: false, isProcessing: false, receipt, authError: null, error: null });
       return receipt;
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Mock entry authorization failed.";
+      const message = error instanceof Error ? error.message : "Readonly entry authorization failed.";
       setState({ charging: false, isProcessing: false, receipt: null, authError: message, error: message });
       throw new Error(message);
     }

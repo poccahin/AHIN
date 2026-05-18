@@ -69,7 +69,7 @@ const verification = await verifyProductionUrl(productionUrl);
 
 const report = {
   project: "ahin.io",
-  releaseName: "Gate UI + Mock Verification + Agent Matrix Reveal",
+  releaseName: "Governance Console + Readonly Verification + Dry-run Evidence",
   timestamp: new Date().toISOString(),
   gitCommit: gitCommit(),
   deploymentProvider,

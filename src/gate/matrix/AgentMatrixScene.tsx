@@ -10,7 +10,7 @@ import ProofEnvelopeModal from "./ProofEnvelopeModal";
 import { CENTER_AGENT_ID, MATRIX_AGENTS, getMatrixAgent, type MatrixAgentId } from "./matrix-elements";
 import { agentContainerVariants, sceneVariants } from "./matrix-motion";
 
-const MATRIX_DISCLOSURE = "Readonly / mock verification only · No LIFE++ transferred or burned · Protocol execution disabled";
+const MATRIX_DISCLOSURE = "Readonly evidence mode · No LIFE++ transferred or burned · Protocol execution disabled";
 const AHIN_TREASURY_MULTISIG = "5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo";
 
 export default function AgentMatrixScene() {

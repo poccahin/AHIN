@@ -13,12 +13,12 @@ export interface RecoverableWalletError {
 }
 
 const COPY: Record<WalletErrorCode, string> = {
-  WALLET_NOT_DETECTED: "Wallet extension not detected in this browser. Install the wallet or continue in mock verification mode.",
+  WALLET_NOT_DETECTED: "Wallet extension not detected in this browser. Install the wallet or continue in readonly evidence mode.",
   WALLET_REQUEST_PENDING: "Wallet request already pending. Open your wallet extension, approve or reject the pending request, then retry.",
   WALLET_PROVIDER_CONFLICT: "Multiple wallet providers were detected. Choose the correct wallet extension or retry in a clean browser profile.",
-  WALLET_USER_REJECTED: "Wallet connection was rejected. You can retry or continue in mock verification mode.",
-  WALLET_BROWSER_UNSUPPORTED: "Wallet providers are unavailable in this browser context. Retry in a supported browser or continue in mock verification mode.",
-  WALLET_UNKNOWN_PROVIDER_ERROR: "Wallet provider unavailable in this browser context. Retry in a supported browser or continue in mock verification mode."
+  WALLET_USER_REJECTED: "Wallet connection was rejected. You can retry or continue in readonly evidence mode.",
+  WALLET_BROWSER_UNSUPPORTED: "Wallet providers are unavailable in this browser context. Retry in a supported browser or continue in readonly evidence mode.",
+  WALLET_UNKNOWN_PROVIDER_ERROR: "Wallet provider unavailable in this browser context. Retry in a supported browser or continue in readonly evidence mode."
 };
 
 export function walletErrorMessage(code: WalletErrorCode) {

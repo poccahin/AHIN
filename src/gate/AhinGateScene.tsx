@@ -59,7 +59,7 @@ export default function AhinGateScene() {
   function handleMockFallback() {
     clearTimeline();
     setWalletWarning(null);
-    setSelectedWallet({ id: "phantom", label: "Mock Wallet", rail: "SVM" });
+    setSelectedWallet({ id: "phantom", label: "Readonly Wallet", rail: "SVM" });
     MOCK_FALLBACK_STATES.forEach((state, index) => queue(() => setGateState(state), index * 260));
   }
 

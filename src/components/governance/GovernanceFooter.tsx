@@ -3,9 +3,15 @@ export default function GovernanceFooter() {
 
   return (
     <footer className="governance-footer" aria-label="Governance compliance status">
-      <span>Readonly · mock verification</span>
+      <span>Readonly evidence mode</span>
+      <span>Oracle readonly</span>
+      <span>Treasury funding blocked</span>
       <span>No LIFE++ transferred or burned</span>
       <span>Protocol execution disabled</span>
+      <span>LIFE++ transfer disabled</span>
+      <span>Burn disabled</span>
+      <span>Signing disabled</span>
+      <span>No transaction submission</span>
       <span>Security controls documented</span>
       <span>SOC 2 / ISO 27001 mapping: evidence pending</span>
       <span>Certification status: not claimed</span>

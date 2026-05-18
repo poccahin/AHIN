@@ -114,7 +114,7 @@ export default function GateCard({ state, selectedWallet, onWalletSelect, onSign
         {gateMode === "mock" ? (
           <div className="mt-5 space-y-3">
             <button type="button" className="wallet-glass-button w-full justify-center" onClick={onMockFallback}>
-              Continue with Mock Verification
+              Enter Governance Console
             </button>
             <p className="mock-mode-disclosure">{MOCK_FALLBACK_DISCLOSURE}</p>
           </div>

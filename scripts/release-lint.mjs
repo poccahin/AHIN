@@ -55,7 +55,15 @@ const visibleGateCopy = [
   read("src/gate/matrix/MatrixHeader.tsx"),
   read("src/gate/matrix/AgentInspector.tsx"),
   read("src/gate/matrix/AgentFlowRail.tsx"),
-  read("src/gate/matrix/ProofEnvelopeModal.tsx")
+  read("src/gate/matrix/ProofEnvelopeModal.tsx"),
+  read("src/components/governance/GovernanceConsole.tsx"),
+  read("src/components/governance/GovernanceTopBar.tsx"),
+  read("src/components/governance/GovernancePhaseStrip.tsx"),
+  read("src/components/governance/FiveAgentTopology.tsx"),
+  read("src/components/governance/ResponsibilityRail.tsx"),
+  read("src/components/governance/TreasuryCustodyCard.tsx"),
+  read("src/components/governance/GovernanceInspector.tsx"),
+  read("src/components/governance/GovernanceFooter.tsx")
 ].join("\n");
 
 check(
@@ -84,10 +92,9 @@ check(
   "GateState is missing one or more required states."
 );
 check(
-  "Mock verification disclosure is present",
-  gatekeeper.includes("Mock verification mode. On-chain wallet adapters are not enabled in this build.") ||
-    gateCard.includes("Mock verification mode. On-chain wallet adapters are not enabled in this build."),
-  "Gatekeeper must disclose mock verification mode."
+  "Readonly evidence disclosure is present",
+  gatekeeper.includes("Readonly evidence mode. On-chain wallet adapters are not enabled in this build.") || gateCard.includes("Readonly evidence mode"),
+  "Gatekeeper must disclose readonly evidence mode."
 );
 check(
   "Debug Matrix env is documented as false",
@@ -143,14 +150,14 @@ check(
 check(
   "Phase 4E readonly admission copy is present",
   visibleGateCopy.includes("Verify 10 USDT-equivalent LIFE++ Holding") &&
-    visibleGateCopy.includes("Continue with Mock Verification") &&
+    visibleGateCopy.includes("Enter Governance Console") &&
     visibleGateCopy.includes("Enter with Dry-Run Proof"),
   "Gate copy must describe readonly holding verification and dry-run proof entry."
 );
 check(
   "Phase 4E permanent disclosure is present",
-  visibleGateCopy.includes("Readonly / mock verification only · No real wallet balance checked unless explicitly connected · No LIFE++ transferred or burned"),
-  "Gate proof/action area must disclose readonly mock verification and no transfer or burn."
+  visibleGateCopy.includes("Readonly evidence mode · No real wallet balance checked unless explicitly connected · No LIFE++ transferred or burned"),
+  "Gate proof/action area must disclose readonly evidence mode and no transfer or burn."
 );
 check(
   "Phase 4E Proof of Assets policy is visible",
@@ -208,14 +215,14 @@ check(
   "Phase 4E-2 Gate errors fail soft",
   !gatekeeper.includes("setWalletError(error instanceof Error ? error.message") &&
     gatekeeper.includes("formatWalletConnectionError(walletLabel, error)") &&
-    gatekeeper.includes("Readonly quote unavailable. You can continue with mock verification."),
+    gatekeeper.includes("Readonly quote unavailable. You can continue in readonly evidence mode."),
   "Gate must not render raw wallet/RPC/Jupiter errors directly."
 );
 check(
   "Phase 4E-2 Oracle parse errors fail soft",
   oracle.includes("createUnavailableBody") &&
     oracle.includes('status: "quote_unavailable"') &&
-    oracle.includes("Readonly quote unavailable. You can continue with mock verification.") &&
+    oracle.includes("Readonly quote unavailable. You can continue in readonly evidence mode.") &&
     !oracle.includes("return json({ error: error instanceof Error ? error.message") &&
     !oracle.slice(oracle.indexOf("createBaseMetadata")).includes("payload.error"),
   "Oracle must not echo raw Jupiter payload errors or API failure details."
@@ -242,7 +249,7 @@ check(
   visibleGateCopy.includes("Five Elements Online") &&
     visibleGateCopy.includes("Protocol Execution: Disabled") &&
     visibleGateCopy.includes("LIFE++ Transfer: Disabled") &&
-    visibleGateCopy.includes("Readonly / mock verification only · No LIFE++ transferred or burned · Protocol execution disabled") &&
+    visibleGateCopy.includes("Readonly evidence mode · No LIFE++ transferred or burned · Protocol execution disabled") &&
     visibleGateCopy.includes("No LIFE++ transferred or burned"),
   "Post-gate Matrix must expose readonly protocol boundaries."
 );
@@ -252,6 +259,37 @@ check(
     visibleGateCopy.includes("realWalletTransfer: false") &&
     visibleGateCopy.includes("realBurnTransaction: false"),
   "Proof modal must include dry-run safety flags."
+);
+check(
+  "Production governance safety language is visible",
+  [
+    "Protocol execution disabled",
+    "LIFE++ transfer disabled",
+    "Burn disabled",
+    "Signing disabled",
+    "Treasury funding blocked",
+    "Oracle readonly",
+    "No transaction submission",
+    "Readonly evidence mode"
+  ].every((copy) => visibleGateCopy.includes(copy)),
+  "Root governance console must expose production readonly/dry-run safety boundaries."
+);
+check(
+  "Production UI forbidden live-operation copy is absent",
+  [
+    "Transfer 1 $LIFE++",
+    "Burn 1 $LIFE++",
+    "sign transaction",
+    "submit transaction",
+    "mainnet transfer",
+    "protocol live",
+    "ignition",
+    "real burn",
+    "unlock breaker",
+    "SOC 2 Type II certified",
+    "ISO 27001 certified"
+  ].every((copy) => !visibleGateCopy.toLowerCase().includes(copy.toLowerCase())),
+  "Visible production UI must not claim live operation, fake certification, transfer, burn, signing, or transaction submission."
 );
 check(
   "Phase 4E admission policy report is recorded",

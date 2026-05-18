@@ -53,7 +53,7 @@ const initialEvaluation: ProofEvaluation = {
   checkedAt: null,
   error: null
 };
-const ASSET_PROOF_UNAVAILABLE = "Readonly asset proof unavailable. You can continue with mock verification.";
+const ASSET_PROOF_UNAVAILABLE = "Readonly asset proof unavailable. You can continue in readonly evidence mode.";
 
 function normalizePriceToUsdE8(answer: bigint, decimals: number) {
   if (answer <= 0n) {

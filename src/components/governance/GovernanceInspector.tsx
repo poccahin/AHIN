@@ -76,7 +76,7 @@ export default function GovernanceInspector({ selectedAgentId, onSelectAgent }: 
         </div>
         <div>
           <dt>Risk / Proof</dt>
-          <dd>Passed · mock</dd>
+          <dd>Passed · dry-run evidence</dd>
         </div>
         <div>
           <dt>AHIN anchor</dt>
@@ -94,6 +94,22 @@ export default function GovernanceInspector({ selectedAgentId, onSelectAgent }: 
           <dt>Execution</dt>
           <dd>Disabled</dd>
         </div>
+        <div>
+          <dt>Oracle</dt>
+          <dd>Readonly</dd>
+        </div>
+        <div>
+          <dt>Burn</dt>
+          <dd>Disabled</dd>
+        </div>
+        <div>
+          <dt>Signing</dt>
+          <dd>Disabled</dd>
+        </div>
+        <div>
+          <dt>Transaction submission</dt>
+          <dd>Disabled</dd>
+        </div>
       </dl>
 
       <button type="button" className="proof-envelope-button" onClick={() => setProofOpen(true)}>
@@ -101,11 +117,11 @@ export default function GovernanceInspector({ selectedAgentId, onSelectAgent }: 
       </button>
 
       {proofOpen ? (
-        <div className="governance-modal" role="dialog" aria-modal="true" aria-label="Local mock proof envelope">
+        <div className="governance-modal" role="dialog" aria-modal="true" aria-label="Local dry-run proof envelope">
           <button type="button" className="governance-modal-scrim" aria-label="Close proof envelope" onClick={() => setProofOpen(false)} />
           <div className="governance-modal-panel">
             <div>
-              <p>Local mock proof envelope</p>
+              <p>Local dry-run proof envelope</p>
               <h2>{selectedAgent.name}</h2>
             </div>
             <dl>

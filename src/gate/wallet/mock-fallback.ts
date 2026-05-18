@@ -6,7 +6,7 @@ export type MockFallbackState =
   | "matrix_active";
 
 export const MOCK_FALLBACK_DISCLOSURE =
-  "Readonly / mock verification only · No real wallet balance checked unless explicitly connected · No LIFE++ transferred or burned";
+  "Readonly evidence mode · No real wallet balance checked unless explicitly connected · No LIFE++ transferred or burned";
 
 export const MOCK_FALLBACK_STATES: readonly MockFallbackState[] = [
   "wallet_connected_mock",
