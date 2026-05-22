@@ -2,16 +2,20 @@
 
 import { create } from "zustand";
 import { NODE_TYPES, NODE_TYPE_LIST, WORLD_RADIUS } from "../constants/nodeTypes";
-import type { AhinLink, AhinNode, MilestoneId, NodeHealth, NodeType } from "../types/network";
+import type { AhinLink, AhinNode, MilestoneId, NetworkPulse, NodeHealth, NodeType } from "../types/network";
 
 interface NetworkState {
   nodes: AhinNode[];
   links: AhinLink[];
   timelineT: number;
   activeMilestone: MilestoneId | null;
+  pulse: NetworkPulse | null;
   setTimelineT: (timelineT: number) => void;
   setActiveMilestone: (milestone: MilestoneId | null) => void;
+  setPulse: (pulse: NetworkPulse | null) => void;
+  tickPulse: (deltaSeconds: number) => void;
   initializeNodes: () => void;
+  spawnEcoCluster: (count?: number) => void;
   addLink: (link: AhinLink) => void;
   removeLink: (id: string) => void;
   setNodeHealth: (id: string, health: NodeHealth) => void;
@@ -91,7 +95,7 @@ function createInitialLinks(nodes: AhinNode[]): AhinLink[] {
 
 function createInitialState() {
   const nodes = createInitialNodes();
-  return { nodes, links: createInitialLinks(nodes) };
+  return { nodes, links: createInitialLinks(nodes), pulse: null };
 }
 
 const initial = createInitialState();
@@ -101,12 +105,63 @@ export const useNetworkStore = create<NetworkState>((set) => ({
   links: initial.links,
   timelineT: 1,
   activeMilestone: null,
+  pulse: initial.pulse,
   setTimelineT: (timelineT) => set({ timelineT: Math.max(0, Math.min(1, timelineT)) }),
   setActiveMilestone: (activeMilestone) => set({ activeMilestone }),
+  setPulse: (pulse) => set({ pulse }),
+  tickPulse: (deltaSeconds) =>
+    set((state) => {
+      if (!state.pulse) return state;
+      const remaining = Math.max(0, state.pulse.remaining - deltaSeconds);
+      return { pulse: remaining > 0 ? { ...state.pulse, remaining } : null };
+    }),
   initializeNodes: () => {
     const next = createInitialState();
     set(next);
   },
+  spawnEcoCluster: (count = 5) =>
+    set((state) => {
+      const ecoConfig = NODE_TYPES.eco;
+      const routing = state.nodes.filter((node) => node.type === "routing" && node.health === "healthy");
+      const settlement = state.nodes.filter((node) => node.type === "settlement" && node.health === "healthy");
+      const anchors = routing.length > 0 ? routing : settlement.length > 0 ? settlement : state.nodes.filter((node) => node.health === "healthy");
+      const safeCount = Math.max(1, Math.min(8, Math.floor(count)));
+      const nodes: AhinNode[] = [];
+      const links: AhinLink[] = [];
+
+      for (let index = 0; index < safeCount; index++) {
+        const angle = (state.nodes.length + index + 1) * 1.173;
+        const radius = WORLD_RADIUS * (0.62 + index * 0.025);
+        const node: AhinNode = {
+          id: nextNodeId("eco"),
+          type: "eco",
+          health: "healthy",
+          position: [
+            Math.cos(angle) * radius,
+            Math.sin(index * 0.83) * WORLD_RADIUS * 0.18,
+            Math.sin(angle) * radius
+          ],
+          velocity: [0, 0, 0],
+          mass: ecoConfig.mass,
+          scale: 0.92,
+          seed: 0.719 + state.nodes.length * 0.017 + index * 0.061
+        };
+        nodes.push(node);
+        const anchor = anchors[index % anchors.length];
+        if (anchor) {
+          links.push({
+            id: nextLinkId(),
+            sourceId: anchor.id,
+            targetId: node.id,
+            intensity: 0.46,
+            pulsePhase: node.seed % 1,
+            errored: false
+          });
+        }
+      }
+
+      return { nodes: [...state.nodes, ...nodes], links: [...state.links, ...links] };
+    }),
   addLink: (link) =>
     set((state) => {
       const key = [link.sourceId, link.targetId].sort().join("|");
@@ -123,6 +178,6 @@ export const useNetworkStore = create<NetworkState>((set) => ({
     })),
   reset: () => {
     const next = createInitialState();
-    set({ ...next, timelineT: 1, activeMilestone: null });
+    set({ ...next, timelineT: 1, activeMilestone: null, pulse: null });
   }
 }));

@@ -1,0 +1,32 @@
+{
+  "phase": "Phase R0-G4C Boardroom HUD Overlay Import",
+  "status": "PASS",
+  "deploymentExecuted": false,
+  "workflowDispatched": false,
+  "rootDomainTouched": false,
+  "route": "/active-hash",
+  "boardroomHudEnabled": true,
+  "milestoneButtonsEnabled": true,
+  "timelineScrubberEnabled": true,
+  "slashingSimulationTriggerEnabled": true,
+  "realSlashingEnabled": false,
+  "protocolExecutionEnabled": false,
+  "realWalletTransfer": false,
+  "realBurnTransaction": false,
+  "signingEnabled": false,
+  "transactionSubmissionEnabled": false,
+  "treasuryMutationEnabled": false,
+  "sourceArchive": "ahin-gateway-phase3.tar(1).gz",
+  "sourceArchiveResolved": "ahin-gateway-phase3.tar.gz",
+  "sourceArchiveResolutionNote": "Requested archive filename was not present in Downloads; imported from the matching Phase 3 archive that was present.",
+  "validation": {
+    "lint": "PASS",
+    "guardNoAgentGates": "PASS",
+    "typecheck": "PASS",
+    "build": "PASS",
+    "auditOmitDev": "PASS",
+    "testAgents": "PASS",
+    "testPocc": "PASS",
+    "testWalletUx": "PASS"
+  }
+}

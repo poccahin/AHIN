@@ -28,6 +28,12 @@ export type SlashPhase = "DETECTION" | "COLLAPSE" | "BANISHED";
 
 export type MilestoneId = "genesis-ignition" | "causal-guard" | "macro-evolution";
 
+export interface NetworkPulse {
+  origin: Vector3Tuple;
+  strength: number;
+  remaining: number;
+}
+
 export interface NodeTypeConfig {
   type: NodeType;
   label: string;

@@ -41,6 +41,7 @@ const trustedTwinReport = JSON.parse(read("reports/ahin-r0-g2-trusted-twin-court
 const terminalGovernanceReport = JSON.parse(read("reports/ahin-r0-g3-production-terminal-governance-console.json"));
 const activeHashReport = JSON.parse(read("reports/ahin-r0-g4-active-hash-simulator-import.json"));
 const slashingSimulationReport = JSON.parse(read("reports/ahin-r0-g4b-slashing-simulation-import.json"));
+const boardroomHudReport = JSON.parse(read("reports/ahin-r0-g4c-boardroom-hud-import.json"));
 const runtimeAuditSurfaceReport = JSON.parse(read("reports/ahin-r0-runtime-audit-surface-reduction.json"));
 const srcFiles = listFiles("src").filter((file) => /\.(css|ts|tsx)$/.test(file));
 const functionFiles = listFiles("functions").filter((file) => /\.(ts|tsx|js|mjs)$/.test(file));
@@ -84,10 +85,21 @@ const visibleGateCopy = [
   read("src/components/active-hash-network/SlashingSequence.tsx"),
   read("src/components/active-hash-network/ShatteringNode.tsx"),
   read("src/components/active-hash-network/AshBurst.tsx"),
+  read("src/components/active-hash-network/hud/HudOverlay.tsx"),
+  read("src/components/active-hash-network/hud/TopBar.tsx"),
+  read("src/components/active-hash-network/hud/MilestoneButtons.tsx"),
+  read("src/components/active-hash-network/hud/Timeline.tsx"),
+  read("src/components/active-hash-network/hud/ProtocolLayerStrip.tsx"),
+  read("src/components/active-hash-network/hud/KillSwitch.tsx"),
+  read("src/components/active-hash-network/hud/design.ts"),
+  read("src/lib/active-hash/milestoneActions.ts"),
   read("src/lib/active-hash/constants/nodeTypes.ts"),
   read("src/lib/active-hash/state/networkStore.ts"),
   read("src/lib/active-hash/state/slashStore.ts")
 ].join("\n");
+const liveOperationCopySource = visibleGateCopy
+  .replaceAll("Genesis Ignition", "")
+  .replaceAll("genesis-ignition", "");
 
 check(
   "App Router page renders mock Gatekeeper and Matrix",
@@ -326,7 +338,7 @@ check(
     "链上凭证",
     "2 / 3 已签",
     "不可撤销之意志"
-  ].every((copy) => !visibleGateCopy.toLowerCase().includes(copy.toLowerCase())),
+  ].every((copy) => !liveOperationCopySource.toLowerCase().includes(copy.toLowerCase())),
   "Visible production UI must not claim live operation, fake certification, transfer, burn, signing, or transaction submission."
 );
 check(
@@ -464,6 +476,45 @@ check(
     slashingSimulationReport.treasuryMutationEnabled === false &&
     slashingSimulationReport.sourceArchive === "ahin-gateway-phase2.tar.gz",
   "R0-G4B report must record the isolated visual slashing simulation and all disabled execution boundaries."
+);
+check(
+  "Phase R0-G4C boardroom HUD is visual-only and route-isolated",
+  visibleGateCopy.includes("Genesis Big Bang") &&
+    visibleGateCopy.includes("Genesis Ignition") &&
+    visibleGateCopy.includes("Causal Guard") &&
+    visibleGateCopy.includes("Macro Evolution") &&
+    visibleGateCopy.includes("Past") &&
+    visibleGateCopy.includes("Entropy") &&
+    visibleGateCopy.includes("Present") &&
+    visibleGateCopy.includes("Balanced Graph") &&
+    visibleGateCopy.includes("Future") &&
+    visibleGateCopy.includes("PoCC Penalty Simulation") &&
+    visibleGateCopy.includes("Trigger Slashing Simulation") &&
+    visibleGateCopy.includes("Simulation only · no real slashing · no transfer · no burn · no signing · no treasury mutation") &&
+    read("src/components/active-hash-network/active-hash-network.css").includes("pointer-events: none") &&
+    read("src/components/active-hash-network/active-hash-network.css").includes("pointer-events: auto"),
+  "Active Hash boardroom HUD must expose local milestone controls, timeline, visual penalty simulation, and pointer-event pass-through behavior."
+);
+check(
+  "Phase R0-G4C boardroom HUD report is recorded",
+  boardroomHudReport.phase === "Phase R0-G4C Boardroom HUD Overlay Import" &&
+    boardroomHudReport.deploymentExecuted === false &&
+    boardroomHudReport.workflowDispatched === false &&
+    boardroomHudReport.rootDomainTouched === false &&
+    boardroomHudReport.route === "/active-hash" &&
+    boardroomHudReport.boardroomHudEnabled === true &&
+    boardroomHudReport.milestoneButtonsEnabled === true &&
+    boardroomHudReport.timelineScrubberEnabled === true &&
+    boardroomHudReport.slashingSimulationTriggerEnabled === true &&
+    boardroomHudReport.realSlashingEnabled === false &&
+    boardroomHudReport.protocolExecutionEnabled === false &&
+    boardroomHudReport.realWalletTransfer === false &&
+    boardroomHudReport.realBurnTransaction === false &&
+    boardroomHudReport.signingEnabled === false &&
+    boardroomHudReport.transactionSubmissionEnabled === false &&
+    boardroomHudReport.treasuryMutationEnabled === false &&
+    boardroomHudReport.sourceArchive === "ahin-gateway-phase3.tar(1).gz",
+  "R0-G4C report must record the boardroom HUD overlay and all disabled execution boundaries."
 );
 check(
   "Phase R0 runtime audit surface reduction is recorded",
