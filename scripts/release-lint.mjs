@@ -40,6 +40,7 @@ const policyReport = JSON.parse(read("reports/ahin-lifeplus-admission-policy.jso
 const trustedTwinReport = JSON.parse(read("reports/ahin-r0-g2-trusted-twin-court-readiness.json"));
 const terminalGovernanceReport = JSON.parse(read("reports/ahin-r0-g3-production-terminal-governance-console.json"));
 const activeHashReport = JSON.parse(read("reports/ahin-r0-g4-active-hash-simulator-import.json"));
+const slashingSimulationReport = JSON.parse(read("reports/ahin-r0-g4b-slashing-simulation-import.json"));
 const srcFiles = listFiles("src").filter((file) => /\.(css|ts|tsx)$/.test(file));
 const functionFiles = listFiles("functions").filter((file) => /\.(ts|tsx|js|mjs)$/.test(file));
 const srcAndFunctionSource = [...srcFiles, ...functionFiles].map((file) => read(file)).join("\n");
@@ -76,10 +77,15 @@ const visibleGateCopy = [
   read("app/active-hash/page.tsx"),
   read("src/components/active-hash-network/ActiveHashNetworkSimulator.tsx"),
   read("src/components/active-hash-network/Scene.tsx"),
+  read("src/components/active-hash-network/Links.tsx"),
   read("src/components/active-hash-network/VoxelInstancedField.tsx"),
   read("src/components/active-hash-network/ParticleField.tsx"),
+  read("src/components/active-hash-network/SlashingSequence.tsx"),
+  read("src/components/active-hash-network/ShatteringNode.tsx"),
+  read("src/components/active-hash-network/AshBurst.tsx"),
   read("src/lib/active-hash/constants/nodeTypes.ts"),
-  read("src/lib/active-hash/state/networkStore.ts")
+  read("src/lib/active-hash/state/networkStore.ts"),
+  read("src/lib/active-hash/state/slashStore.ts")
 ].join("\n");
 
 check(
@@ -394,7 +400,7 @@ check(
 check(
   "Phase R0-G4 active hash simulator is isolated and readonly",
   read("app/active-hash/page.tsx").includes("ActiveHashNetworkSimulator") &&
-    visibleGateCopy.includes("Readonly simulator · no protocol execution · no transfer · no burn · no signing") &&
+    visibleGateCopy.includes("Simulation only · no real slashing · no transfer · no burn · no signing · no treasury mutation") &&
     visibleGateCopy.includes("Genesis Orange") &&
     visibleGateCopy.includes("Rule Purple / Sentinel") &&
     visibleGateCopy.includes("Compute Blue / Routing") &&
@@ -421,6 +427,37 @@ check(
     activeHashReport.treasuryMutationEnabled === false &&
     activeHashReport.sourceArchive === "ahin-gateway-phase1.tar.gz",
   "R0-G4 report must record the isolated active-hash simulator route and all disabled execution boundaries."
+);
+check(
+  "Phase R0-G4B slashing simulation is visual-only",
+  visibleGateCopy.includes("Trigger Slashing Simulation") &&
+    visibleGateCopy.includes("Reset Simulation") &&
+    visibleGateCopy.includes("Slash Random Node") &&
+    visibleGateCopy.includes("PoCC violation detected · simulation only") &&
+    visibleGateCopy.includes("ChainRank impact simulated · no asset movement") &&
+    visibleGateCopy.includes("Node banished from local topology simulation") &&
+    visibleGateCopy.includes("No on-chain transaction") &&
+    visibleGateCopy.includes("realSlashingEnabled: false") &&
+    visibleGateCopy.includes("treasuryMutationEnabled: false"),
+  "Active Hash slashing controls must be local visual simulation with no on-chain, transfer, burn, signing, or treasury mutation path."
+);
+check(
+  "Phase R0-G4B slashing simulation report is recorded",
+  slashingSimulationReport.phase === "Phase R0-G4B Slashing Visual Simulation Import" &&
+    slashingSimulationReport.deploymentExecuted === false &&
+    slashingSimulationReport.workflowDispatched === false &&
+    slashingSimulationReport.rootDomainTouched === false &&
+    slashingSimulationReport.route === "/active-hash" &&
+    slashingSimulationReport.slashingSimulationEnabled === true &&
+    slashingSimulationReport.realSlashingEnabled === false &&
+    slashingSimulationReport.protocolExecutionEnabled === false &&
+    slashingSimulationReport.realWalletTransfer === false &&
+    slashingSimulationReport.realBurnTransaction === false &&
+    slashingSimulationReport.signingEnabled === false &&
+    slashingSimulationReport.transactionSubmissionEnabled === false &&
+    slashingSimulationReport.treasuryMutationEnabled === false &&
+    slashingSimulationReport.sourceArchive === "ahin-gateway-phase2.tar.gz",
+  "R0-G4B report must record the isolated visual slashing simulation and all disabled execution boundaries."
 );
 
 const failures = checks.filter((item) => !item.passed);

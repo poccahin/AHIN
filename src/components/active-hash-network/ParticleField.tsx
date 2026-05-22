@@ -14,6 +14,7 @@ export function ParticleField({ nodes }: ParticleFieldProps) {
   return (
     <div className="active-hash-particle-layer" aria-hidden="true">
       {nodes.flatMap((node) => {
+        if (node.health === "collapsing" || node.health === "banished") return [];
         const config = NODE_TYPES[node.type];
         return Array.from({ length: PARTICLES_PER_NODE }, (_, index) => {
           const angle = node.seed * 360 + index * 73;

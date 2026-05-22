@@ -1,14 +1,23 @@
 "use client";
 
 import type { CSSProperties } from "react";
+import { useMemo, useState } from "react";
 import { NODE_TYPE_LIST, NODE_TYPES } from "@/src/lib/active-hash/constants/nodeTypes";
 import { useNetworkStore } from "@/src/lib/active-hash/state/networkStore";
+import { useSlashStore } from "@/src/lib/active-hash/state/slashStore";
 import { Scene } from "./Scene";
 
 export default function ActiveHashNetworkSimulator() {
   const nodes = useNetworkStore((state) => state.nodes);
   const links = useNetworkStore((state) => state.links);
   const timelineT = useNetworkStore((state) => state.timelineT);
+  const triggerSlash = useSlashStore((state) => state.triggerSlash);
+  const triggerRandomSlash = useSlashStore((state) => state.triggerRandomSlash);
+  const resetSlashSimulation = useSlashStore((state) => state.resetSlashSimulation);
+  const slashEvents = useSlashStore((state) => state.events);
+  const [targetNodeId, setTargetNodeId] = useState("");
+  const healthyNodes = useMemo(() => nodes.filter((node) => node.health === "healthy"), [nodes]);
+  const selectedTarget = healthyNodes.some((node) => node.id === targetNodeId) ? targetNodeId : healthyNodes[0]?.id || "";
 
   return (
     <main className="active-hash-network" aria-label="AHIN Active Hash Interaction Network readonly simulator">
@@ -16,7 +25,7 @@ export default function ActiveHashNetworkSimulator() {
         <div>
           <p>AHIN Gateway Phase 1</p>
           <h1>Active Hash Interaction Network</h1>
-          <span>Readonly simulator · no protocol execution · no transfer · no burn · no signing</span>
+          <span>Simulation only · no real slashing · no transfer · no burn · no signing · no treasury mutation</span>
         </div>
         <dl>
           <div>
@@ -39,13 +48,53 @@ export default function ActiveHashNetworkSimulator() {
       </header>
 
       <section className="active-hash-safety-banner" aria-label="Simulator safety boundary">
-        Readonly simulator · no protocol execution · no transfer · no burn · no signing · no wallet calls · no chain calls · no transaction submission
+        Simulation only · no real slashing · no transfer · no burn · no signing · no treasury mutation · no wallet calls · no chain calls · no transaction submission
       </section>
 
       <div className="active-hash-layout">
         <Scene />
 
         <aside className="active-hash-side-panel" aria-label="Five cognition node type registry">
+          <section className="active-hash-slash-controls" aria-label="Visual-only slashing simulation controls">
+            <div className="active-hash-panel-heading">
+              <span>Visual slashing sequence</span>
+              <strong>Simulation only</strong>
+            </div>
+            <div className="active-hash-control-grid">
+              <label>
+                target node
+                <select value={selectedTarget} onChange={(event) => setTargetNodeId(event.target.value)} disabled={healthyNodes.length === 0}>
+                  {healthyNodes.map((node) => {
+                    const config = NODE_TYPES[node.type];
+                    return (
+                      <option key={node.id} value={node.id}>
+                        {node.id} · {config.label}
+                      </option>
+                    );
+                  })}
+                </select>
+              </label>
+              <button type="button" onClick={() => selectedTarget && triggerSlash(selectedTarget)} disabled={!selectedTarget}>
+                Trigger Slashing Simulation
+              </button>
+              <button type="button" onClick={() => triggerRandomSlash()} disabled={healthyNodes.length === 0}>
+                Slash Random Node
+              </button>
+              <button type="button" onClick={resetSlashSimulation}>
+                Reset Simulation
+              </button>
+            </div>
+            <div className="active-hash-event-stream" aria-label="Readonly slashing event stream">
+              {slashEvents.map((event) => (
+                <article key={event.id}>
+                  <span>{event.timestamp}</span>
+                  <strong>{event.label}</strong>
+                  <p>{event.detail}</p>
+                </article>
+              ))}
+            </div>
+          </section>
+
           <div className="active-hash-panel-heading">
             <span>Five cognition node types</span>
             <strong>Local simulator registry</strong>
@@ -85,6 +134,8 @@ export default function ActiveHashNetworkSimulator() {
                   simulatorRoute: "/active-hash",
                   timelineT: Number(timelineT.toFixed(2)),
                   protocolExecutionEnabled: false,
+                  slashingSimulationEnabled: true,
+                  realSlashingEnabled: false,
                   realWalletTransfer: false,
                   realBurnTransaction: false,
                   signingEnabled: false,

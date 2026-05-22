@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { NODE_TYPES, NODE_TYPE_LIST } from "@/src/lib/active-hash/constants/nodeTypes";
 import { getVoxels } from "@/src/lib/active-hash/constants/shapes";
 import { buildMaterial } from "@/src/lib/active-hash/shaders/voxelMaterial";
-import type { AhinNode, NodeType } from "@/src/lib/active-hash/types/network";
+import type { AhinNode, NodeHealth, NodeType } from "@/src/lib/active-hash/types/network";
 
 interface VoxelInstancedFieldProps {
   nodes: AhinNode[];
@@ -14,12 +14,16 @@ interface VoxelInstancedFieldProps {
 
 export function VoxelInstancedField({ nodes, frame }: VoxelInstancedFieldProps) {
   const voxelTemplates = useMemo(() => {
-    return Object.fromEntries(NODE_TYPE_LIST.map((type) => [type, getVoxels(type)])) as Record<NodeType, ReturnType<typeof getVoxels>>;
+    const healthStates: NodeHealth[] = ["healthy", "detection", "collapsing", "banished"];
+    return Object.fromEntries(
+      NODE_TYPE_LIST.map((type) => [type, Object.fromEntries(healthStates.map((health) => [health, getVoxels(type, health)]))])
+    ) as Record<NodeType, Record<NodeHealth, ReturnType<typeof getVoxels>>>;
   }, []);
 
   return (
     <div className="active-hash-voxel-layer" aria-label="3D voxel cognition node field">
       {nodes.map((node) => {
+        if (node.health === "collapsing" || node.health === "banished") return null;
         const config = NODE_TYPES[node.type];
         const depth = node.position[2];
         const x = node.position[0] * 24;
@@ -29,7 +33,7 @@ export function VoxelInstancedField({ nodes, frame }: VoxelInstancedFieldProps) 
           <button
             key={node.id}
             type="button"
-            className={`active-hash-node node-${node.type}`}
+            className={`active-hash-node node-${node.type} health-${node.health}`}
             style={{
               "--node-color": config.color,
               "--node-x": `${x}px`,
@@ -42,9 +46,10 @@ export function VoxelInstancedField({ nodes, frame }: VoxelInstancedFieldProps) 
             <span className="active-hash-node-label">
               <strong>{config.label}</strong>
               <small>{config.role}</small>
+              {node.health === "detection" ? <em>PoCC violation detected · simulation only</em> : null}
             </span>
             <span className="voxel-grid" aria-hidden="true">
-              {voxelTemplates[node.type].map((voxel) => {
+              {voxelTemplates[node.type][node.health].map((voxel) => {
                 const material = buildMaterial(node.type, voxel.kind);
                 return (
                   <span

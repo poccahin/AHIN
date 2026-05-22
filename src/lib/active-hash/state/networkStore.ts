@@ -2,20 +2,20 @@
 
 import { create } from "zustand";
 import { NODE_TYPES, NODE_TYPE_LIST, WORLD_RADIUS } from "../constants/nodeTypes";
-import type { AhinLink, AhinNode, MilestoneId, NodeType } from "../types/network";
+import type { AhinLink, AhinNode, MilestoneId, NodeHealth, NodeType } from "../types/network";
 
 interface NetworkState {
   nodes: AhinNode[];
   links: AhinLink[];
   timelineT: number;
   activeMilestone: MilestoneId | null;
-  slashingIds: Set<string>;
   setTimelineT: (timelineT: number) => void;
   setActiveMilestone: (milestone: MilestoneId | null) => void;
   initializeNodes: () => void;
   addLink: (link: AhinLink) => void;
   removeLink: (id: string) => void;
-  markSlashing: (id: string) => void;
+  setNodeHealth: (id: string, health: NodeHealth) => void;
+  setLinkErrored: (id: string, errored: boolean) => void;
   removeNode: (id: string) => void;
   reset: () => void;
 }
@@ -101,12 +101,11 @@ export const useNetworkStore = create<NetworkState>((set) => ({
   links: initial.links,
   timelineT: 1,
   activeMilestone: null,
-  slashingIds: new Set(),
   setTimelineT: (timelineT) => set({ timelineT: Math.max(0, Math.min(1, timelineT)) }),
   setActiveMilestone: (activeMilestone) => set({ activeMilestone }),
   initializeNodes: () => {
     const next = createInitialState();
-    set({ ...next, slashingIds: new Set() });
+    set(next);
   },
   addLink: (link) =>
     set((state) => {
@@ -115,23 +114,15 @@ export const useNetworkStore = create<NetworkState>((set) => ({
       return exists ? state : { links: [...state.links, link] };
     }),
   removeLink: (id) => set((state) => ({ links: state.links.filter((link) => link.id !== id) })),
-  markSlashing: (id) =>
-    set((state) => {
-      const slashingIds = new Set(state.slashingIds);
-      slashingIds.add(id);
-      return {
-        slashingIds,
-        nodes: state.nodes.map((node) => (node.id === id ? { ...node, health: "slashing" } : node))
-      };
-    }),
+  setNodeHealth: (id, health) => set((state) => ({ nodes: state.nodes.map((node) => (node.id === id ? { ...node, health } : node)) })),
+  setLinkErrored: (id, errored) => set((state) => ({ links: state.links.map((link) => (link.id === id ? { ...link, errored } : link)) })),
   removeNode: (id) =>
     set((state) => ({
-      slashingIds: new Set([...state.slashingIds].filter((candidate) => candidate !== id)),
       nodes: state.nodes.filter((node) => node.id !== id),
       links: state.links.filter((link) => link.sourceId !== id && link.targetId !== id)
     })),
   reset: () => {
     const next = createInitialState();
-    set({ ...next, timelineT: 1, activeMilestone: null, slashingIds: new Set() });
+    set({ ...next, timelineT: 1, activeMilestone: null });
   }
 }));

@@ -2,7 +2,7 @@ export type Vector3Tuple = [number, number, number];
 
 export type NodeType = "genesis" | "sentinel" | "routing" | "settlement" | "eco";
 
-export type NodeHealth = "healthy" | "slashing" | "banished";
+export type NodeHealth = "healthy" | "detection" | "collapsing" | "banished";
 
 export interface AhinNode {
   id: string;
@@ -24,7 +24,7 @@ export interface AhinLink {
   errored: boolean;
 }
 
-export type SlashPhase = "detection" | "collapse" | "banishment" | "done";
+export type SlashPhase = "DETECTION" | "COLLAPSE" | "BANISHED";
 
 export type MilestoneId = "genesis-ignition" | "causal-guard" | "macro-evolution";
 

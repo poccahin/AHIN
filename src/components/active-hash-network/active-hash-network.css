@@ -158,7 +158,8 @@
 
 .active-hash-link-layer,
 .active-hash-particle-layer,
-.active-hash-voxel-layer {
+.active-hash-voxel-layer,
+.active-hash-slashing-layer {
   position: absolute;
   inset: 0;
 }
@@ -166,6 +167,14 @@
 .active-hash-link-layer {
   width: 100%;
   height: 100%;
+}
+
+.active-hash-link.is-errored path {
+  filter: drop-shadow(0 0 7px rgba(255, 44, 53, 0.8));
+}
+
+.active-hash-link.is-errored circle {
+  filter: drop-shadow(0 0 10px rgba(255, 44, 53, 0.9));
 }
 
 .active-hash-particle,
@@ -205,6 +214,10 @@
 
 .active-hash-node:hover {
   filter: brightness(1.25);
+}
+
+.active-hash-node.health-detection {
+  filter: drop-shadow(0 0 18px rgba(255, 44, 53, 0.72)) saturate(1.2);
 }
 
 .voxel-grid {
@@ -249,6 +262,92 @@
   font-size: 10px;
 }
 
+.active-hash-node-label em {
+  color: #ff7780;
+  font-size: 8px;
+  font-style: normal;
+  line-height: 1.25;
+}
+
+.active-hash-slashing-layer {
+  pointer-events: none;
+  z-index: 900;
+}
+
+.active-hash-slash-marker,
+.active-hash-shatter,
+.active-hash-ash-burst {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+}
+
+.active-hash-slash-marker {
+  border: 1px solid rgba(255, 44, 53, 0.42);
+  padding: 5px 8px;
+  color: #ffc3c7;
+  background: rgba(40, 5, 7, 0.84);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transform: translate3d(calc(-50% + var(--slash-x)), calc(-50% + var(--slash-y) - 76px), 0);
+  animation: active-hash-detection-warning 0.32s linear infinite;
+}
+
+.active-hash-shatter {
+  width: 1px;
+  height: 1px;
+  transform: translate3d(calc(-50% + var(--shatter-x)), calc(-50% + var(--shatter-y)), 0) scale(var(--shatter-scale));
+}
+
+.active-hash-slash-label {
+  position: absolute;
+  left: 50%;
+  bottom: 46px;
+  width: max-content;
+  border: 1px solid rgba(255, 193, 7, 0.35);
+  padding: 5px 8px;
+  color: #ffd187;
+  background: rgba(20, 13, 2, 0.88);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transform: translateX(-50%);
+}
+
+.active-hash-shatter-chunk {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  background: var(--voxel-color);
+  box-shadow: 0 0 8px var(--voxel-emissive);
+  opacity: var(--voxel-opacity);
+  transform: translate3d(var(--chunk-x), var(--chunk-y), 0) rotate(0deg);
+  animation: active-hash-shatter-chunk 1.55s cubic-bezier(0.16, 0.84, 0.25, 1) forwards;
+  animation-delay: var(--chunk-delay);
+}
+
+.active-hash-shatter-chunk.is-glyph {
+  background: #ff2c35;
+  box-shadow: 0 0 10px rgba(255, 44, 53, 0.88);
+}
+
+.active-hash-ash-burst {
+  transform: translate3d(calc(-50% + var(--ash-x)), calc(-50% + var(--ash-y)), 0);
+}
+
+.active-hash-ash-chip {
+  position: absolute;
+  width: 4px;
+  height: 7px;
+  background: linear-gradient(180deg, #ff8a33, #27211c);
+  opacity: 0;
+  transform: translate3d(0, 0, 0) rotate(var(--ash-rot));
+  animation: active-hash-ash-chip 1.65s ease-out forwards;
+  animation-delay: var(--ash-delay);
+}
+
 .active-hash-side-panel {
   min-width: 0;
   padding: 10px;
@@ -271,6 +370,84 @@
   display: grid;
   gap: 8px;
   margin-top: 10px;
+}
+
+.active-hash-slash-controls {
+  margin-bottom: 10px;
+}
+
+.active-hash-control-grid {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.active-hash-control-grid label {
+  display: grid;
+  gap: 5px;
+  color: var(--active-hash-faint);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+.active-hash-control-grid select,
+.active-hash-control-grid button {
+  min-height: 31px;
+  border: 1px solid var(--active-hash-border);
+  padding: 0 9px;
+  color: var(--active-hash-text);
+  background: rgba(255, 255, 255, 0.035);
+  font: inherit;
+  font-size: 10px;
+}
+
+.active-hash-control-grid button {
+  color: #ffd187;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.active-hash-control-grid button:disabled,
+.active-hash-control-grid select:disabled {
+  color: var(--active-hash-faint);
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.active-hash-event-stream {
+  display: grid;
+  gap: 1px;
+  max-height: 188px;
+  margin-top: 10px;
+  overflow: auto;
+  border: 1px solid rgba(255, 193, 7, 0.18);
+}
+
+.active-hash-event-stream article {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 4px 8px;
+  padding: 7px;
+  background: rgba(255, 255, 255, 0.022);
+}
+
+.active-hash-event-stream span {
+  grid-row: span 2;
+  color: rgba(255, 193, 7, 0.72);
+  font-size: 9px;
+}
+
+.active-hash-event-stream strong {
+  color: var(--active-hash-text);
+  font-size: 10px;
+}
+
+.active-hash-event-stream p {
+  margin: 0;
+  color: var(--active-hash-muted);
+  font-size: 10px;
+  line-height: 1.35;
 }
 
 .active-hash-node-registry article {
@@ -343,6 +520,40 @@
   50% {
     opacity: 0.82;
     transform: translate3d(calc(-50% + var(--particle-x)), calc(-50% + var(--particle-y)), 0) scale(1.35);
+  }
+}
+
+@keyframes active-hash-detection-warning {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: translate3d(calc(-50% + var(--slash-x) - 1px), calc(-50% + var(--slash-y) - 76px), 0);
+  }
+  50% {
+    opacity: 1;
+    transform: translate3d(calc(-50% + var(--slash-x) + 1px), calc(-50% + var(--slash-y) - 76px), 0);
+  }
+}
+
+@keyframes active-hash-shatter-chunk {
+  0% {
+    opacity: var(--voxel-opacity);
+    transform: translate3d(var(--chunk-x), var(--chunk-y), 0) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(var(--chunk-x) + var(--chunk-tx)), calc(var(--chunk-y) + var(--chunk-ty)), 0) rotate(var(--chunk-rot));
+  }
+}
+
+@keyframes active-hash-ash-chip {
+  0% {
+    opacity: 0.92;
+    transform: translate3d(0, 0, 0) rotate(var(--ash-rot)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--ash-tx), var(--ash-ty), 0) rotate(calc(var(--ash-rot) + 220deg)) scale(0.28);
   }
 }
 
