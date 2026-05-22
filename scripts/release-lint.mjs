@@ -41,6 +41,7 @@ const trustedTwinReport = JSON.parse(read("reports/ahin-r0-g2-trusted-twin-court
 const terminalGovernanceReport = JSON.parse(read("reports/ahin-r0-g3-production-terminal-governance-console.json"));
 const activeHashReport = JSON.parse(read("reports/ahin-r0-g4-active-hash-simulator-import.json"));
 const slashingSimulationReport = JSON.parse(read("reports/ahin-r0-g4b-slashing-simulation-import.json"));
+const runtimeAuditSurfaceReport = JSON.parse(read("reports/ahin-r0-runtime-audit-surface-reduction.json"));
 const srcFiles = listFiles("src").filter((file) => /\.(css|ts|tsx)$/.test(file));
 const functionFiles = listFiles("functions").filter((file) => /\.(ts|tsx|js|mjs)$/.test(file));
 const srcAndFunctionSource = [...srcFiles, ...functionFiles].map((file) => read(file)).join("\n");
@@ -195,11 +196,16 @@ check(
   "src/functions must not expose signAndSendTransaction."
 );
 check(
+  "Runtime Web3 dependency imports are absent",
+  !/@solana\/wallet-adapter-react|@solana\/web3\.js|from\s+["']wagmi|from\s+["']wagmi\/|from\s+["']viem/.test(srcAndFunctionSource),
+  "src/functions must not import Solana wallet adapters, @solana/web3.js, wagmi, or viem in readonly evidence mode."
+);
+check(
   "No Solana transfer instruction path exists in src",
-  !/(transferLifePlusToFoundation|createTransferCheckedInstruction|createAssociatedTokenAccountIdempotentInstruction|sendRawTransaction|TransactionInstruction|SystemProgram|SYSVAR_RENT_PUBKEY)/.test(
+  !/(transferLifePlusToFoundation|createTransferCheckedInstruction|createAssociatedTokenAccountIdempotentInstruction|sendRawTransaction|sendTransaction|signAndSendTransaction|TransactionInstruction|SystemProgram|SYSVAR_RENT_PUBKEY|createBurnInstruction|burnChecked)/.test(
     srcAndFunctionSource
   ),
-  "src/functions must not include Solana transfer instruction helpers or submission paths."
+  "src/functions must not include Solana transfer, burn, signing, or submission helpers."
 );
 check(
   "Protocol execution remains disabled",
@@ -458,6 +464,23 @@ check(
     slashingSimulationReport.treasuryMutationEnabled === false &&
     slashingSimulationReport.sourceArchive === "ahin-gateway-phase2.tar.gz",
   "R0-G4B report must record the isolated visual slashing simulation and all disabled execution boundaries."
+);
+check(
+  "Phase R0 runtime audit surface reduction is recorded",
+  runtimeAuditSurfaceReport.phase === "Phase R0 Runtime Audit Surface Reduction" &&
+    runtimeAuditSurfaceReport.deploymentExecuted === false &&
+    runtimeAuditSurfaceReport.workflowDispatched === false &&
+    runtimeAuditSurfaceReport.rootDomainTouched === false &&
+    runtimeAuditSurfaceReport.removedRuntimeDependencies.includes("@solana/wallet-adapter-react") &&
+    runtimeAuditSurfaceReport.removedRuntimeDependencies.includes("@solana/web3.js") &&
+    runtimeAuditSurfaceReport.removedRuntimeDependencies.includes("wagmi") &&
+    runtimeAuditSurfaceReport.removedRuntimeDependencies.includes("viem") &&
+    runtimeAuditSurfaceReport.protocolExecutionEnabled === false &&
+    runtimeAuditSurfaceReport.realWalletTransfer === false &&
+    runtimeAuditSurfaceReport.realBurnTransaction === false &&
+    runtimeAuditSurfaceReport.signingEnabled === false &&
+    runtimeAuditSurfaceReport.transactionSubmissionEnabled === false,
+  "R0 runtime audit report must record removed Web3 runtime dependencies and disabled execution boundaries."
 );
 
 const failures = checks.filter((item) => !item.passed);

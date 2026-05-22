@@ -1,8 +1,6 @@
-import { Connection, PublicKey } from "@solana/web3.js";
-import { createPublicClient, custom, type Address, type PublicClient } from "viem";
 import { detectWalletProvider } from "../gate/wallet/wallet-detection";
 import { mapWalletProviderError, walletErrorMessage } from "../gate/wallet/wallet-errors";
-import { SOLANA_RPC_URL } from "./assetConfig";
+import { isLikelyEvmAddress, isLikelySolanaAddress } from "./addressValidation";
 
 export type WalletRail = "evm" | "solana";
 export type WalletId = "metamask" | "okx_evm" | "binance_evm" | "phantom_solana" | "okx_solana";
@@ -11,8 +9,10 @@ export interface Eip1193Provider {
   isMetaMask?: boolean;
   isOkxWallet?: boolean;
   isBinance?: boolean;
+  selectedAddress?: string;
+  accounts?: string[];
   providers?: Eip1193Provider[];
-  request: (args: { method: string; params?: unknown[] | Record<string, unknown> }) => Promise<unknown>;
+  request?: (args: { method: string; params?: unknown[] | Record<string, unknown> }) => Promise<unknown>;
   on?: (event: string, listener: (...args: unknown[]) => void) => void;
   removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
 }
@@ -20,8 +20,8 @@ export interface Eip1193Provider {
 export interface SolanaWalletProvider {
   isPhantom?: boolean;
   isOkxWallet?: boolean;
-  publicKey?: PublicKey | { toBase58?: () => string; toString?: () => string };
-  connect?: (options?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey?: PublicKey | { toBase58?: () => string; toString?: () => string } } | void>;
+  publicKey?: { toBase58?: () => string; toString?: () => string } | string;
+  connect?: (options?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey?: { toBase58?: () => string; toString?: () => string } | string } | void>;
   disconnect?: () => Promise<void>;
 }
 
@@ -39,8 +39,8 @@ export interface WalletConnection {
   address: string;
   chainId: number | null;
   evmProvider?: Eip1193Provider;
-  publicClient?: PublicClient;
-  solanaConnection?: Connection;
+  readonlyEvidenceMode: true;
+  walletProviderDetected: true;
 }
 
 declare global {
@@ -105,7 +105,10 @@ function normalizePublicKey(value: unknown) {
   if (!value) {
     return null;
   }
-  const key = value as PublicKey | { toBase58?: () => string; toString?: () => string };
+  if (typeof value === "string") {
+    return value;
+  }
+  const key = value as { toBase58?: () => string; toString?: () => string };
   return key.toBase58?.() ?? key.toString?.() ?? null;
 }
 
@@ -182,18 +185,12 @@ export async function connectWallet(id: WalletId): Promise<WalletConnection> {
       throw new Error(`${descriptor.label} is not installed or not exposed to this page.`);
     }
 
-    let accounts: Address[];
-    try {
-      accounts = (await provider.request({ method: "eth_requestAccounts" })) as Address[];
-    } catch (error) {
-      throw new Error(formatWalletConnectionError(descriptor.label, error));
-    }
-    const address = accounts[0];
-    if (!address) {
-      throw new Error(`${descriptor.label} did not return an EVM account.`);
+    const address = provider.selectedAddress ?? provider.accounts?.[0] ?? null;
+    if (!address || !isLikelyEvmAddress(address)) {
+      throw new Error(`${descriptor.label} did not expose a readonly EVM address. Continue in readonly evidence mode.`);
     }
 
-    const chainId = parseChainId(await provider.request({ method: "eth_chainId" }));
+    const chainId = parseChainId(null);
     return {
       id,
       label: descriptor.label,
@@ -201,24 +198,15 @@ export async function connectWallet(id: WalletId): Promise<WalletConnection> {
       address,
       chainId,
       evmProvider: provider,
-      publicClient: createPublicClient({ transport: custom(provider) })
+      readonlyEvidenceMode: true,
+      walletProviderDetected: true
     };
   }
 
   const provider = getSolanaProvider(id);
-  if (!provider?.connect) {
-    throw new Error(`${descriptor.label} is not installed or does not support Solana connect.`);
-  }
-
-  let connection: Awaited<ReturnType<NonNullable<SolanaWalletProvider["connect"]>>>;
-  try {
-    connection = await provider.connect({ onlyIfTrusted: false });
-  } catch (error) {
-    throw new Error(formatWalletConnectionError(descriptor.label, error));
-  }
-  const address = normalizePublicKey((connection && "publicKey" in connection ? connection.publicKey : null) ?? provider.publicKey);
-  if (!address) {
-    throw new Error(`${descriptor.label} did not return a Solana public key.`);
+  const address = normalizePublicKey(provider?.publicKey);
+  if (!provider || !address || !isLikelySolanaAddress(address)) {
+    throw new Error(`${descriptor.label} did not expose a readonly Solana public key. Continue in readonly evidence mode.`);
   }
 
   return {
@@ -227,6 +215,7 @@ export async function connectWallet(id: WalletId): Promise<WalletConnection> {
     rail: "solana",
     address,
     chainId: null,
-    solanaConnection: new Connection(SOLANA_RPC_URL, "confirmed")
+    readonlyEvidenceMode: true,
+    walletProviderDetected: true
   };
 }

@@ -11,7 +11,6 @@ import {
 import { calculateCollaborationFee } from "../services/poccConsensus";
 import { getAssociatedTokenAddress, getLifePlusMint, readLifePlusDecimals } from "../lib/lifePlusSolana";
 import type { WalletConnection } from "../lib/walletAdapters";
-import { PublicKey } from "@solana/web3.js";
 
 export interface AgentCollaborationDryRunReceipt {
   mode: "dry_run";
@@ -27,6 +26,7 @@ export interface AgentCollaborationDryRunReceipt {
   protocolExecutionEnabled: false;
   realWalletTransfer: false;
   realBurnTransaction: false;
+  signingEnabled: false;
 }
 
 export function useAgentCollaboration() {
@@ -48,13 +48,12 @@ export function useAgentCollaboration() {
       }
       const decimals = await readLifePlusDecimals(connection);
       const fee = await calculateCollaborationFee(decimals);
-      const owner = new PublicKey(connection.address);
       const mint = getLifePlusMint();
-      const source = getAssociatedTokenAddress(owner, mint);
+      const source = getAssociatedTokenAddress(connection.address, mint);
       const nextReceipt: AgentCollaborationDryRunReceipt = {
         mode: "dry_run",
         walletAddress: connection.address,
-        sourceTokenAccount: source.toBase58(),
+        sourceTokenAccount: source,
         mint: LIFE_PLUS_MINT,
         amountRaw: fee.amountRaw,
         amountFormatted: fee.amountFormatted,
@@ -64,7 +63,8 @@ export function useAgentCollaboration() {
         collaborationUsageRule: AHIN_COLLABORATION_USAGE_RULE,
         protocolExecutionEnabled: false,
         realWalletTransfer: false,
-        realBurnTransaction: false
+        realBurnTransaction: false,
+        signingEnabled: false
       };
       setReceipt(nextReceipt);
       setIsProcessing(false);

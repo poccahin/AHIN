@@ -1,16 +1,15 @@
-import type { Address } from "viem";
-
 export type AssetRail = "evm" | "solana";
 export type AssetTrack = "lifepp" | "mainstream";
 export type AssetSymbol = "LIFE++" | "BTC" | "SOL" | "ETH" | "USDT" | "USDC" | "USDG";
+export type EvmAddress = `0x${string}`;
 
 export interface EvmAssetConfig {
   rail: "evm";
   symbol: AssetSymbol;
   track: AssetTrack;
   decimals: number;
-  tokenAddress: Address | "native" | null;
-  chainlinkUsdFeed: Address | null;
+  tokenAddress: EvmAddress | "native" | null;
+  chainlinkUsdFeed: EvmAddress | null;
   stableUsd?: boolean;
 }
 
@@ -43,9 +42,13 @@ function optionalEnv(key: string) {
   return value && value.trim().length > 0 ? value.trim() : null;
 }
 
-function optionalAddress(key: string): Address | null {
+export function isEvmAddress(value: string): value is EvmAddress {
+  return /^0x[a-fA-F0-9]{40}$/.test(value);
+}
+
+function optionalAddress(key: string): EvmAddress | null {
   const value = optionalEnv(key);
-  return value ? (value as Address) : null;
+  return value && isEvmAddress(value) ? value : null;
 }
 
 function optionalNumber(key: string, fallback: number) {
@@ -60,56 +63,6 @@ function optionalNumber(key: string, fallback: number) {
 export function baseUnit(decimals: number) {
   return 10n ** BigInt(decimals);
 }
-
-export const erc20Abi = [
-  {
-    type: "function",
-    name: "balanceOf",
-    stateMutability: "view",
-    inputs: [{ name: "account", type: "address" }],
-    outputs: [{ name: "balance", type: "uint256" }]
-  },
-  {
-    type: "function",
-    name: "decimals",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "decimals", type: "uint8" }]
-  },
-  {
-    type: "function",
-    name: "transfer",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "to", type: "address" },
-      { name: "amount", type: "uint256" }
-    ],
-    outputs: [{ name: "ok", type: "bool" }]
-  }
-] as const;
-
-export const chainlinkUsdFeedAbi = [
-  {
-    type: "function",
-    name: "decimals",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ name: "decimals", type: "uint8" }]
-  },
-  {
-    type: "function",
-    name: "latestRoundData",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [
-      { name: "roundId", type: "uint80" },
-      { name: "answer", type: "int256" },
-      { name: "startedAt", type: "uint256" },
-      { name: "updatedAt", type: "uint256" },
-      { name: "answeredInRound", type: "uint80" }
-    ]
-  }
-] as const;
 
 export const EVM_ASSETS: EvmAssetConfig[] = [
   {

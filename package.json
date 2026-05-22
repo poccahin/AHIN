@@ -24,8 +24,6 @@
     "report:oracle-preview-readiness": "node scripts/ahin-oracle-preview-readiness-report.mjs"
   },
   "dependencies": {
-    "@solana/wallet-adapter-react": "^0.15.39",
-    "@solana/web3.js": "^1.98.4",
     "@tanstack/react-query": "^5.100.10",
     "buffer": "^6.0.3",
     "framer-motion": "^12.0.0",
@@ -35,9 +33,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.0.0",
-    "viem": "^2.48.0",
     "vite": "^6.0.0",
-    "wagmi": "^3.6.14",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
