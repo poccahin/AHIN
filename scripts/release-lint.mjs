@@ -39,6 +39,7 @@ const oracle = read("functions/api/oracle/jupiter/lifepp.ts");
 const policyReport = JSON.parse(read("reports/ahin-lifeplus-admission-policy.json"));
 const trustedTwinReport = JSON.parse(read("reports/ahin-r0-g2-trusted-twin-court-readiness.json"));
 const terminalGovernanceReport = JSON.parse(read("reports/ahin-r0-g3-production-terminal-governance-console.json"));
+const activeHashReport = JSON.parse(read("reports/ahin-r0-g4-active-hash-simulator-import.json"));
 const srcFiles = listFiles("src").filter((file) => /\.(css|ts|tsx)$/.test(file));
 const functionFiles = listFiles("functions").filter((file) => /\.(ts|tsx|js|mjs)$/.test(file));
 const srcAndFunctionSource = [...srcFiles, ...functionFiles].map((file) => read(file)).join("\n");
@@ -71,7 +72,14 @@ const visibleGateCopy = [
   read("src/components/trusted-twin/OfflineVerifierPanel.tsx"),
   read("src/components/trusted-twin/CircuitBreakerCertificate.tsx"),
   read("src/components/trusted-twin/TrilingualSeal.tsx"),
-  read("src/components/trusted-twin/trusted-twin-data.ts")
+  read("src/components/trusted-twin/trusted-twin-data.ts"),
+  read("app/active-hash/page.tsx"),
+  read("src/components/active-hash-network/ActiveHashNetworkSimulator.tsx"),
+  read("src/components/active-hash-network/Scene.tsx"),
+  read("src/components/active-hash-network/VoxelInstancedField.tsx"),
+  read("src/components/active-hash-network/ParticleField.tsx"),
+  read("src/lib/active-hash/constants/nodeTypes.ts"),
+  read("src/lib/active-hash/state/networkStore.ts")
 ].join("\n");
 
 check(
@@ -382,6 +390,37 @@ check(
     policyReport.jupiterReadonly === true &&
     policyReport.secretExposure === false,
   "reports/ahin-lifeplus-admission-policy.json must record Phase 4E LIFE++ policy facts."
+);
+check(
+  "Phase R0-G4 active hash simulator is isolated and readonly",
+  read("app/active-hash/page.tsx").includes("ActiveHashNetworkSimulator") &&
+    visibleGateCopy.includes("Readonly simulator · no protocol execution · no transfer · no burn · no signing") &&
+    visibleGateCopy.includes("Genesis Orange") &&
+    visibleGateCopy.includes("Rule Purple / Sentinel") &&
+    visibleGateCopy.includes("Compute Blue / Routing") &&
+    visibleGateCopy.includes("Contract Gold / Settlement") &&
+    visibleGateCopy.includes("Eco Green") &&
+    visibleGateCopy.includes("backendMutation: false") &&
+    visibleGateCopy.includes("walletCalls: false") &&
+    visibleGateCopy.includes("chainCalls: false") &&
+    visibleGateCopy.includes("transactionSubmissionEnabled: false"),
+  "Active Hash simulator must live at /active-hash with visible readonly/no-execution/no-wallet/no-chain boundaries."
+);
+check(
+  "Phase R0-G4 active hash simulator report is recorded",
+  activeHashReport.phase === "Phase R0-G4 Active Hash Interaction Simulator Import" &&
+    activeHashReport.deploymentExecuted === false &&
+    activeHashReport.workflowDispatched === false &&
+    activeHashReport.rootDomainTouched === false &&
+    activeHashReport.simulatorRoute === "/active-hash" &&
+    activeHashReport.protocolExecutionEnabled === false &&
+    activeHashReport.realWalletTransfer === false &&
+    activeHashReport.realBurnTransaction === false &&
+    activeHashReport.signingEnabled === false &&
+    activeHashReport.transactionSubmissionEnabled === false &&
+    activeHashReport.treasuryMutationEnabled === false &&
+    activeHashReport.sourceArchive === "ahin-gateway-phase1.tar.gz",
+  "R0-G4 report must record the isolated active-hash simulator route and all disabled execution boundaries."
 );
 
 const failures = checks.filter((item) => !item.passed);

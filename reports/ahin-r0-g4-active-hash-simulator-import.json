@@ -1,0 +1,33 @@
+{
+  "phase": "Phase R0-G4 Active Hash Interaction Simulator Import",
+  "status": "READY_NOT_DEPLOYED_WITH_AUDIT_ADVISORY_DISCLOSED",
+  "deploymentExecuted": false,
+  "workflowDispatched": false,
+  "rootDomainTouched": false,
+  "simulatorRoute": "/active-hash",
+  "protocolExecutionEnabled": false,
+  "realWalletTransfer": false,
+  "realBurnTransaction": false,
+  "signingEnabled": false,
+  "transactionSubmissionEnabled": false,
+  "treasuryMutationEnabled": false,
+  "sourceArchive": "ahin-gateway-phase1.tar.gz",
+  "validation": {
+    "npm run lint": "PASS",
+    "npm run guard:no-agent-gates": "PASS",
+    "npm run typecheck": "PASS",
+    "npm run build": "PASS",
+    "npm audit --omit=dev": "FAIL_EXISTING_SOLANA_AND_VIEM_DEPENDENCY_ADVISORIES",
+    "npm run test:agents": "PASS_AFTER_LOCAL_ESBUILD_REBUILD",
+    "npm run test:pocc": "PASS",
+    "npm run test:wallet-ux": "PASS",
+    "local /active-hash smoke": "PASS_HTTP_200"
+  },
+  "notes": [
+    "The imported simulator is routed separately at /active-hash and does not replace the root Production Terminal Governance Console.",
+    "The simulator is client-local readonly evidence software: no backend mutation, no wallet calls, no chain calls, no transaction submission, and no Squads or treasury mutation logic.",
+    "The scaffold package.json, package-lock.json, app/layout.tsx, and root page were not copied wholesale.",
+    "Local tsx tests initially failed because node_modules contained the linux-arm64 esbuild binary on macOS arm64; npm rebuild esbuild repaired local node_modules without changing package manifests.",
+    "npm audit --omit=dev reports existing moderate advisories through @solana/web3.js wallet-adapter dependencies and viem/ws. This simulator import did not add package dependencies or package-lock changes."
+  ]
+}
