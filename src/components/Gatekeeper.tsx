@@ -383,8 +383,8 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
                 <strong className="text-right font-medium text-white/86">Enforced</strong>
               </div>
               <div className="flex items-start justify-between gap-4 rounded-[18px] border border-white/[0.095] bg-white/[0.032] px-3 py-2.5">
-                <span>Root domain takeover</span>
-                <strong className="text-right font-medium text-white/86">Approved by operator, but not yet deployed in this patch</strong>
+                <span>Root domain status</span>
+                <strong className="text-right font-medium text-white/86">Active on ahin.io via Cloudflare Pages</strong>
               </div>
             </div>
           </div>

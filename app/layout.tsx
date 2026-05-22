@@ -8,8 +8,8 @@ import "@/src/components/trusted-twin/trusted-twin-court.css";
 import "@/src/components/active-hash-network/active-hash-network.css";
 
 export const metadata: Metadata = {
-  title: "ahin.io Gate",
-  description: "Multi-Agent Zero-Trust Network gate interface"
+  title: "AHIN Governance Terminal",
+  description: "Readonly AHIN governance terminal and evidence console"
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

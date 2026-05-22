@@ -28,6 +28,7 @@ function check(name, passed, detail) {
 }
 
 const page = read("app/page.tsx");
+const layout = read("app/layout.tsx");
 const scene = read("src/gate/AhinGateScene.tsx");
 const gateCard = read("src/gate/GateCard.tsx");
 const gatekeeper = read("src/components/Gatekeeper.tsx");
@@ -43,6 +44,7 @@ const activeHashReport = JSON.parse(read("reports/ahin-r0-g4-active-hash-simulat
 const slashingSimulationReport = JSON.parse(read("reports/ahin-r0-g4b-slashing-simulation-import.json"));
 const boardroomHudReport = JSON.parse(read("reports/ahin-r0-g4c-boardroom-hud-import.json"));
 const runtimeAuditSurfaceReport = JSON.parse(read("reports/ahin-r0-runtime-audit-surface-reduction.json"));
+const rootProductionSmokeReport = JSON.parse(read("reports/ahin-root-production-deploy-final-smoke.json"));
 const srcFiles = listFiles("src").filter((file) => /\.(css|ts|tsx)$/.test(file));
 const functionFiles = listFiles("functions").filter((file) => /\.(ts|tsx|js|mjs)$/.test(file));
 const srcAndFunctionSource = [...srcFiles, ...functionFiles].map((file) => read(file)).join("\n");
@@ -319,6 +321,15 @@ check(
   "Root governance console must expose production readonly/dry-run safety boundaries."
 );
 check(
+  "Post-deploy root copy is production-current",
+  layout.includes('title: "AHIN Governance Terminal"') &&
+    visibleGateCopy.includes("Root domain status") &&
+    visibleGateCopy.includes("Active on ahin.io via Cloudflare Pages") &&
+    !visibleGateCopy.includes("Approved by operator, but not yet deployed in this patch") &&
+    !visibleGateCopy.includes("Root domain takeover"),
+  "Root production UI must not retain pre-deploy takeover copy and must expose the Governance Terminal title."
+);
+check(
   "Production UI forbidden live-operation copy is absent",
   [
     "Transfer 1 $LIFE++",
@@ -532,6 +543,23 @@ check(
     runtimeAuditSurfaceReport.signingEnabled === false &&
     runtimeAuditSurfaceReport.transactionSubmissionEnabled === false,
   "R0 runtime audit report must record removed Web3 runtime dependencies and disabled execution boundaries."
+);
+check(
+  "Phase R0 root production final smoke report is recorded",
+  rootProductionSmokeReport.phase === "Phase R0 — ahin.io Root Gate Production Deploy" &&
+    rootProductionSmokeReport.targetDomain === "https://ahin.io" &&
+    rootProductionSmokeReport.rootDomainServingGateUi === true &&
+    rootProductionSmokeReport.oracleMode === "readonly" &&
+    rootProductionSmokeReport.postOracleStatus === 405 &&
+    rootProductionSmokeReport.invalidParamsStatus === 400 &&
+    rootProductionSmokeReport.protocolExecutionEnabled === false &&
+    rootProductionSmokeReport.realWalletTransfer === false &&
+    rootProductionSmokeReport.realBurnTransaction === false &&
+    rootProductionSmokeReport.signingEnabled === false &&
+    rootProductionSmokeReport.staleCopyDetected === true &&
+    rootProductionSmokeReport.staleCopyFixedInLocalPatch === true &&
+    rootProductionSmokeReport.deploymentExecuted === false,
+  "Root production smoke report must record readonly root smoke, stale copy detection, and local copy-fix readiness without claiming deployment."
 );
 
 const failures = checks.filter((item) => !item.passed);

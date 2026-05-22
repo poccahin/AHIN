@@ -113,9 +113,9 @@ jobs:
           curl -I https://ahin.io
           curl -L https://ahin.io -o /tmp/ahin-root-homepage.html
           grep -q 'ahin.io' /tmp/ahin-root-homepage.html
-          grep -Eq 'Zero-Trust Tunnel|AHIN Agent Matrix' /tmp/ahin-root-homepage.html
-          grep -q 'Readonly / mock verification only' /tmp/ahin-root-homepage.html
-          grep -q 'No LIFE++ transferred or burned' /tmp/ahin-root-homepage.html
+          grep -Eq 'Zero-Trust Tunnel|AHIN Agent Matrix|AHIN Governance Terminal|READONLY GOVERNANCE MODE' /tmp/ahin-root-homepage.html
+          grep -Eq 'Readonly evidence mode|READONLY GOVERNANCE MODE|Readonly governance mode' /tmp/ahin-root-homepage.html
+          grep -Eq 'No LIFE\\+\\+ transferred or burned|LIFE\\+\\+ transfer / burn / signing' /tmp/ahin-root-homepage.html
           grep -Eiq 'Protocol execution disabled|Protocol Execution: Disabled' /tmp/ahin-root-homepage.html
 
       - name: Verify readonly oracle
