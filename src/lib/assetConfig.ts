@@ -188,7 +188,14 @@ export const SOLANA_ASSETS: SolanaAssetConfig[] = [
   }
 ];
 
-export const SOLANA_RPC_URL = optionalEnv("VITE_SOLANA_RPC_URL") ?? "https://api.mainnet-beta.solana.com";
+// Phase 1: prefer the Next-conventional NEXT_PUBLIC_SOLANA_RPC_URL (set via
+// wrangler.workers.jsonc vars). optionalEnv() still falls back to the old
+// VITE_-prefixed name for any legacy dev environment. Default is devnet —
+// production deploys must set NEXT_PUBLIC_SOLANA_RPC_URL explicitly.
+export const SOLANA_RPC_URL =
+  (process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() || null) ??
+  optionalEnv("VITE_SOLANA_RPC_URL") ??
+  "https://api.devnet.solana.com";
 export const LIFEPP_SOLANA_MINT = optionalEnv("VITE_LIFEPP_SOLANA_MINT");
 export const LIFEPP_SOLANA_DECIMALS = optionalNumber("VITE_LIFEPP_SOLANA_DECIMALS", 9);
 export const LIFEPP_EVM_TOKEN_ADDRESS = optionalAddress("VITE_LIFEPP_EVM_TOKEN_ADDRESS");
