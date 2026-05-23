@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html, body, #__next {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background: #05060a;
+  }
+
+  body {
+    /* Display font for the wordmark/headings: a refined serif for the
+       "ahin.io" reference look (purple italic), paired with a clean
+       geometric sans for HUD copy. */
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: #f6f4ee;
+    overscroll-behavior: none;
+  }
+
+  /* Prevent text selection inside the canvas overlay during pitches. */
+  canvas {
+    outline: none;
+    user-select: none;
+    touch-action: none;
+  }
+}
+
+@layer utilities {
+  .glass {
+    background: rgba(8, 10, 16, 0.55);
+    backdrop-filter: blur(14px) saturate(140%);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+}

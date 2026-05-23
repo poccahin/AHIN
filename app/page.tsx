@@ -1,9 +1,6 @@
 import Gatekeeper from "@/src/components/Gatekeeper";
 import MatrixReveal from "@/src/gate/MatrixReveal";
 
-export const runtime = 'edge';
-export const dynamic = 'force-dynamic';
-
 export default function Page() {
   return (
     <Gatekeeper>
