@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronRight, ShieldCheck, Wallet } from "lucide-react";
+import { Turnstile } from "@marsidev/react-turnstile";
 import { LIFE_PLUS_MINT } from "../config/life-plus";
 import { useEntrySignature } from "../hooks/useEntrySignature";
 import { readLifePlusBalanceRaw, readLifePlusDecimals } from "../lib/lifePlusSolana";
@@ -16,6 +17,12 @@ interface GatekeeperProps {
 }
 
 const MOCK_WALLET = "0xAhinReadonlyGate...2026";
+// Turnstile siteKey is public by design (lives in client bundles). Configure
+// per-environment via NEXT_PUBLIC_TURNSTILE_SITE_KEY; falls back to the
+// project siteKey for ahin-io. Set widget appearance/execution mode in the
+// Cloudflare dashboard for this siteKey (Invisible for silent UX).
+const TURNSTILE_SITE_KEY =
+  process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "0x4AAAAAADUzG7HwBkY8f_O2";
 const LIFE_PLUS_MINT_SHORT = `${LIFE_PLUS_MINT.slice(0, 5)}...${LIFE_PLUS_MINT.slice(-4)}`;
 const READONLY_QUOTE_UNAVAILABLE = "Readonly quote unavailable. You can continue in readonly evidence mode.";
 const AHIN_FOUNDATION_TREASURY_MULTISIG = "5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo";
@@ -63,6 +70,8 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
     message: "Awaiting wallet proof"
   });
   const fallbackTimers = useRef<number[]>([]);
+  const [verified, setVerified] = useState(false);
+  const [turnstileError, setTurnstileError] = useState<string | null>(null);
   const connectedAddress = liveConnection?.address ?? connectedWallet;
   const liveGateMode = gateMode === "live";
   const mockFallbackEnabled = gateMode === "mock";
@@ -189,7 +198,40 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
     }
   }
 
-  if (isAuthenticated) {
+  async function onTurnstileSuccess(token: string) {
+    setTurnstileError(null);
+    try {
+      const res = await fetch("/api/verify-turnstile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token })
+      });
+      if (!res.ok) {
+        setVerified(false);
+        setTurnstileError("Human verification failed. Please refresh.");
+        return;
+      }
+      const data = (await res.json()) as { success?: boolean };
+      if (data.success) {
+        setVerified(true);
+      } else {
+        setVerified(false);
+        setTurnstileError("Human verification did not pass. Please refresh.");
+      }
+    } catch (err) {
+      console.error("[ahin] Turnstile verify error", err);
+      setVerified(false);
+      setTurnstileError("Human verification network error.");
+    }
+  }
+
+  function onTurnstileExpire() {
+    setVerified(false);
+  }
+
+  // Gate the 3D scene render on BOTH wallet/PoCC auth AND Turnstile human
+  // verification. Either failing keeps the user on the splash.
+  if (isAuthenticated && verified) {
     return <>{children}</>;
   }
 
@@ -391,6 +433,21 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
           </aside>
         </div>
       </section>
+
+      {/* Cloudflare Turnstile — invisible human verification. Configured for
+          invisible/interaction-only mode in the Cloudflare dashboard for
+          this siteKey; if a challenge is required, the widget shows here. */}
+      <div className="pointer-events-auto fixed bottom-4 right-4 z-30">
+        <Turnstile
+          siteKey={TURNSTILE_SITE_KEY}
+          onSuccess={onTurnstileSuccess}
+          onExpire={onTurnstileExpire}
+          options={{ appearance: "interaction-only", theme: "dark" }}
+        />
+        {turnstileError ? (
+          <p className="mt-2 max-w-[260px] text-right text-[11px] leading-5 text-amber-200">{turnstileError}</p>
+        ) : null}
+      </div>
     </main>
   );
 }

@@ -34,3 +34,32 @@ button {
   color: #050505;
   background: rgba(255, 255, 255, 0.82);
 }
+
+/* WebGL canvas: suppress default focus outline, text selection, and
+   touch gestures so OrbitControls + pinch behave on top of the page. */
+canvas {
+  outline: none;
+  user-select: none;
+  touch-action: none;
+}
+
+/* Bloom fade-in for the post-Gatekeeper 3D scene. Mounts once when
+   <Gatekeeper> first renders its children (auth pass) — gives the
+   "graceful bloom" transition rather than a hard cut. */
+@keyframes ahinBloom {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+    filter: blur(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+.ahin-bloom-enter {
+  animation: ahinBloom 1.2s cubic-bezier(0.16, 1, 0.3, 1) both;
+  will-change: opacity, transform, filter;
+}
