@@ -5,8 +5,7 @@ import {
   AHIN_COLLABORATION_USAGE_RULE,
   LIFE_PLUS_MINT,
   PROTOCOL_EXECUTION_ENABLED,
-  TRANSFER_ENABLED,
-  BURN_ENABLED
+  TRANSFER_ENABLED
 } from "../config/life-plus";
 import { calculateCollaborationFee } from "../services/poccConsensus";
 import { getAssociatedTokenAddress, getLifePlusMint, readLifePlusDecimals } from "../lib/lifePlusSolana";
@@ -40,7 +39,7 @@ export function useAgentCollaboration() {
     setReceipt(null);
 
     try {
-      if (TRANSFER_ENABLED || BURN_ENABLED || PROTOCOL_EXECUTION_ENABLED) {
+      if (TRANSFER_ENABLED || PROTOCOL_EXECUTION_ENABLED) {
         throw new Error("Protocol execution is disabled for Phase 4E readonly collaboration.");
       }
       if (connection.rail !== "solana") {

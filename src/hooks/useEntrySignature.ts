@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { BURN_ENABLED, PROTOCOL_EXECUTION_ENABLED, TRANSFER_ENABLED } from "../config/life-plus";
+import { PROTOCOL_EXECUTION_ENABLED, TRANSFER_ENABLED } from "../config/life-plus";
 import type { WalletConnection } from "../lib/walletAdapters";
 
 const ENTRY_DELAY_MS = 1100;
@@ -35,7 +35,7 @@ const initialState: EntrySignatureState = {
 };
 
 function assertMockGate() {
-  if (TRANSFER_ENABLED || BURN_ENABLED || PROTOCOL_EXECUTION_ENABLED) {
+  if (TRANSFER_ENABLED || PROTOCOL_EXECUTION_ENABLED) {
     throw new Error("Protocol execution is disabled for Phase 4E readonly admission.");
   }
 }

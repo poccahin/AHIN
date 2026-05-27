@@ -45,7 +45,7 @@ require_value() {
 
 require_value "AHIN_ORACLE_MODE" "readonly"
 require_value "AHIN_PROTOCOL_EXECUTION_ENABLED" "false"
-require_value "AHIN_REAL_BURN_TRANSACTION" "false"
+require_value "AHIN_REAL_USAGE_FEE_TRANSFER" "false"
 require_value "AHIN_REAL_WALLET_VERIFICATION" "false"
 
 target_domain="$(value_or_toml "NEXT_PUBLIC_AHIN_TARGET_DOMAIN")"

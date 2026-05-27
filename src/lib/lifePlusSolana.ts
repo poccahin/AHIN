@@ -21,7 +21,6 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 import { getAssociatedTokenAddressSync as splGetAssociatedTokenAddressSync } from "@solana/spl-token";
 import {
-  BURN_ENABLED,
   LIFE_PLUS_MINT,
   PROTOCOL_EXECUTION_ENABLED,
   TRANSFER_ENABLED
@@ -95,7 +94,10 @@ export function getAssociatedTokenAddress(
 export const getAssociatedTokenAddressSync = getAssociatedTokenAddress;
 
 export function isLiveLifePlusTransferEnabled(): boolean {
-  return TRANSFER_ENABLED && !BURN_ENABLED && PROTOCOL_EXECUTION_ENABLED;
+  // TRANSFER_ENABLED already AND-includes the conditions of
+  // PROTOCOL_EXECUTION_ENABLED (both require isLive && protocolArmed),
+  // so this collapses to a single check. Burn narrative is retired.
+  return TRANSFER_ENABLED;
 }
 
 /**

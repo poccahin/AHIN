@@ -20,7 +20,7 @@ const oracleMode = process.env.AHIN_ORACLE_MODE || tomlValue("AHIN_ORACLE_MODE",
 const protocolExecutionEnabled = (process.env.AHIN_PROTOCOL_EXECUTION_ENABLED || tomlValue("AHIN_PROTOCOL_EXECUTION_ENABLED", "false")) === "true";
 const realWalletVerification = (process.env.AHIN_REAL_WALLET_VERIFICATION || tomlValue("AHIN_REAL_WALLET_VERIFICATION", "false")) === "true";
 const realLifeBalanceCheck = (process.env.AHIN_REAL_LIFE_BALANCE_CHECK || tomlValue("AHIN_REAL_LIFE_BALANCE_CHECK", "false")) === "true";
-const realBurnTransaction = (process.env.AHIN_REAL_BURN_TRANSACTION || tomlValue("AHIN_REAL_BURN_TRANSACTION", "false")) === "true";
+const realUsageFeeTransfer = (process.env.AHIN_REAL_USAGE_FEE_TRANSFER || tomlValue("AHIN_REAL_USAGE_FEE_TRANSFER", "false")) === "true";
 const deploymentExecuted = process.env.AHIN_ORACLE_PREVIEW_DEPLOYMENT_EXECUTED === "true";
 const previewUrl = process.env.AHIN_ORACLE_PREVIEW_URL || null;
 const homepageCheckPassed = process.env.AHIN_ORACLE_HOMEPAGE_CHECK_PASSED === "true";
@@ -50,8 +50,8 @@ if (realWalletVerification) {
 if (realLifeBalanceCheck) {
   blockers.push("AHIN_REAL_LIFE_BALANCE_CHECK must be false.");
 }
-if (realBurnTransaction) {
-  blockers.push("AHIN_REAL_BURN_TRANSACTION must be false.");
+if (realUsageFeeTransfer) {
+  blockers.push("AHIN_REAL_USAGE_FEE_TRANSFER must be false.");
 }
 
 const status = blockers.length
@@ -83,7 +83,7 @@ const report = {
   protocolExecutionEnabled,
   realWalletVerification,
   realLifeBalanceCheck,
-  realBurnTransaction,
+  realUsageFeeTransfer,
   rootDomainUntouched,
   blockers
 };

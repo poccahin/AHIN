@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { BURN_ENABLED, PROTOCOL_EXECUTION_ENABLED, TRANSFER_ENABLED } from "../config/life-plus";
+import { PROTOCOL_EXECUTION_ENABLED, TRANSFER_ENABLED } from "../config/life-plus";
 import type { EntryFeeReceipt } from "./useEntrySignature";
 import { useEntrySignature as useMockSignature } from "./useEntrySignature";
 import type { WalletConnection } from "../lib/walletAdapters";
@@ -18,7 +18,7 @@ export function useRealEntrySignature() {
       setAuthError(null);
 
       try {
-        if (TRANSFER_ENABLED || BURN_ENABLED || PROTOCOL_EXECUTION_ENABLED) {
+        if (TRANSFER_ENABLED || PROTOCOL_EXECUTION_ENABLED) {
           throw new Error("Protocol execution is disabled for Phase 4E readonly admission.");
         }
         const receipt = await requestMockEntry(fallbackAddress);
