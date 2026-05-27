@@ -1,0 +1,81 @@
+{
+  "phase": "Phase P2P Release Lint Reconciliation",
+  "status": "LINT_RECONCILED_AUDIT_BLOCKED",
+  "summary": "Stale Phase-4E readonly-only lint assertions have been replaced with canary-aware equivalents that match the operator-authorized web3 reintegration. release-lint now exits 0 (54 PASS, 0 FAIL). Runtime audit remains blocked by transitive Solana advisories — see ahin-p2p-runtime-audit-triage.json.",
+  "timestamp": "2026-05-27T00:00:00.000Z",
+  "deploymentExecuted": false,
+  "workflowDispatched": false,
+  "pushed": false,
+  "stalePhase4EChecksReplaced": true,
+  "canarySafetyChecksAdded": true,
+  "publicPaymentEnabled": false,
+  "burnEnabled": false,
+  "protocolExecutionEnabled": false,
+  "realUsageFeeTransfer": false,
+  "canaryEnabled": false,
+  "mainnetTransferExecuted": false,
+  "treasuryMutationEnabled": false,
+  "replacedChecks": [
+    {
+      "old": "App Router page renders mock Gatekeeper and Matrix",
+      "reason": "MatrixReveal was retired when LifePaymentModule + AhinGateway became the post-Gatekeeper surface (commit ac19262).",
+      "replacedWith": [
+        "App Router page renders Gatekeeper",
+        "Gatekeeper wires LifePaymentModule for live entry branch"
+      ]
+    },
+    {
+      "old": "No wallet signing API exists in src",
+      "reason": "Wallet signing was added as the approved Path-B bridge in src/lib/walletAdapters.ts. The new check confines it to that single file.",
+      "replacedWith": ["Wallet signing API confined to src/lib/walletAdapters.ts"]
+    },
+    {
+      "old": "Runtime Web3 dependency imports are absent",
+      "reason": "@solana/web3.js + @solana/spl-token were added in operator-authorized commit a9b0ae7 (Phase 1 reintegration). The new checks confine web3 imports to an approved set and keep /active-hash simulator web3-free.",
+      "replacedWith": [
+        "Web3 imports confined to approved payment/transaction modules",
+        "/active-hash simulator remains web3-free"
+      ]
+    },
+    {
+      "old": "No Solana transfer instruction path exists in src",
+      "reason": "buildUsageFeeTransaction was added as the approved transfer-instruction builder in src/lib/transactionSolana.ts (commit 31af343). The new checks confine the builder to that file, forbid burn instructions everywhere, confine submission APIs to walletAdapters, and forbid Squads mutation libraries.",
+      "replacedWith": [
+        "createTransferCheckedInstruction confined to src/lib/transactionSolana.ts",
+        "No burn instruction path exists",
+        "Transaction submission APIs confined to src/lib/walletAdapters.ts",
+        "No Squads multisig mutation libraries imported"
+      ]
+    },
+    {
+      "old": "Protocol execution remains disabled / Phase 4E readonly-only",
+      "reason": "Replaced by defense-in-depth AND-of-env-flags + canary-defaults assertions that match the actual safety model.",
+      "replacedWith": [
+        "Runtime defaults remain disarmed (defense-in-depth AND chain)",
+        "Canary configuration defaults to disarmed when env unset",
+        "Payment foundation modules present"
+      ]
+    }
+  ],
+  "approvedWeb3Files": [
+    "src/components/LifePaymentModule.tsx",
+    "src/lib/lifePlusSolana.ts",
+    "src/lib/payment/confirmSolanaTransaction.ts",
+    "src/lib/payment/paymentPreflight.ts",
+    "src/lib/transactionSolana.ts",
+    "src/lib/walletAdapters.ts"
+  ],
+  "validationAfterReconciliation": {
+    "npmRunLint": {
+      "exit": 0,
+      "passCount": 54,
+      "failCount": 0
+    }
+  },
+  "auditStatus": "BLOCKED — see ahin-p2p-runtime-audit-triage.json",
+  "stageVerdict": "P2P_LINT_RECONCILED_AUDIT_BLOCKED",
+  "nextStep": "Operator decision required on audit triage (accepted-risk vs upstream resolution) before push or P3A advancement. No autonomous push.",
+  "blockers": [
+    "npm audit transitive Solana advisories (bigint-buffer, uuid) — no clean fix"
+  ]
+}

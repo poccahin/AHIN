@@ -1,0 +1,85 @@
+{
+  "auditEngineExitCode": 1,
+  "auditEngineEnvelope": "registry_503",
+  "auditCapturedAt": "fallback_from_prior_attempt_in_same_session",
+  "note": "npm audit registry endpoint /security/advisories/bulk returned 503 at this capture. The audit output here reflects the prior successful audit attempt during this session.",
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 13,
+      "high": 3,
+      "critical": 0,
+      "total": 16
+    }
+  },
+  "vulnerabilities": {
+    "bigint-buffer": {
+      "name": "bigint-buffer",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": "GHSA-3gc7-fjrx-p6mg",
+          "name": "bigint-buffer",
+          "dependency": "bigint-buffer",
+          "title": "bigint-buffer Vulnerable to Buffer Overflow via toBigIntLE() Function",
+          "url": "https://github.com/advisories/GHSA-3gc7-fjrx-p6mg",
+          "severity": "high",
+          "range": "*"
+        }
+      ],
+      "effects": ["@solana/buffer-layout-utils"],
+      "range": "*",
+      "fixAvailable": {
+        "name": "@solana/spl-token",
+        "version": "0.1.8",
+        "isSemVerMajor": true
+      }
+    },
+    "uuid": {
+      "name": "uuid",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": "GHSA-w5hq-g745-h8pq",
+          "name": "uuid",
+          "dependency": "uuid",
+          "title": "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided",
+          "url": "https://github.com/advisories/GHSA-w5hq-g745-h8pq",
+          "severity": "high",
+          "range": "<11.1.1"
+        }
+      ],
+      "range": "<11.1.1",
+      "fixAvailable": true
+    },
+    "@solana/buffer-layout-utils": {
+      "severity": "moderate",
+      "isDirect": false,
+      "via": ["@solana/web3.js", "bigint-buffer"],
+      "effects": ["@solana/spl-token"],
+      "fixAvailable": {
+        "name": "@solana/spl-token",
+        "version": "0.1.8",
+        "isSemVerMajor": true
+      }
+    },
+    "@solana/spl-token": {
+      "isDirect": true,
+      "severity": "moderate",
+      "via": ["@solana/buffer-layout-utils", "@solana/spl-token-group", "@solana/spl-token-metadata", "@solana/web3.js"],
+      "fixAvailable": {
+        "name": "@solana/spl-token",
+        "version": "0.1.8",
+        "isSemVerMajor": true
+      }
+    },
+    "@solana/web3.js": {
+      "isDirect": true,
+      "severity": "moderate",
+      "via": ["bigint-buffer"]
+    }
+  }
+}

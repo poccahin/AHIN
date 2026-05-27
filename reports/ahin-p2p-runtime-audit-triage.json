@@ -1,0 +1,136 @@
+{
+  "phase": "Phase P2P Runtime Audit Triage",
+  "status": "ACCEPTED_RISK_REQUIRED",
+  "summary": "All findings are transitive vulnerabilities in the Solana ecosystem (bigint-buffer, uuid<11.1.1) inherited via @solana/web3.js + @solana/spl-token. None are directly callable from the root governance UI. None can reach signing/transfer/burn without the full AND-of-explicit-env-flags + canary allowlist + cap chain passing. No clean fix exists (npm audit fix --force would downgrade @solana/spl-token to 0.1.8, breaking the SDK). Proceeding to P3A/P3B requires either a formal operator-approved accepted-risk doc OR an alternative SDK / vendor patch.",
+  "auditCapturedAt": "2026-05-27",
+  "auditEngineStatus": "registry_503_transient_on_capture_attempt",
+  "auditEngineNote": "npm registry advisory bulk endpoint returned 503 at capture time. Findings below were obtained from a prior successful audit run during the same session and are recorded in reports/ahin-p2p-runtime-audit-raw.json.",
+  "vulnerabilitySummary": {
+    "info": 0,
+    "low": 0,
+    "moderate": 13,
+    "high": 3,
+    "critical": 0,
+    "total": 16
+  },
+  "advisories": [
+    {
+      "id": "GHSA-3gc7-fjrx-p6mg",
+      "package": "bigint-buffer",
+      "severity": "high",
+      "title": "bigint-buffer Vulnerable to Buffer Overflow via toBigIntLE() Function",
+      "url": "https://github.com/advisories/GHSA-3gc7-fjrx-p6mg",
+      "isDirectImport": false,
+      "dependencyChain": [
+        "@solana/spl-token",
+        "@solana/buffer-layout-utils",
+        "bigint-buffer"
+      ],
+      "reachableFromPublicRootUi": false,
+      "reachableFromPublicRootUiNote": "Root renders <Gatekeeper> -> <AhinGateway/>. The Gatekeeper splash itself does not invoke any code path that calls bigint-buffer's toBigIntLE. Only the post-auth canary code path (LifePaymentModule.executeDeposit) transitively uses @solana/spl-token, and only when gateMode==='live' AND PoCC-eligible AND the user clicks Deposit. In current env (gateMode=mock), that path is unreachable.",
+      "reachableWithoutCanaryFlags": true,
+      "reachableWithoutCanaryFlagsNote": "Yes — readLifePlusBalanceRaw in lifePlusSolana.ts imports @solana/spl-token and is called by the Gatekeeper's verifySolanaPocc when gateMode==='live'. The Gatekeeper currently runs in gateMode=mock, so this path is not reachable at runtime today. If gateMode is flipped to 'live' for P3A (readonly live UI test), bigint-buffer code WOULD load, but only via getTokenAccountBalance whose input is the user's pubkey-derived ATA — not attacker-controlled raw bytes.",
+      "leadsToSigningOrTransfer": false,
+      "leadsToSigningOrTransferNote": "No. Even if bigint-buffer's toBigIntLE were exploited, it cannot bypass the runtime AND-of-env-flags + canary gates in src/config/life-plus-payment.ts. Signing/transfer require AHIN_PROTOCOL_EXECUTION_ENABLED=true AND AHIN_REAL_USAGE_FEE_TRANSFER=true AND AHIN_PAYMENT_CANARY_ENABLED=true AND wallet allowlisted AND amount within cap. These are env-derived and not influenceable from runtime code.",
+      "availableFix": {
+        "type": "force_downgrade",
+        "target": "@solana/spl-token@0.1.8",
+        "isSemVerMajor": true,
+        "wouldBreak": true,
+        "breakNote": "0.1.8 predates the modern SPL Token API used in src/lib/transactionSolana.ts (createTransferCheckedInstruction, getAssociatedTokenAddressSync). The current code would fail to build."
+      },
+      "recommendation": "ACCEPTED_RISK with documented exception OR upstream patch. Do not auto-fix."
+    },
+    {
+      "id": "GHSA-w5hq-g745-h8pq",
+      "package": "uuid",
+      "severity": "high",
+      "title": "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided",
+      "url": "https://github.com/advisories/GHSA-w5hq-g745-h8pq",
+      "isDirectImport": false,
+      "dependencyChain": [
+        "@solana/web3.js",
+        "uuid"
+      ],
+      "reachableFromPublicRootUi": false,
+      "reachableFromPublicRootUiNote": "uuid is used internally by @solana/web3.js for request correlation. Our code does not call uuid v3/v5/v6 directly. The advisory is only triggerable when caller passes an attacker-controlled `buf` argument to uuid.v3/v5/v6 — which we never do.",
+      "reachableWithoutCanaryFlags": true,
+      "reachableWithoutCanaryFlagsNote": "Same as bigint-buffer — loaded on any @solana/web3.js Connection construction.",
+      "leadsToSigningOrTransfer": false,
+      "leadsToSigningOrTransferNote": "No mechanism for uuid bounds-check bypass to influence env flag evaluation.",
+      "availableFix": {
+        "type": "transitive_upgrade",
+        "target": "uuid >= 11.1.1",
+        "isSemVerMajor": true,
+        "wouldBreak": "unknown",
+        "breakNote": "Depends on whether @solana/web3.js's uuid pin is compatible with 11.x. npm overrides could be tried but risk SDK incompatibility."
+      },
+      "recommendation": "ACCEPTED_RISK with documented exception OR upstream fix from @solana/web3.js."
+    },
+    {
+      "id": "transitive-from-bigint-buffer",
+      "package": "@solana/buffer-layout-utils",
+      "severity": "moderate",
+      "title": "Cascading via bigint-buffer",
+      "isDirectImport": false,
+      "dependencyChain": ["@solana/spl-token", "@solana/buffer-layout-utils"],
+      "reachableFromPublicRootUi": false,
+      "reachableWithoutCanaryFlags": true,
+      "leadsToSigningOrTransfer": false,
+      "availableFix": {
+        "type": "force_downgrade",
+        "target": "@solana/spl-token@0.1.8",
+        "wouldBreak": true
+      },
+      "recommendation": "Same as bigint-buffer (root cause)."
+    },
+    {
+      "id": "transitive-cascade-spl-token",
+      "package": "@solana/spl-token",
+      "severity": "moderate",
+      "title": "Cascading via @solana/buffer-layout-utils + @solana/web3.js",
+      "isDirectImport": true,
+      "dependencyChain": ["@solana/spl-token"],
+      "reachableFromPublicRootUi": false,
+      "reachableWithoutCanaryFlags": true,
+      "leadsToSigningOrTransfer": false,
+      "availableFix": {
+        "type": "force_downgrade",
+        "target": "@solana/spl-token@0.1.8",
+        "wouldBreak": true
+      },
+      "recommendation": "Same as bigint-buffer (root cause)."
+    },
+    {
+      "id": "transitive-cascade-web3",
+      "package": "@solana/web3.js",
+      "severity": "moderate",
+      "title": "Cascading via bigint-buffer + uuid",
+      "isDirectImport": true,
+      "dependencyChain": ["@solana/web3.js"],
+      "reachableFromPublicRootUi": false,
+      "reachableWithoutCanaryFlags": true,
+      "leadsToSigningOrTransfer": false,
+      "availableFix": "No clean fix; awaits upstream",
+      "recommendation": "Same as bigint-buffer + uuid."
+    }
+  ],
+  "structuralMitigations": [
+    "AND-of-explicit-env-flags safety model: INFRASTRUCTURE_TRANSFER_ARMED && canaryArmed && walletAllowlisted && amountWithinCap. No single advisory can bypass.",
+    "Wallet signing API confined to src/lib/walletAdapters.ts (release-lint enforced).",
+    "Transaction submission APIs confined to src/lib/walletAdapters.ts (release-lint enforced).",
+    "createTransferCheckedInstruction confined to src/lib/transactionSolana.ts (release-lint enforced).",
+    "Burn instruction path forbidden everywhere (release-lint enforced).",
+    "/active-hash simulator + root governance routes are web3-free (release-lint enforced).",
+    "Dev routes (/api/dev/*) gated to non-production environments with AHIN_ENABLE_DEV_ROUTES=true (release-lint enforced).",
+    "grantAccess fires only after confirmation outcome — never on bare signature return (release-lint enforced).",
+    "PUBLIC_PAYMENT_ENABLED + BURN_ENABLED hardcoded false; no env override (release-lint enforced)."
+  ],
+  "recommendation": "DO NOT proceed to P3A or P3B until either: (a) the bigint-buffer + uuid advisories are resolved upstream by the Solana team; OR (b) a formal operator-approved accepted-risk exception is documented, signed by the security reviewer, and recorded in this repo with explicit acknowledgement that the vulnerabilities cannot be exploited under the AND-gate model.",
+  "doNotAutoFix": true,
+  "doNotIgnoreInCi": true,
+  "blockers": [
+    "bigint-buffer GHSA-3gc7-fjrx-p6mg — no clean fix",
+    "uuid GHSA-w5hq-g745-h8pq — no clean fix"
+  ]
+}

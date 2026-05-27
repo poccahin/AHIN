@@ -1,0 +1,58 @@
+
+> ahin-io-gatekeeper-refactor@0.1.0 lint
+> node ./scripts/release-lint.mjs
+
+PASS App Router page renders Gatekeeper
+PASS Gatekeeper wires LifePaymentModule for live entry branch
+PASS Production default starts at Gatekeeper
+PASS Gate state machine includes production states
+PASS Readonly evidence disclosure is present
+PASS Debug Matrix env is documented as false
+PASS Wallet mode is documented as mock
+PASS Gate and Matrix motion contract is present
+PASS Per-element logo glow filters are present
+PASS Reduced motion is supported
+PASS Cleaned production logo assets exist
+PASS Phase 4E unsafe transfer entry copy is absent
+PASS Phase 4E readonly admission copy is present
+PASS Phase 4E permanent disclosure is present
+PASS Phase 4E Proof of Assets policy is visible
+PASS Wallet signing API confined to src/lib/walletAdapters.ts
+PASS Web3 imports confined to approved payment/transaction modules
+PASS /active-hash simulator remains web3-free
+PASS createTransferCheckedInstruction confined to src/lib/transactionSolana.ts
+PASS No burn instruction path exists
+PASS Transaction submission APIs confined to src/lib/walletAdapters.ts
+PASS No Squads multisig mutation libraries imported
+PASS Runtime defaults remain disarmed (defense-in-depth AND chain)
+PASS Canary configuration defaults to disarmed when env unset
+PASS Payment foundation modules present
+PASS Readonly Jupiter oracle policy metadata is present
+PASS Oracle API key remains server-side only
+PASS Phase 4E-2 Gate errors fail soft
+PASS Phase 4E-2 Oracle parse errors fail soft
+PASS Phase 4C oracle defaults omitted outputMint to LIFE++
+PASS Phase 4C oracle mutation and invalid params guards remain
+PASS Phase 4F command deck safety copy is visible
+PASS Phase 4F proof envelope remains dry-run only
+PASS Production governance safety language is visible
+PASS Post-deploy root copy is production-current
+PASS Production UI forbidden live-operation copy is absent
+PASS Trusted Twin Court readiness layer is visible and safe
+PASS Phase R0-G3 terminal governance console is recorded
+PASS Trusted Twin Court readiness report is recorded
+PASS Phase 4E admission policy report is recorded
+PASS Phase R0-G4 active hash simulator is isolated and readonly
+PASS Phase R0-G4 active hash simulator report is recorded
+PASS Phase R0-G4B slashing simulation is visual-only
+PASS Phase R0-G4B slashing simulation report is recorded
+PASS Phase R0-G4C boardroom HUD is visual-only and route-isolated
+PASS Phase R0-G4C boardroom HUD report is recorded
+PASS Phase R0 runtime audit surface reduction is recorded
+PASS Phase R0 root production final smoke report is recorded
+PASS Dev route gate helper defines the production check
+PASS Dev route /api/dev/lifepp-balance is gated by devRoutesEnabled()
+PASS Dev route /api/dev/lifepp-buildtx is gated by devRoutesEnabled()
+PASS Canary config exports isCanaryPaymentAuthorized + PUBLIC_PAYMENT_ENABLED=false
+PASS LifePaymentModule consults isCanaryPaymentAuthorized before broadcast
+PASS LifePaymentModule only fires onSuccess after a confirmation outcome

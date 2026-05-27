@@ -103,10 +103,18 @@ const liveOperationCopySource = visibleGateCopy
   .replaceAll("Genesis Ignition", "")
   .replaceAll("genesis-ignition", "");
 
+// Phase P2P: replaced "App Router page renders mock Gatekeeper and Matrix" —
+// MatrixReveal was retired when LifePaymentModule + AhinGateway (R3F) became
+// the post-Gatekeeper surface. Root still defaults to a safe gate state.
 check(
-  "App Router page renders mock Gatekeeper and Matrix",
-  page.includes("Gatekeeper") && page.includes("MatrixReveal"),
-  "app/page.tsx should render Gatekeeper with MatrixReveal as authenticated child content."
+  "App Router page renders Gatekeeper",
+  page.includes("Gatekeeper"),
+  "app/page.tsx should render <Gatekeeper> as the root entry component (default safe state)."
+);
+check(
+  "Gatekeeper wires LifePaymentModule for live entry branch",
+  gatekeeper.includes("LifePaymentModule"),
+  "src/components/Gatekeeper.tsx must mount <LifePaymentModule> for the live-Solana entry branch (gateMode==='live' AND PoCC eligible)."
 );
 check(
   "Production default starts at Gatekeeper",
@@ -204,33 +212,151 @@ check(
     visibleGateCopy.includes("No transfer or burn will be executed"),
   "Proof of Assets panel must show threshold, mint, quote source, and no-transfer/no-burn policy."
 );
+// Phase P2P: replaced "No wallet signing API exists" — instead we
+// confine signAndSendTransaction to the approved wallet bridge file
+// (src/lib/walletAdapters.ts), where it is gated by the AND-of-env-flags
+// at the LifePaymentModule call site.
+{
+  const offenders = srcFiles.filter((file) => {
+    if (file === "src/lib/walletAdapters.ts") return false;
+    return read(file).includes("signAndSendTransaction");
+  });
+  check(
+    "Wallet signing API confined to src/lib/walletAdapters.ts",
+    offenders.length === 0,
+    "signAndSendTransaction may only be referenced from src/lib/walletAdapters.ts (the approved Path-B bridge). The bridge itself is unreachable unless the AND chain (PROTOCOL_EXECUTION_ENABLED && REAL_USAGE_FEE_TRANSFER && CANARY_ENABLED && wallet allowlisted && amount within cap) passes. Found in non-approved files: " +
+      offenders.join(", ")
+  );
+}
+// Phase P2P: web3 imports are allowed only in approved
+// payment/transaction modules. Root governance / /active-hash must
+// remain web3-free.
+const APPROVED_WEB3_FILES = new Set([
+  "src/components/LifePaymentModule.tsx",
+  "src/lib/lifePlusSolana.ts",
+  "src/lib/payment/confirmSolanaTransaction.ts",
+  "src/lib/payment/paymentPreflight.ts",
+  "src/lib/transactionSolana.ts",
+  "src/lib/walletAdapters.ts"
+]);
+const WEB3_IMPORT_PATTERN =
+  /@solana\/(?:web3\.js|spl-token|wallet-adapter-(?:base|react|react-ui))|from\s+["']wagmi|from\s+["']wagmi\/|from\s+["']viem/;
+{
+  const offenders = srcFiles.filter((file) => {
+    if (APPROVED_WEB3_FILES.has(file)) return false;
+    return WEB3_IMPORT_PATTERN.test(read(file));
+  });
+  check(
+    "Web3 imports confined to approved payment/transaction modules",
+    offenders.length === 0,
+    "Web3 libs may only be imported in the approved set (LifePaymentModule, lifePlusSolana, walletAdapters, transactionSolana, payment/*). Found in: " +
+      offenders.join(", ")
+  );
+}
+
+{
+  // /active-hash route + its components must remain a visual simulator —
+  // no wallet, no chain, no signing imports.
+  const activeHashFiles = srcFiles.filter((file) =>
+    file.startsWith("src/components/active-hash-network/")
+  );
+  const contaminated = activeHashFiles.filter((file) =>
+    /@solana\/|signTransaction|signAndSendTransaction|createTransferCheckedInstruction|createBurnInstruction|@sqds\//.test(
+      read(file)
+    )
+  );
+  check(
+    "/active-hash simulator remains web3-free",
+    contaminated.length === 0,
+    "active-hash simulator components must not import @solana/* or any signing / transaction-submission code. Contaminated: " +
+      contaminated.join(", ")
+  );
+}
+// Phase P2P: replaced "No Solana transfer instruction path" — instead
+// we confine the transfer/submission APIs to specific approved files,
+// keep burn forbidden everywhere, and forbid Squads mutation imports.
+{
+  const filesWithTransferChecked = srcFiles.filter((file) => {
+    if (file === "src/lib/transactionSolana.ts") return false;
+    return read(file).includes("createTransferCheckedInstruction");
+  });
+  check(
+    "createTransferCheckedInstruction confined to src/lib/transactionSolana.ts",
+    filesWithTransferChecked.length === 0,
+    "createTransferCheckedInstruction may only appear in src/lib/transactionSolana.ts. Found in: " +
+      filesWithTransferChecked.join(", ")
+  );
+}
+
 check(
-  "No wallet signing API exists in src",
-  !srcAndFunctionSource.includes("signAndSendTransaction"),
-  "src/functions must not expose signAndSendTransaction."
+  "No burn instruction path exists",
+  !/\b(createBurnInstruction|createBurnCheckedInstruction|burnChecked)\b/.test(srcAndFunctionSource),
+  "Burn narrative is retired: createBurnInstruction / createBurnCheckedInstruction / burnChecked must not appear in src/ or functions/."
 );
+
+{
+  const filesWithSubmitApis = srcFiles.filter((file) => {
+    if (file === "src/lib/walletAdapters.ts") return false;
+    return /\.sendRawTransaction\b|connection\.sendTransaction\b|signAndSendTransaction\b/.test(
+      read(file)
+    );
+  });
+  check(
+    "Transaction submission APIs confined to src/lib/walletAdapters.ts",
+    filesWithSubmitApis.length === 0,
+    "sendRawTransaction / signAndSendTransaction / connection.sendTransaction may only appear in src/lib/walletAdapters.ts. Found in: " +
+      filesWithSubmitApis.join(", ")
+  );
+}
+
 check(
-  "Runtime Web3 dependency imports are absent",
-  !/@solana\/wallet-adapter-react|@solana\/web3\.js|from\s+["']wagmi|from\s+["']wagmi\/|from\s+["']viem/.test(srcAndFunctionSource),
-  "src/functions must not import Solana wallet adapters, @solana/web3.js, wagmi, or viem in readonly evidence mode."
+  "No Squads multisig mutation libraries imported",
+  !/@sqds\/|squads_mpl|VaultTransactionCreate|squads-multisig-program/.test(srcAndFunctionSource),
+  "Squads multisig mutation libraries must not be imported. The treasury is read-only from this app's perspective; any mutation goes through the multisig OOB."
 );
+// Phase P2P: replaced legacy "Phase 4E readonly-only" assertion. The
+// operator-authorized canary path requires explicit AND-of-env-flags
+// arming. We assert that defaults remain disarmed AND the foundation
+// payment modules are present and structured correctly.
+const lifePlusPaymentConfigSource = read("src/config/life-plus-payment.ts");
+
 check(
-  "No Solana transfer instruction path exists in src",
-  !/(transferLifePlusToFoundation|createTransferCheckedInstruction|createAssociatedTokenAccountIdempotentInstruction|sendRawTransaction|sendTransaction|signAndSendTransaction|TransactionInstruction|SystemProgram|SYSVAR_RENT_PUBKEY|createBurnInstruction|burnChecked)/.test(
-    srcAndFunctionSource
-  ),
-  "src/functions must not include Solana transfer, burn, signing, or submission helpers."
-);
-check(
-  "Protocol execution remains disabled",
-  lifePlusConfig.includes("TRANSFER_ENABLED = false") &&
-    lifePlusConfig.includes("BURN_ENABLED = false") &&
-    lifePlusConfig.includes("PROTOCOL_EXECUTION_ENABLED = false") &&
+  "Runtime defaults remain disarmed (defense-in-depth AND chain)",
+  // Infrastructure-level gates in life-plus.ts (post-refactor pattern):
+  lifePlusConfig.includes("isLive && protocolArmed") &&
+    lifePlusConfig.includes("isLive && protocolArmed && transferArmed") &&
+    // Hardcoded falses in life-plus-payment.ts — no env can flip these:
+    lifePlusPaymentConfigSource.includes("BURN_ENABLED = false") &&
+    lifePlusPaymentConfigSource.includes("PUBLIC_PAYMENT_ENABLED = false") &&
+    // Canary master switch is env-derived (must check process.env, not hardcoded true):
+    lifePlusPaymentConfigSource.includes('process.env.AHIN_PAYMENT_CANARY_ENABLED === "true"') &&
+    // Policy report still reflects disarmed posture:
     policyReport.transferEnabled === false &&
     policyReport.burnEnabled === false &&
     policyReport.protocolExecutionEnabled === false &&
+    // No accidental hardcoded enablement in non-test src:
     !srcNonTestSource.includes("protocolExecutionEnabled: true"),
-  "Phase 4E must remain readonly/mock with protocol execution disabled."
+  "Default runtime gates must remain disarmed: PUBLIC_PAYMENT_ENABLED + BURN_ENABLED hardcoded false; AHIN_PAYMENT_CANARY_ENABLED env-derived; infrastructure transfer chain unchanged."
+);
+
+check(
+  "Canary configuration defaults to disarmed when env unset",
+  // parseAllowlist returns empty array on unset env:
+  /parseAllowlist[\s\S]*?return\s+\[\]/m.test(lifePlusPaymentConfigSource) &&
+    // parseMaxRaw returns 0n on unset/invalid:
+    /parseMaxRaw[\s\S]*?return\s+0n/m.test(lifePlusPaymentConfigSource) &&
+    // Authorization shortcircuits on cap <= 0n:
+    lifePlusPaymentConfigSource.includes("config.maxRaw <= 0n"),
+  "AHIN_PAYMENT_CANARY_ALLOWLIST must default to empty array; AHIN_PAYMENT_CANARY_MAX_RAW must default to 0n which blocks."
+);
+
+check(
+  "Payment foundation modules present",
+  srcFiles.includes("src/lib/payment/paymentErrors.ts") &&
+    srcFiles.includes("src/lib/payment/paymentPreflight.ts") &&
+    srcFiles.includes("src/lib/payment/confirmSolanaTransaction.ts") &&
+    srcFiles.includes("src/lib/payment/paymentIntent.ts"),
+  "Phase P2P payment foundation modules must exist: paymentErrors, paymentPreflight, confirmSolanaTransaction, paymentIntent."
 );
 check(
   "Readonly Jupiter oracle policy metadata is present",

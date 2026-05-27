@@ -70,11 +70,11 @@ export interface UsageFeeTxParams {
  * Build (but do NOT sign or send) a Transaction that transfers
  * `feeAmountRaw` of LIFE++ from the user's ATA to the treasury's ATA.
  *
- * The returned Transaction is ready for the caller to:
- *   1. Hand to the connected wallet for signing (Phantom/OKX/etc.
- *      `signTransaction` API, or wallet-adapter `signTransaction`).
- *   2. Submit via `connection.sendRawTransaction(signed.serialize())`
- *      OR via the wallet's `signAndSendTransaction` shortcut.
+ * The returned Transaction is ready for the caller to hand to the
+ * approved wallet bridge (src/lib/walletAdapters.ts#executeTransaction),
+ * which is the single confined site that may sign and submit. Direct
+ * invocation of the wallet's signing/submission APIs elsewhere is
+ * forbidden by release-lint.
  *
  * CRITICAL: this function does not gate on TRANSFER_ENABLED. The caller
  * MUST check it and refuse to broadcast when unarmed. See
