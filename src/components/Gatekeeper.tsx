@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronRight, ShieldCheck, Wallet } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { LIFE_PLUS_MINT } from "../config/life-plus";
+import LifePaymentModule from "./LifePaymentModule";
 import { useEntrySignature } from "../hooks/useEntrySignature";
 import { readLifePlusBalanceRaw, readLifePlusDecimals } from "../lib/lifePlusSolana";
 import { connectWallet, discoverWallets, formatWalletConnectionError, type WalletConnection, type WalletDescriptor, type WalletId } from "../lib/walletAdapters";
@@ -327,19 +328,35 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
                   <p>No transfer or burn will be executed</p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={enter}
-                disabled={processing || (isLiveSolana && !isSolanaPoccVerified)}
-                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] border border-white/25 bg-white text-sm font-semibold text-[#050505] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-white/[0.12] disabled:text-white/[0.34]"
-              >
-                {processing
-                  ? "Dry-run proof pending"
-                  : isLiveSolana && !isSolanaPoccVerified
-                    ? "Verify 10 USDT-equivalent LIFE++ Holding"
-                    : "Enter with Dry-Run Proof"}
-                <ChevronRight className="h-4 w-4" aria-hidden="true" />
-              </button>
+              {isLiveSolana && poccStatus.state === "verified" && liveConnection ? (
+                /* Live-Solana + PoCC verified: real on-chain transfer to
+                   the canonical Squads multisig treasury. Mock useEntry-
+                   Signature path is bypassed. The signature returned by
+                   onSuccess threads into the auth session's entryFee. */
+                <LifePaymentModule
+                  connection={liveConnection}
+                  onSuccess={(sig) => {
+                    grantAccess(connectedAddress, sig);
+                  }}
+                  onError={(err) => {
+                    setWalletError(err.message);
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={enter}
+                  disabled={processing || (isLiveSolana && !isSolanaPoccVerified)}
+                  className="flex min-h-14 w-full items-center justify-center gap-2 rounded-[18px] border border-white/25 bg-white text-sm font-semibold text-[#050505] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-white/[0.12] disabled:text-white/[0.34]"
+                >
+                  {processing
+                    ? "Dry-run proof pending"
+                    : isLiveSolana && !isSolanaPoccVerified
+                      ? "Verify 10 USDT-equivalent LIFE++ Holding"
+                      : "Enter with Dry-Run Proof"}
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                </button>
+              )}
               {isLiveSolana && poccStatus.state === "blocked" ? (
                 <button
                   type="button"

@@ -21,7 +21,7 @@ interface AuthState {
   session: AhinSession | null;
   userWallet: string | null;
   gateMode: "mock" | "live";
-  grantAccess: (wallet: string) => void;
+  grantAccess: (wallet: string, signature?: string | null) => void;
   revokeAccess: () => void;
   setAuthenticated: (session: AhinSession) => void;
   clearSession: () => void;
@@ -93,8 +93,19 @@ export const useAuthStore = create<AuthState>()(
       session: null,
       userWallet: null,
       gateMode: resolvedGateMode,
-      grantAccess: (wallet) => {
+      grantAccess: (wallet, signature) => {
         const session = createMockSession(wallet);
+        // If a real on-chain entry signature is supplied (Phase 2 live
+        // path via LifePaymentModule), thread it into the session's
+        // entryFee receipt in place of the mock placeholder. Other
+        // session fields stay mock-shaped — refactoring the full session
+        // to a real-mode shape is a separate piece of work.
+        if (typeof signature === "string" && signature.length > 0) {
+          session.entryFee = {
+            ...session.entryFee,
+            signature
+          };
+        }
         set({
           isAuthenticated: true,
           session,
