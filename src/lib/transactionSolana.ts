@@ -57,6 +57,13 @@ export interface UsageFeeTxParams {
    * Set false for plain wallet destinations.
    */
   treasuryAllowOwnerOffCurve?: boolean;
+  /**
+   * Pre-fetched recent blockhash. When supplied, skips the internal
+   * connection.getLatestBlockhash() call — useful when the caller has
+   * already fetched it (e.g. payment preflight returns it so confirmation
+   * polling can reuse the same lastValidBlockHeight).
+   */
+  recentBlockhash?: string;
 }
 
 /**
@@ -149,7 +156,13 @@ export async function buildUsageFeeTransaction(
   // Fetch a fresh blockhash so the tx is broadcastable for ~150 slots
   // (~60s). The caller should sign + send promptly after build; if they
   // dawdle, this will need a rebuild before send.
-  const { blockhash } = await connection.getLatestBlockhash("confirmed");
+  //
+  // When the caller pre-fetched a blockhash (e.g. paymentPreflight already
+  // ran getLatestBlockhash), we reuse it so the lastValidBlockHeight the
+  // caller retained matches what's actually in the tx.
+  const blockhash =
+    params.recentBlockhash ??
+    (await connection.getLatestBlockhash("confirmed")).blockhash;
 
   const tx = new Transaction({
     recentBlockhash: blockhash,

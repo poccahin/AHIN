@@ -21,10 +21,16 @@
 import { isLikelySolanaAddress } from "@/src/lib/addressValidation";
 import { readLifePlusBalanceRaw } from "@/src/lib/lifePlusSolana";
 import type { WalletConnection } from "@/src/lib/walletAdapters";
+import { devRoutesEnabled, devRouteNotFoundResponse } from "@/src/lib/devRouteGate";
 
 const DEFAULT_RPC_URL = "https://api.devnet.solana.com";
 
 export async function GET(request: Request): Promise<Response> {
+  // Gate: dev routes must never serve in production.
+  if (!devRoutesEnabled().enabled) {
+    return devRouteNotFoundResponse();
+  }
+
   const url = new URL(request.url);
   const wallet = url.searchParams.get("wallet");
   const rpcUrl = process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() || DEFAULT_RPC_URL;

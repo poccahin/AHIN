@@ -1,0 +1,129 @@
+{
+  "phase": "Phase P2P Production Canary Readiness",
+  "status": "READY_NOT_ARMED",
+  "summary": "Mainnet-ready safeguards (preflight, confirmation polling, in-flight recovery, dev-route gating, canary allowlist + cap) are implemented and enforced by release-lint. No live transfer path is enabled. No deployment performed.",
+  "timestamp": "2026-05-27T00:00:00.000Z",
+  "deploymentExecuted": false,
+  "workflowDispatched": false,
+  "devnetSkipped": true,
+  "mainnetTransferExecuted": false,
+  "publicPaymentEnabled": false,
+  "canaryPaymentEnabled": false,
+  "canaryAllowlistRequired": true,
+  "confirmationPollingImplemented": true,
+  "grantAccessAfterConfirmationOnly": true,
+  "preflightChecksImplemented": true,
+  "staleBlockhashRecoveryImplemented": true,
+  "inFlightRecoveryImplemented": true,
+  "devRoutesGated": true,
+  "burnEnabled": false,
+  "signingEnabled": false,
+  "treasuryMutationEnabled": false,
+  "realBurnTransaction": false,
+  "realWalletTransfer": false,
+  "protocolExecutionEnabled": false,
+  "implementation": {
+    "newModules": [
+      "src/config/life-plus-payment.ts",
+      "src/lib/payment/paymentErrors.ts",
+      "src/lib/payment/paymentPreflight.ts",
+      "src/lib/payment/confirmSolanaTransaction.ts",
+      "src/lib/payment/paymentIntent.ts",
+      "src/lib/payment/paymentTelemetry.ts",
+      "src/lib/devRouteGate.ts"
+    ],
+    "modifiedModules": [
+      "src/components/LifePaymentModule.tsx",
+      "src/lib/transactionSolana.ts",
+      "app/api/dev/lifepp-balance/route.ts",
+      "app/api/dev/lifepp-buildtx/route.ts",
+      "scripts/release-lint.mjs",
+      "package.json"
+    ],
+    "newTests": [
+      "scripts/test-payment-canary.mts"
+    ],
+    "newReleaseLintChecks": [
+      "Dev route gate helper defines the production check",
+      "Dev route /api/dev/lifepp-balance is gated by devRoutesEnabled()",
+      "Dev route /api/dev/lifepp-buildtx is gated by devRoutesEnabled()",
+      "Canary config exports isCanaryPaymentAuthorized + PUBLIC_PAYMENT_ENABLED=false",
+      "LifePaymentModule consults isCanaryPaymentAuthorized before broadcast",
+      "LifePaymentModule only fires onSuccess after a confirmation outcome"
+    ]
+  },
+  "canaryGates": {
+    "andOfExplicitEnvFlags": true,
+    "infrastructureCheck": "INFRASTRUCTURE_TRANSFER_ARMED (from src/config/life-plus.ts)",
+    "canaryFlags": [
+      "AHIN_PAYMENT_CANARY_ENABLED",
+      "AHIN_PAYMENT_CANARY_ALLOWLIST",
+      "AHIN_PAYMENT_CANARY_MAX_RAW"
+    ],
+    "publicPaymentDisabled": true,
+    "burnPathRetired": true
+  },
+  "stateMachine": {
+    "phases": [
+      "idle",
+      "ready",
+      "preflight",
+      "building",
+      "awaiting_signature",
+      "submitted",
+      "confirming",
+      "confirmed",
+      "recoverable_error",
+      "fatal_error"
+    ],
+    "grantAccessSites": 3,
+    "grantAccessTriggers": [
+      "dry_run_confirmed",
+      "canary_confirmation_succeeded",
+      "resume_signature_confirmed_or_finalized"
+    ]
+  },
+  "preflightChecks": [
+    "cluster_matches_expected (via getGenesisHash)",
+    "latest_blockhash_available",
+    "source_ata_exists",
+    "treasury_ata_exists",
+    "sol_balance_meets_fee_reserve",
+    "life_balance_meets_fee_amount"
+  ],
+  "awaitingSignatureUx": {
+    "softTimeoutMs": 90000,
+    "staleBlockhashWarnMs": 45000,
+    "cancelButtonResetsToReady": true,
+    "timeoutDoesNotClaimTxFailed": true,
+    "copy": "Waiting for wallet signature. No transaction is submitted until you approve in wallet."
+  },
+  "confirmation": {
+    "timeoutMs": 60000,
+    "commitment": "confirmed",
+    "outcomes": ["confirmed", "expired", "timeout", "rpc_error"],
+    "explorerUrlSurfacedOnNonConfirmedOutcomes": true
+  },
+  "inFlightRecovery": {
+    "storageKey": "ahin.lifeppPaymentIntentInFlight",
+    "maxIntentAgeMs": 1800000,
+    "resumeRequiresUserAction": true,
+    "neverAutoGrantsWithoutConfirmedSignature": true
+  },
+  "devRoutes": {
+    "balanceRouteGated": true,
+    "buildtxRouteGated": true,
+    "gateRequires": {
+      "NEXT_PUBLIC_AHIN_ENV_NOT_PRODUCTION": true,
+      "AHIN_ENABLE_DEV_ROUTES_TRUE": true
+    },
+    "blockedResponseCode": 404,
+    "releaseLintEnforced": true
+  },
+  "blockers": [],
+  "notes": [
+    "AHIN_REAL_LIFE_BALANCE_CHECK and AHIN_REAL_WALLET_VERIFICATION env vars remain runtime no-ops; they are checked only by pre-deploy scripts. Runtime gating is via INFRASTRUCTURE_TRANSFER_ARMED + canary AND chain.",
+    "Treasury ATA (5Cohfz...) existence on mainnet is verified by preflight at runtime — preflight returns missing_treasury_ata blocker if absent. Auto-creation is explicitly out of scope.",
+    "Dev routes return 404 when blocked (not 403) so production has no signal that debug surfaces exist."
+  ]
+}

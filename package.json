@@ -21,6 +21,7 @@
     "test:agents": "tsx src/agents/five-elements/__tests__/agent-flow-machine.test.ts",
     "test:solana-transfer": "tsx scripts/test-solana-transfer-instructions.mts",
     "test:wallet-ux": "tsx scripts/test-wallet-ux.mts",
+    "test:payment-canary": "tsx scripts/test-payment-canary.mts",
     "report:oracle-preview-readiness": "node scripts/ahin-oracle-preview-readiness-report.mjs"
   },
   "dependencies": {

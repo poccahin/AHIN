@@ -22,6 +22,7 @@
 import { Connection, PublicKey, type Transaction } from "@solana/web3.js";
 import { isLikelySolanaAddress } from "@/src/lib/addressValidation";
 import { buildUsageFeeTransaction } from "@/src/lib/transactionSolana";
+import { devRoutesEnabled, devRouteNotFoundResponse } from "@/src/lib/devRouteGate";
 
 const DEFAULT_RPC_URL = "https://api.devnet.solana.com";
 const TREASURY_ADDRESS = "5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo";
@@ -100,6 +101,11 @@ function parseAmountParam(raw: string | null): bigint | { error: string } {
 }
 
 export async function GET(request: Request): Promise<Response> {
+  // Gate: dev routes must never serve in production.
+  if (!devRoutesEnabled().enabled) {
+    return devRouteNotFoundResponse();
+  }
+
   const url = new URL(request.url);
   const wallet = url.searchParams.get("wallet");
   const amountRaw = url.searchParams.get("amount");

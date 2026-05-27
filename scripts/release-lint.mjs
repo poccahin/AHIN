@@ -562,6 +562,62 @@ check(
   "Root production smoke report must record readonly root smoke, stale copy detection, and local copy-fix readiness without claiming deployment."
 );
 
+// --- Phase P2P: dev routes must be gated so they cannot serve in production ---
+const devRouteGateModule = read("src/lib/devRouteGate.ts");
+const devBalanceRoute = read("app/api/dev/lifepp-balance/route.ts");
+const devBuildtxRoute = read("app/api/dev/lifepp-buildtx/route.ts");
+
+check(
+  "Dev route gate helper defines the production check",
+  devRouteGateModule.includes("NEXT_PUBLIC_AHIN_ENV") &&
+    devRouteGateModule.includes("AHIN_ENABLE_DEV_ROUTES") &&
+    devRouteGateModule.includes("devRouteNotFoundResponse"),
+  "src/lib/devRouteGate.ts must verify NEXT_PUBLIC_AHIN_ENV !== production AND AHIN_ENABLE_DEV_ROUTES === true."
+);
+check(
+  "Dev route /api/dev/lifepp-balance is gated by devRoutesEnabled()",
+  devBalanceRoute.includes("devRoutesEnabled") &&
+    devBalanceRoute.includes("devRouteNotFoundResponse"),
+  "app/api/dev/lifepp-balance/route.ts must import and invoke devRoutesEnabled() before any RPC work."
+);
+check(
+  "Dev route /api/dev/lifepp-buildtx is gated by devRoutesEnabled()",
+  devBuildtxRoute.includes("devRoutesEnabled") &&
+    devBuildtxRoute.includes("devRouteNotFoundResponse"),
+  "app/api/dev/lifepp-buildtx/route.ts must import and invoke devRoutesEnabled() before any RPC work."
+);
+
+// --- Phase P2P: payment canary safeguards must remain enforced ---
+const lifePlusPaymentConfig = read("src/config/life-plus-payment.ts");
+const lifePaymentModule = read("src/components/LifePaymentModule.tsx");
+
+check(
+  "Canary config exports isCanaryPaymentAuthorized + PUBLIC_PAYMENT_ENABLED=false",
+  lifePlusPaymentConfig.includes("isCanaryPaymentAuthorized") &&
+    lifePlusPaymentConfig.includes("PUBLIC_PAYMENT_ENABLED = false") &&
+    lifePlusPaymentConfig.includes("AHIN_PAYMENT_CANARY_ENABLED"),
+  "src/config/life-plus-payment.ts must keep PUBLIC_PAYMENT_ENABLED=false and expose isCanaryPaymentAuthorized()."
+);
+check(
+  "LifePaymentModule consults isCanaryPaymentAuthorized before broadcast",
+  lifePaymentModule.includes("isCanaryPaymentAuthorized") &&
+    lifePaymentModule.includes("INFRASTRUCTURE_TRANSFER_ARMED") &&
+    lifePaymentModule.includes("confirmSolanaTransaction"),
+  "LifePaymentModule must gate broadcasts on isCanaryPaymentAuthorized and confirm via confirmSolanaTransaction."
+);
+check(
+  "LifePaymentModule only fires onSuccess after a confirmation outcome",
+  // successCalledRef is checked-and-set at exactly three sites:
+  //   1. dry-run confirmed branch
+  //   2. canary confirmed branch (after confirmSolanaTransaction === confirmed)
+  //   3. resume-in-flight confirmed branch (after checkSignatureStatus === confirmed/finalized)
+  // All three happen AFTER a confirmation outcome — never on a bare signature return.
+  (lifePaymentModule.match(/successCalledRef\.current = true/g) || []).length === 3 &&
+    lifePaymentModule.includes('if (confirmation.result === "confirmed")') &&
+    lifePaymentModule.includes("checkSignatureStatus"),
+  "LifePaymentModule onSuccess must only fire after a confirmation outcome (dry-run, confirmation poll, or resume-status check)."
+);
+
 const failures = checks.filter((item) => !item.passed);
 
 for (const item of checks) {
