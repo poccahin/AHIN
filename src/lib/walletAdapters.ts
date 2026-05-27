@@ -1,3 +1,4 @@
+import type { Connection, Transaction } from "@solana/web3.js";
 import { detectWalletProvider } from "../gate/wallet/wallet-detection";
 import { mapWalletProviderError, walletErrorMessage } from "../gate/wallet/wallet-errors";
 import { isLikelyEvmAddress, isLikelySolanaAddress } from "./addressValidation";
@@ -23,6 +24,15 @@ export interface SolanaWalletProvider {
   publicKey?: { toBase58?: () => string; toString?: () => string } | string;
   connect?: (options?: { onlyIfTrusted?: boolean }) => Promise<{ publicKey?: { toBase58?: () => string; toString?: () => string } | string } | void>;
   disconnect?: () => Promise<void>;
+  /**
+   * Phase 2 Path B Bridge: optional signing methods exposed by Phantom-
+   * compatible providers. We detect at runtime rather than requiring
+   * presence — older wallets may not implement signAndSendTransaction.
+   */
+  signTransaction?: (transaction: Transaction) => Promise<Transaction>;
+  signAndSendTransaction?: (
+    transaction: Transaction
+  ) => Promise<string | { signature: string; publicKey?: unknown }>;
 }
 
 export interface WalletDescriptor {
@@ -218,4 +228,77 @@ export async function connectWallet(id: WalletId): Promise<WalletConnection> {
     readonlyEvidenceMode: true,
     walletProviderDetected: true
   };
+}
+
+/**
+ * Sign and send a pre-built Solana Transaction via the user's wallet provider.
+ *
+ * Path B (Bridge): we drive the underlying provider directly
+ * (window.phantom.solana / window.okxwallet.solana) without mounting the
+ * @solana/wallet-adapter-react context. The caller pre-builds the Transaction
+ * (typically with buildUsageFeeTransaction from ./transactionSolana) and
+ * passes it in here.
+ *
+ * Preference order:
+ *   1. provider.signAndSendTransaction — one-step UX, fewer wallet prompts.
+ *   2. provider.signTransaction + connection.sendRawTransaction — two-step
+ *      fallback for wallets that only expose the lower-level signing API.
+ *
+ * CRITICAL: this function does NOT gate on TRANSFER_ENABLED. Callers MUST
+ * check the flag and refuse to invoke it when unarmed. The gate lives at
+ * the call site (e.g. LifePaymentModule) so security review can audit it
+ * in one place.
+ *
+ * @returns base58 transaction signature on success.
+ * @throws if walletId isn't a Solana wallet, the provider isn't available,
+ *         or signing/sending fails (user rejection, RPC failure, etc.).
+ */
+export async function executeTransaction(
+  walletId: WalletId,
+  transaction: Transaction,
+  connection: Connection
+): Promise<string> {
+  if (walletId !== "phantom_solana" && walletId !== "okx_solana") {
+    throw new Error(
+      `executeTransaction: ${walletId} is not a Solana wallet; only Solana signing is supported.`
+    );
+  }
+
+  const provider = getSolanaProvider(walletId);
+  if (!provider) {
+    throw new Error(walletErrorMessage("WALLET_NOT_DETECTED"));
+  }
+
+  // --- Preferred: one-step sign + send via the wallet ---
+  if (typeof provider.signAndSendTransaction === "function") {
+    try {
+      const result = await provider.signAndSendTransaction(transaction);
+      if (typeof result === "string") return result;
+      const sig = (result as { signature?: unknown })?.signature;
+      if (typeof sig === "string" && sig.length > 0) return sig;
+      throw new Error("Wallet returned an unexpected signAndSendTransaction payload.");
+    } catch (err) {
+      throw new Error(formatWalletConnectionError(walletId, err));
+    }
+  }
+
+  // --- Fallback: two-step sign-then-send ---
+  if (typeof provider.signTransaction === "function") {
+    try {
+      const signed = await provider.signTransaction(transaction);
+      const raw = signed.serialize();
+      const signature = await connection.sendRawTransaction(raw, {
+        skipPreflight: false,
+        preflightCommitment: "confirmed",
+        maxRetries: 3
+      });
+      return signature;
+    } catch (err) {
+      throw new Error(formatWalletConnectionError(walletId, err));
+    }
+  }
+
+  throw new Error(
+    `Wallet ${walletId} does not expose signAndSendTransaction or signTransaction.`
+  );
 }
