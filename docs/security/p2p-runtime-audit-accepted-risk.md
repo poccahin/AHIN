@@ -236,6 +236,19 @@ Decision:      accepted_risk_for_documented_transitive_solana_advisories_only
 Not authorized: public payment, open mainnet transfer, burn, treasury mutation, public rollout
 ```
 
+### Operator re-confirmation (2026-05-28)
+
+> Operator re-confirmed that the expanded 16-package cascade footprint is accepted
+> only as a consequence of the two signed root advisory IDs. Any new root advisory,
+> severity escalation, expired approval, missing signature, or default-armed payment
+> flag must fail CI.
+
+Keyed on root advisory IDs: `GHSA-3gc7-fjrx-p6mg` (bigint-buffer), `GHSA-w5hq-g745-h8pq` (uuid).
+The 14 cascade packages carry no independent advisory; they are accepted only by
+extension from these two roots. The signed-audit-policy gate enforces this.
+
+---
+
 This signature accepts residual risk ONLY for the five documented advisories in §3
 (bigint-buffer GHSA-3gc7-fjrx-p6mg, uuid GHSA-w5hq-g745-h8pq, and the cascading
 `@solana/buffer-layout-utils` / `@solana/spl-token` / `@solana/web3.js` MOD entries).

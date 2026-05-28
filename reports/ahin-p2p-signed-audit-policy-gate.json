@@ -8,7 +8,7 @@
   "pushed": false,
   "acceptedRiskSigned": true,
   "acceptedRiskSignedBy": "Lee / AHIN Operator",
-  "acceptedRiskScope": "Phase P2P production canary readiness only; does not authorize public payment or open mainnet transfer",
+  "acceptedRiskScope": "P2P/P3 production canary readiness only. Does not authorize public payment, burn, open mainnet transfer, treasury mutation, or public rollout.",
   "acceptedRiskValidUntil": "2026-06-27T03:05:59Z",
   "acceptedRootAdvisoryIds": [
     "GHSA-3gc7-fjrx-p6mg",
@@ -33,8 +33,17 @@
   "protocolExecutionEnabled": false,
   "realUsageFeeTransfer": false,
   "canaryEnabled": false,
+  "canaryAllowlistRequired": true,
+  "canaryAmountCapRequired": true,
   "mainnetTransferExecuted": false,
   "treasuryMutationEnabled": false,
+  "paymentModel": {
+    "type": "usage_liquidity_deposit",
+    "paymentRule": "min(1 USDT-equivalent LIFE++, 1 LIFE++)",
+    "paymentDestination": "5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo",
+    "burn": "disabled — not part of payment logic, copy, or canary",
+    "purpose": "Deposit LIFE++ into the AHIN multisig-controlled liquidity pool (PoL) for future liquidity ops, cross-chain expansion, agent collaboration settlement, and treasury operations."
+  },
   "rootAdvisoryModel": {
     "rootAdvisories": 2,
     "cascadePackages": 14,

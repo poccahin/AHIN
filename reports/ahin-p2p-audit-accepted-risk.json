@@ -15,9 +15,15 @@
     "signedBy": "Lee / AHIN Operator",
     "signedAt": "2026-05-28T03:05:59Z",
     "validUntil": "2026-06-27T03:05:59Z",
-    "scope": "Phase P2P production canary readiness only; does not authorize public payment or open mainnet transfer",
+    "scope": "P2P/P3 production canary readiness only. Does not authorize public payment, burn, open mainnet transfer, treasury mutation, or public rollout.",
     "decision": "accepted_risk_for_documented_transitive_solana_advisories_only",
     "instruction": "Signed by the AHIN operator. Effective until validUntil. The signed-audit-policy gate (scripts/check-runtime-audit-policy.mjs) consults this block. Re-review mandatory on or before validUntil, or earlier on any advisory re-review trigger."
+  },
+  "operatorReconfirmation": {
+    "date": "2026-05-28T03:05:59Z",
+    "statement": "Operator re-confirmed that the expanded 16-package cascade footprint is accepted only as a consequence of the two signed root advisory IDs. Any new root advisory, severity escalation, expired approval, missing signature, or default-armed payment flag must fail CI.",
+    "keyedOnRootAdvisoryIds": ["GHSA-3gc7-fjrx-p6mg", "GHSA-w5hq-g745-h8pq"],
+    "scopeClarification": "On the same date, the operator clarified operatorApproval.scope to 'P2P/P3 production canary readiness only' with an explicit not-authorized list (public payment, burn, open mainnet transfer, treasury mutation, public rollout). This is a clarification/restriction of the existing approval, not a new authorization; the operator confirmed no signature reset is required because no new root advisory was introduced."
   },
   "deploymentExecuted": false,
   "workflowDispatched": false,
