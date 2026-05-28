@@ -22,6 +22,7 @@
     "test:solana-transfer": "tsx scripts/test-solana-transfer-instructions.mts",
     "test:wallet-ux": "tsx scripts/test-wallet-ux.mts",
     "test:payment-canary": "tsx scripts/test-payment-canary.mts",
+    "test:audit-policy": "node ./scripts/check-runtime-audit-policy.mjs",
     "report:oracle-preview-readiness": "node scripts/ahin-oracle-preview-readiness-report.mjs"
   },
   "dependencies": {

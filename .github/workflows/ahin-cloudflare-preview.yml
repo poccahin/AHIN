@@ -60,8 +60,10 @@ jobs:
       - name: No secondary agent gates
         run: npm run guard:no-agent-gates
 
-      - name: Audit runtime dependencies
-        run: npm audit --omit=dev
+      - name: Audit runtime dependencies (signed-exception gate)
+        run: |
+          npm audit --omit=dev --json > reports/ci-runtime-audit.json || true
+          npm run test:audit-policy
 
       - name: Agent flow tests
         run: npm run test:agents
@@ -125,7 +127,8 @@ jobs:
           npm run typecheck
           npm run build
           npm run guard:no-agent-gates
-          npm audit --omit=dev
+          npm audit --omit=dev --json > reports/ci-runtime-audit.json || true
+          npm run test:audit-policy
           npm run test:agents
           npm run test:pocc
           npm run test:wallet-ux

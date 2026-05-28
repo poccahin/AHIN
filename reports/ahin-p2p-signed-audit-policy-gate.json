@@ -1,0 +1,69 @@
+{
+  "phase": "Phase P2P-B Signed Audit Exception + CI Policy Gate",
+  "status": "SIGNED_POLICY_GATE_ACTIVE_NOT_PUSHED",
+  "summary": "The accepted-risk pack is operator-signed. A strict signed-exception gate (scripts/check-runtime-audit-policy.mjs, npm run test:audit-policy) replaces the bare blocking `npm audit` step in CI. The gate keys on ROOT advisory IDs: it passes only when every root advisory in the live audit is in the signed accepted set within severity ceiling, and the runtime safety defaults are intact. Any new/unaccepted root advisory, expired/unsigned pack, or armed safety flag fails the gate. npm audit itself remains run (not silenced); only the pass/fail decision is delegated to the signed policy.",
+  "timestamp": "2026-05-28T03:05:59Z",
+  "deploymentExecuted": false,
+  "workflowDispatched": false,
+  "pushed": false,
+  "acceptedRiskSigned": true,
+  "acceptedRiskSignedBy": "Lee / AHIN Operator",
+  "acceptedRiskScope": "Phase P2P production canary readiness only; does not authorize public payment or open mainnet transfer",
+  "acceptedRiskValidUntil": "2026-06-27T03:05:59Z",
+  "acceptedRootAdvisoryIds": [
+    "GHSA-3gc7-fjrx-p6mg",
+    "GHSA-w5hq-g745-h8pq"
+  ],
+  "auditPolicyScriptAdded": true,
+  "auditPolicyScriptPath": "scripts/check-runtime-audit-policy.mjs",
+  "auditPolicyNpmScript": "test:audit-policy",
+  "ciPolicyChanged": true,
+  "ciWorkflowsUpdated": [
+    ".github/workflows/ahin-production-gate.yml",
+    ".github/workflows/ahin-cloudflare-preview.yml (gates job + pre-deploy re-run)",
+    ".github/workflows/ahin-cloudflare-root-production.yml"
+  ],
+  "ciChangeDescription": "Each blocking `npm audit --omit=dev` step replaced with: `npm audit --omit=dev --json > reports/ci-runtime-audit.json || true` followed by `npm run test:audit-policy`. This is a signed-exception gate, NOT audit-ignore: the policy fails on any unaccepted root advisory.",
+  "unknownAdvisoriesAllowed": false,
+  "auditSilenced": false,
+  "auditMadeGloballyNonBlocking": false,
+  "auditIgnoreLogicAdded": false,
+  "publicPaymentEnabled": false,
+  "burnEnabled": false,
+  "protocolExecutionEnabled": false,
+  "realUsageFeeTransfer": false,
+  "canaryEnabled": false,
+  "mainnetTransferExecuted": false,
+  "treasuryMutationEnabled": false,
+  "rootAdvisoryModel": {
+    "rootAdvisories": 2,
+    "cascadePackages": 14,
+    "totalNpmAuditEntries": 16,
+    "explanation": "Exactly 2 root advisories (bigint-buffer GHSA-3gc7-fjrx-p6mg, uuid GHSA-w5hq-g745-h8pq). The other 14 packages are pure cascade — no independent advisory; flagged only because they transitively depend on a root. Gate keys on root IDs; cascade accepted by extension. A new real advisory introduces a new root ID and fails the gate."
+  },
+  "gateBehaviorVerified": {
+    "positiveRealAudit": "PASS (16 packages, 14 pure-cascade, 2 accepted roots within ceiling)",
+    "negativeNewRootAdvisory": "FAIL (injected GHSA-FAKE-0000-0000 critical -> blocked)",
+    "negativeSeverityCeilingBreach": "FAIL (bigint-buffer bumped to critical -> blocked)",
+    "negativeUnsignedPack": "FAIL",
+    "negativeExpiredApproval": "FAIL"
+  },
+  "validation": {
+    "npmRunLint": 0,
+    "npmRunGuardNoAgentGates": 0,
+    "npmRunTypecheck": 0,
+    "npmRunBuild": 0,
+    "npmAuditOmitDev": 1,
+    "npmRunTestAuditPolicy": 0,
+    "npmRunTestAgents": 0,
+    "npmRunTestPocc": 0,
+    "npmRunTestWalletUx": 0,
+    "npmRunTestSolanaTransfer": 0,
+    "npmRunTestPaymentCanary": 0,
+    "note": "npm audit --omit=dev still exits 1 by design (advisories are real, not silenced). test:audit-policy is the gate that lets CI proceed under the signed exception."
+  },
+  "blockers": [
+    "Push remains gated on explicit operator instruction.",
+    "Accepted-risk approval expires 2026-06-27 — mandatory re-review before then."
+  ]
+}

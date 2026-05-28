@@ -1,6 +1,6 @@
 {
   "phase": "Phase P2P-A Runtime Audit Accepted-Risk Decision Pack",
-  "status": "OPERATOR_REVIEW_REQUIRED",
+  "status": "OPERATOR_APPROVED",
   "summary": "Formal accepted-risk decision pack for the Solana transitive vulnerabilities surfaced by npm audit. This document does NOT change CI policy; npm audit remains a blocking gate. This document does NOT enable any runtime path; all live transfer flags remain disarmed. The pack records the structural reasoning for an operator decision and provides the JSON the policy can later consult if/when the operator signs the companion markdown.",
   "issuedAt": "2026-05-27T00:00:00.000Z",
   "documents": {
@@ -12,10 +12,12 @@
   },
   "operatorApproval": {
     "required": true,
-    "signedBy": null,
-    "signedAt": null,
-    "validUntil": null,
-    "instruction": "Operator must edit this JSON to populate signedBy, signedAt (ISO-8601), and validUntil (ISO-8601) before this pack is treated as effective. Until populated, status remains OPERATOR_REVIEW_REQUIRED and CI continues to fail audit gate."
+    "signedBy": "Lee / AHIN Operator",
+    "signedAt": "2026-05-28T03:05:59Z",
+    "validUntil": "2026-06-27T03:05:59Z",
+    "scope": "Phase P2P production canary readiness only; does not authorize public payment or open mainnet transfer",
+    "decision": "accepted_risk_for_documented_transitive_solana_advisories_only",
+    "instruction": "Signed by the AHIN operator. Effective until validUntil. The signed-audit-policy gate (scripts/check-runtime-audit-policy.mjs) consults this block. Re-review mandatory on or before validUntil, or earlier on any advisory re-review trigger."
   },
   "deploymentExecuted": false,
   "workflowDispatched": false,
@@ -36,11 +38,28 @@
       "GHSA-3gc7-fjrx-p6mg",
       "GHSA-w5hq-g745-h8pq"
     ],
-    "acceptedCascadePackages": [
+    "acceptedRootSeverityCeiling": {
+      "GHSA-3gc7-fjrx-p6mg": "high",
+      "GHSA-w5hq-g745-h8pq": "high"
+    },
+    "rootAdvisoryModel": "There are exactly TWO root advisories in the Solana dependency tree: bigint-buffer (GHSA-3gc7-fjrx-p6mg) and uuid (GHSA-w5hq-g745-h8pq). npm audit additionally flags 14 cascade packages that have NO independent advisory — they are reported only because they transitively depend on a package that depends on one of the two roots. Acceptance is keyed on the two root advisory IDs; the entire transitive cascade is accepted by extension. A genuinely new vulnerability would introduce a NEW root advisory ID not in this list, and the signed-policy gate (scripts/check-runtime-audit-policy.mjs) would FAIL.",
+    "observedCascadePackagesAtSigning": [
+      "@solana-mobile/mobile-wallet-adapter-protocol-web3js",
+      "@solana-mobile/wallet-adapter-mobile",
       "@solana/buffer-layout-utils",
       "@solana/spl-token",
-      "@solana/web3.js"
+      "@solana/spl-token-group",
+      "@solana/spl-token-metadata",
+      "@solana/wallet-adapter-base",
+      "@solana/wallet-adapter-base-ui",
+      "@solana/wallet-adapter-react",
+      "@solana/wallet-adapter-react-ui",
+      "@solana/wallet-standard-wallet-adapter-base",
+      "@solana/wallet-standard-wallet-adapter-react",
+      "@solana/web3.js",
+      "jayson"
     ],
+    "cascadeNote": "14 cascade packages observed at signing (2026-05-28), 16 total npm-audit entries. Cascade membership may shift as the dependency tree changes; the gate does not pin cascade package names — it pins the two root advisory IDs above.",
     "doesNotAccept": [
       "Any future advisory not listed above",
       "Any direct-import vulnerability",

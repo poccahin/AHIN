@@ -1,8 +1,9 @@
 # Phase P2P-A — Runtime Audit Accepted-Risk Decision Pack
 
-**Status: `OPERATOR_REVIEW_REQUIRED`**
+**Status: `OPERATOR_APPROVED`**
 **Issued:** 2026-05-27
-**Review expiry:** 2026-08-25 (90 days)
+**Signed:** 2026-05-28 by Lee / AHIN Operator
+**Approval valid until:** 2026-06-27 (30 days — Phase P2P-B operator decision)
 **Companion JSON:** [`reports/ahin-p2p-audit-accepted-risk.json`](../../reports/ahin-p2p-audit-accepted-risk.json)
 **Audit triage:** [`reports/ahin-p2p-runtime-audit-triage.json`](../../reports/ahin-p2p-runtime-audit-triage.json)
 
@@ -227,12 +228,24 @@ To sign this pack:
 ## 9. Signature
 
 ```
-Signed-by:   <unsigned — pack remains in OPERATOR_REVIEW_REQUIRED state>
-Date:        <unsigned>
-Scope:       <unsigned>
-Expiry:      <unsigned>
+Signed by:     Lee / AHIN Operator
+Signed at:     2026-05-28T03:05:59Z
+Valid until:   2026-06-27T03:05:59Z
+Scope:         Phase P2P production canary readiness only
+Decision:      accepted_risk_for_documented_transitive_solana_advisories_only
+Not authorized: public payment, open mainnet transfer, burn, treasury mutation, public rollout
 ```
+
+This signature accepts residual risk ONLY for the five documented advisories in §3
+(bigint-buffer GHSA-3gc7-fjrx-p6mg, uuid GHSA-w5hq-g745-h8pq, and the cascading
+`@solana/buffer-layout-utils` / `@solana/spl-token` / `@solana/web3.js` MOD entries).
+It does NOT authorize public payment, open mainnet transfer, burn, treasury mutation,
+or public rollout. The signed-audit-policy gate (`scripts/check-runtime-audit-policy.mjs`)
+enforces that only these advisories pass and that the approval is unexpired.
 
 ---
 
-*This document and its companion JSON were prepared as part of Phase P2P-A. No runtime flag, deploy state, treasury, or Squads state was modified. `npm audit --omit=dev` continues to exit 1.*
+*This document and its companion JSON were prepared as part of Phase P2P-A and signed
+as part of Phase P2P-B. No runtime flag, deploy state, treasury, or Squads state was
+modified. `npm audit --omit=dev` continues to exit 1; the signed-policy gate is what
+allows CI to pass while keeping audit strict against any unaccepted advisory.*
