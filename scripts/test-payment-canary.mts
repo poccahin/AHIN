@@ -308,4 +308,41 @@ assert.deepEqual(devRoutesEnabledFor(undefined, "true"), {
   reason: "ok"
 });
 
+// ---------------------------------------------------------------------------
+// Phase P3A — live-readonly mainnet readonly-UI invariants
+// ---------------------------------------------------------------------------
+import {
+  wouldTransferBeArmed,
+  LIVE_READONLY_MODE
+} from "../src/config/life-plus-payment";
+
+// CORE P3A SAFETY: live-readonly can NEVER arm transfer, even if both
+// protocol + transfer flags are true. Only exactly "live" can.
+assert.equal(wouldTransferBeArmed("live-readonly", true, true), false);
+assert.equal(LIVE_READONLY_MODE, "live-readonly");
+
+// Exactly "live" with both flags armed is the only path to true.
+assert.equal(wouldTransferBeArmed("live", true, true), true);
+
+// Any missing flag keeps it disarmed.
+assert.equal(wouldTransferBeArmed("live", false, true), false); // protocol off
+assert.equal(wouldTransferBeArmed("live", true, false), false); // transfer off
+assert.equal(wouldTransferBeArmed("mock", true, true), false); // mock
+assert.equal(wouldTransferBeArmed("live-readonly", false, false), false);
+
+// Readonly path still blocks canary (infra not armed under live-readonly,
+// which produces infrastructureArmed=false):
+assert.equal(
+  isCanaryPaymentAuthorizedWith(
+    { infrastructureArmed: false, canaryEnabled: true, allowlist: [sampleAllowedWallet], maxRaw: 1_000_000n },
+    { wallet: sampleAllowedWallet, amountRaw: 1n }
+  ).reason,
+  "infrastructure_not_armed"
+);
+
+// Burn + public payment remain disabled regardless of mode.
+assert.equal(PUBLIC_PAYMENT_ENABLED, false);
+assert.equal(BURN_ENABLED, false);
+
 console.log("Phase P2P payment canary hardening tests passed");
+console.log("Phase P3A live-readonly transfer-disarm invariants passed");

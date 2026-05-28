@@ -97,12 +97,22 @@ export interface LifePaymentModuleProps {
   /** Called once on confirmed-success (signature) OR confirmed dry-run (null). */
   onSuccess?: (signature: string | null) => void;
   onError?: (error: Error) => void;
+  /**
+   * P3A live-readonly mode. Forces the dry-run path regardless of any flag
+   * state, shows mainnet-readonly copy, and NEVER requests a signature or
+   * broadcasts a transaction. Set true by the Gatekeeper when
+   * gateMode === "live-readonly". (live-readonly also keeps
+   * INFRASTRUCTURE_TRANSFER_ARMED false by construction, so this is
+   * belt-and-suspenders.)
+   */
+  readonly?: boolean;
 }
 
 export default function LifePaymentModule({
   connection,
   onSuccess,
-  onError
+  onError,
+  readonly = false
 }: LifePaymentModuleProps) {
   const [phase, setPhase] = useState<Phase>("idle");
   const [fee, setFee] = useState<PoccCollaborationFee | null>(null);
@@ -284,7 +294,9 @@ export default function LifePaymentModule({
     }
 
     // ---- Branch: dry-run vs canary path ----
-    if (!INFRASTRUCTURE_TRANSFER_ARMED) {
+    // readonly (P3A live-readonly) forces the dry-run path even if the
+    // infrastructure flags were somehow armed — no signature, no broadcast.
+    if (readonly || !INFRASTRUCTURE_TRANSFER_ARMED) {
       try {
         await runDryRun(intentId, feeAmountRaw, fee.lifeDecimals);
       } catch (err) {
@@ -615,6 +627,18 @@ export default function LifePaymentModule({
         Transfer to PoCC Treasury
       </h3>
 
+      {readonly ? (
+        <div className="mt-3 rounded-xl border border-sky-200/25 bg-sky-200/[0.06] p-3 text-[12px] leading-5 text-sky-100/90">
+          <p className="font-medium">Mainnet readonly mode (P3A)</p>
+          <ul className="mt-1 list-disc pl-4 text-sky-100/75">
+            <li>Real LIFE++ balance may be read</li>
+            <li>Transfer disabled · payment canary disabled</li>
+            <li>No transaction submitted · no signature requested</li>
+            <li>No LIFE++ moved</li>
+          </ul>
+        </div>
+      ) : null}
+
       <dl className="mt-4 grid gap-2 text-sm">
         <div className="flex items-center justify-between text-white/70">
           <dt>Destination</dt>
@@ -752,9 +776,11 @@ export default function LifePaymentModule({
       </div>
 
       <p className="mt-3 text-center text-[10px] text-white/35">
-        {INFRASTRUCTURE_TRANSFER_ARMED
-          ? "Live transfer enabled — gated by canary allowlist + cap."
-          : "Readonly evidence mode — no on-chain transfer will be broadcast."}
+        {readonly
+          ? "Mainnet readonly mode — real LIFE++ balance may be read. Transfer disabled · canary disabled · no transaction submitted · no signature requested · no LIFE++ moved."
+          : INFRASTRUCTURE_TRANSFER_ARMED
+            ? "Live transfer enabled — gated by canary allowlist + cap."
+            : "Readonly evidence mode — no on-chain transfer will be broadcast."}
       </p>
     </div>
   );

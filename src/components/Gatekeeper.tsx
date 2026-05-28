@@ -74,7 +74,11 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
   const [verified, setVerified] = useState(false);
   const [turnstileError, setTurnstileError] = useState<string | null>(null);
   const connectedAddress = liveConnection?.address ?? connectedWallet;
-  const liveGateMode = gateMode === "live";
+  // live-readonly (P3A) behaves like live for showing wallet buttons + real
+  // balance/PoCC reads, but renders LifePaymentModule in readonly mode and
+  // can never arm transfer (isLive in life-plus.ts is strictly "live").
+  const liveReadonlyMode = gateMode === "live-readonly";
+  const liveGateMode = gateMode === "live" || liveReadonlyMode;
   const mockFallbackEnabled = gateMode === "mock";
   const isLiveSolana = liveGateMode && liveConnection?.rail === "solana";
   const isSolanaPoccVerified = !isLiveSolana || poccStatus.state === "verified";
@@ -335,6 +339,7 @@ export default function Gatekeeper({ children }: GatekeeperProps) {
                    onSuccess threads into the auth session's entryFee. */
                 <LifePaymentModule
                   connection={liveConnection}
+                  readonly={liveReadonlyMode}
                   onSuccess={(sig) => {
                     grantAccess(connectedAddress, sig);
                   }}

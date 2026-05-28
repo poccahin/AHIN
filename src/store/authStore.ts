@@ -20,7 +20,7 @@ interface AuthState {
   isAuthenticated: boolean;
   session: AhinSession | null;
   userWallet: string | null;
-  gateMode: "mock" | "live";
+  gateMode: "mock" | "live" | "live-readonly";
   grantAccess: (wallet: string, signature?: string | null) => void;
   revokeAccess: () => void;
   setAuthenticated: (session: AhinSession) => void;
@@ -29,7 +29,15 @@ interface AuthState {
 
 const FOUNDATION_LIFEPP_ADDRESS = "AbzDBaC9AmG4ve1Jfemi5TFPCGLLcurqzwPaHj9Jidzr";
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
-const resolvedGateMode: AuthState["gateMode"] = process.env.NEXT_PUBLIC_AHIN_GATE_MODE === "live" ? "live" : "mock";
+// "live-readonly" (P3A) shows the live wallet UI + real balance reads but is
+// structurally transfer-incapable: src/config/life-plus.ts keys isLive on
+// exactly "live", so live-readonly can never arm TRANSFER_ENABLED.
+const resolvedGateMode: AuthState["gateMode"] =
+  process.env.NEXT_PUBLIC_AHIN_GATE_MODE === "live"
+    ? "live"
+    : process.env.NEXT_PUBLIC_AHIN_GATE_MODE === "live-readonly"
+      ? "live-readonly"
+      : "mock";
 
 function isSessionLive(session: AhinSession | null) {
   if (!session) {

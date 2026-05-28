@@ -173,6 +173,25 @@ export function isCanaryPaymentAuthorized(
 }
 
 /**
+ * Pure mirror of the infrastructure transfer-arm rule in life-plus.ts,
+ * exported for unit testing the P3A invariant: transfer can be armed ONLY
+ * when gateMode is exactly "live" (NOT "live-readonly") AND both env flags
+ * are true. live-readonly can never arm transfer regardless of the flags.
+ *
+ * Keep this in lockstep with `TRANSFER_ENABLED` in src/config/life-plus.ts.
+ */
+export function wouldTransferBeArmed(
+  gateMode: string,
+  protocolArmed: boolean,
+  transferArmed: boolean
+): boolean {
+  return gateMode === "live" && protocolArmed && transferArmed;
+}
+
+/** P3A: gateMode that shows live UI + real reads but cannot transfer. */
+export const LIVE_READONLY_MODE = "live-readonly";
+
+/**
  * Human-readable copy for the readiness UI when a canary block is shown.
  * Distinct from the wallet-error copy in paymentErrors.ts — these explain
  * "your environment is not armed for canary," not "your wallet rejected."

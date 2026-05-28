@@ -1,0 +1,82 @@
+{
+  "phase": "Phase P3A Mainnet Readonly Live-UI Test",
+  "status": "P3A_PREPARED_NOT_DEPLOYED",
+  "summary": "Live-readonly mainnet path prepared: a new gateMode 'live-readonly' shows the live wallet UI + real LIFE++ balance reads + PoCC eligibility, but is STRUCTURALLY transfer-incapable (src/config/life-plus.ts keys isLive on exactly 'live'). LifePaymentModule renders readonly copy and forces the dry-run path. A separate wrangler.workers.p3a.jsonc (mainnet-beta, RPC placeholder, all transfer flags false) is provided so the default config stays devnet/mock. No deploy performed.",
+  "timestamp": "2026-05-28T00:00:00.000Z",
+  "deploymentExecuted": false,
+  "workflowDispatched": false,
+  "pushed": false,
+  "mainnetRpcConfigured": "placeholder (https://api.mainnet-beta.solana.com in wrangler.workers.p3a.jsonc; operator must replace with production RPC e.g. Helius/Triton before a real P3A run)",
+  "mainnetTransferExecuted": false,
+  "liveUiEnabled": "prepared-not-active (default wrangler.workers.jsonc remains gateMode=mock; live-readonly active only when deployed with wrangler.workers.p3a.jsonc)",
+  "transferArmed": false,
+  "canaryEnabled": false,
+  "publicPaymentEnabled": false,
+  "burnEnabled": false,
+  "signingEnabled": false,
+  "transactionSubmissionEnabled": false,
+  "treasuryMutationEnabled": false,
+  "realBalanceReadinessImplemented": true,
+  "poccEligibilityReadinessImplemented": true,
+  "liveReadonlyMode": {
+    "gateModeValue": "live-readonly",
+    "recognizedIn": "src/store/authStore.ts (resolver + type union)",
+    "showsLiveWalletUi": true,
+    "readsRealBalances": true,
+    "evaluatesPoccEligibility": true,
+    "transferStructurallyImpossible": true,
+    "transferStructuralReason": "src/config/life-plus.ts isLive === (gateMode === 'live'); live-readonly !== 'live' so TRANSFER_ENABLED is always false regardless of AHIN_PROTOCOL_EXECUTION_ENABLED / AHIN_REAL_USAGE_FEE_TRANSFER",
+    "lifePaymentModuleForcedDryRun": true,
+    "lifePaymentModuleReadonlyProp": "readonly={liveReadonlyMode} passed from Gatekeeper"
+  },
+  "config": {
+    "defaultWranglerUnchanged": "wrangler.workers.jsonc still cluster=devnet, gateMode=mock",
+    "p3aWrangler": "wrangler.workers.p3a.jsonc (separate, worker name ahin-io-p3a, mainnet-beta, gateMode=live-readonly, NEXT_PUBLIC_AHIN_ENV=production so dev routes 404)",
+    "filesChanged": [
+      "src/store/authStore.ts",
+      "src/components/Gatekeeper.tsx",
+      "src/components/LifePaymentModule.tsx",
+      "src/config/life-plus.ts (comment only — isLive stays strict)",
+      "src/config/life-plus-payment.ts (wouldTransferBeArmed helper + LIVE_READONLY_MODE)",
+      "wrangler.workers.p3a.jsonc (new)",
+      "scripts/test-payment-canary.mts (P3A invariants)",
+      "scripts/release-lint.mjs (invariant guard)"
+    ]
+  },
+  "uiCopy": {
+    "readonlyBanner": "Mainnet readonly mode (P3A) — real LIFE++ balance may be read; transfer disabled; payment canary disabled; no transaction submitted; no signature requested; no LIFE++ moved.",
+    "bottomHint": "Mainnet readonly mode — real LIFE++ balance may be read. Transfer disabled · canary disabled · no transaction submitted · no signature requested · no LIFE++ moved."
+  },
+  "paymentModel": {
+    "type": "usage_liquidity_deposit",
+    "paymentRule": "min(1 USDT-equivalent LIFE++, 1 LIFE++)",
+    "paymentDestination": "5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo",
+    "burn": "disabled"
+  },
+  "tests": {
+    "file": "scripts/test-payment-canary.mts",
+    "p3aAssertions": [
+      "wouldTransferBeArmed('live-readonly', true, true) === false",
+      "wouldTransferBeArmed('live', true, true) === true",
+      "wouldTransferBeArmed('live', false/true variants) === false",
+      "live-readonly produces infrastructure_not_armed canary block",
+      "PUBLIC_PAYMENT_ENABLED === false",
+      "BURN_ENABLED === false"
+    ]
+  },
+  "boundariesHeld": {
+    "AHIN_PROTOCOL_EXECUTION_ENABLED": "false",
+    "AHIN_REAL_USAGE_FEE_TRANSFER": "false",
+    "AHIN_PAYMENT_CANARY_ENABLED": "false/unset",
+    "PUBLIC_PAYMENT_ENABLED": "false",
+    "BURN_ENABLED": "false",
+    "AHIN_PAYMENT_CANARY_ALLOWLIST": "empty",
+    "AHIN_PAYMENT_CANARY_MAX_RAW": "0n/unset"
+  },
+  "blockers": [
+    "Operator-provided production mainnet RPC endpoint (placeholder currently).",
+    "Deploy of wrangler.workers.p3a.jsonc is operator action (not done; requires explicit instruction).",
+    "OOB verification (LIFE++ mint authority/freeze/supply, Squads treasury, treasury ATA) before any P3B canary."
+  ],
+  "nextPhase": "P3B (single foundation-wallet micro-transfer) remains blocked — requires P3A live-readonly observation + allowlist + cap + kill-switch drill + OOB verification + explicit operator authorization."
+}

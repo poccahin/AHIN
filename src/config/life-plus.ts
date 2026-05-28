@@ -19,6 +19,9 @@ export const JUPITER_ULTRA_BASE_URL = "https://api.jup.ag/ultra";
 // flags). Pre-deploy scripts gate on the same env var names so the two
 // layers cannot drift.
 // --------------------------------------------------------------------------
+// Strictly "live" — NOT "live-readonly". This is the structural guarantee
+// that P3A live-readonly mode can never arm transfer: TRANSFER_ENABLED below
+// requires isLive, and live-readonly does not satisfy it.
 const isLive = process.env.NEXT_PUBLIC_AHIN_GATE_MODE === "live";
 const protocolArmed = process.env.AHIN_PROTOCOL_EXECUTION_ENABLED === "true";
 const transferArmed = process.env.AHIN_REAL_USAGE_FEE_TRANSFER === "true";

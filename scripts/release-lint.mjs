@@ -744,6 +744,37 @@ check(
   "LifePaymentModule onSuccess must only fire after a confirmation outcome (dry-run, confirmation poll, or resume-status check)."
 );
 
+// --- Phase P3A: live-readonly must be structurally transfer-incapable ---
+const lifePlusConfigSource = read("src/config/life-plus.ts");
+const authStoreSource = read("src/store/authStore.ts");
+const lifePlusPaymentConfigSourceP3a = read("src/config/life-plus-payment.ts");
+
+const isLiveLine =
+  lifePlusConfigSource.split("\n").find((l) => /const\s+isLive\s*=/.test(l)) || "";
+check(
+  "isLive is strict (gateMode === 'live'), so live-readonly cannot arm transfer",
+  /===\s*"live"/.test(isLiveLine) && !isLiveLine.includes("live-readonly"),
+  "src/config/life-plus.ts isLive assignment must be exactly (gateMode === 'live'); the isLive line must NOT treat live-readonly as live (would arm transfer)."
+);
+check(
+  "authStore recognizes live-readonly as a distinct gate mode",
+  authStoreSource.includes('"live-readonly"') &&
+    authStoreSource.includes('"mock" | "live" | "live-readonly"'),
+  "src/store/authStore.ts must include 'live-readonly' in the gateMode union + resolver."
+);
+check(
+  "P3A transfer-arm helper keeps live-readonly disarmed",
+  lifePlusPaymentConfigSourceP3a.includes("wouldTransferBeArmed") &&
+    /gateMode === "live" && protocolArmed && transferArmed/.test(lifePlusPaymentConfigSourceP3a),
+  "life-plus-payment.ts wouldTransferBeArmed must require gateMode === 'live' (not live-readonly)."
+);
+check(
+  "LifePaymentModule honors a readonly prop (forces dry-run)",
+  lifePaymentModule.includes("readonly") &&
+    /readonly \|\| !INFRASTRUCTURE_TRANSFER_ARMED/.test(lifePaymentModule),
+  "LifePaymentModule must force the dry-run path when readonly (P3A live-readonly)."
+);
+
 const failures = checks.filter((item) => !item.passed);
 
 for (const item of checks) {

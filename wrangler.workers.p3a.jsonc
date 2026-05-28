@@ -1,0 +1,61 @@
+{
+  // ---------------------------------------------------------------------------
+  // Phase P3A — Mainnet Readonly Live-UI Test config.
+  //
+  // SEPARATE from wrangler.workers.jsonc (which stays devnet/mock). Deploy
+  // ONLY with an explicit --config flag, never as the default. Distinct worker
+  // name so it can never overwrite the production `ahin-io` worker or the root
+  // ahin.io domain.
+  //
+  // This config points reads at mainnet-beta in gateMode "live-readonly":
+  //   - live wallet UI + REAL LIFE++ balance reads + PoCC eligibility
+  //   - transfer is STRUCTURALLY impossible: src/config/life-plus.ts keys
+  //     isLive on exactly "live", and this is "live-readonly".
+  //   - all AHIN_REAL_* / PROTOCOL_EXECUTION / canary flags remain false.
+  //   - no signature requested, no transaction submitted, no LIFE++ moved.
+  //
+  // RPC: replace the placeholder with an operator-provided production RPC
+  // (Helius/Triton/etc.) before any real P3A run; the public mainnet endpoint
+  // is heavily rate-limited.
+  // ---------------------------------------------------------------------------
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ahin-io-p3a",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-05-14",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "AHIN_ORACLE_KV",
+      "id": "a7aa5c04dd674507802ecba08bdadd7b",
+      "preview_id": "b5d283d9d45d43879f9a21167cec1779"
+    }
+  ],
+  "vars": {
+    "NEXT_PUBLIC_AHIN_ENV": "production",
+    "NEXT_PUBLIC_AHIN_TARGET_DOMAIN": "p3a.ahin.io",
+    "NEXT_PUBLIC_AHIN_GATE_MODE": "live-readonly",
+    "NEXT_PUBLIC_AHIN_DEBUG_MATRIX": "false",
+    "NEXT_PUBLIC_AHIN_WALLET_MODE": "live",
+    "NEXT_PUBLIC_AHIN_REQUIRED_LIFE_USDT": "10",
+    "NEXT_PUBLIC_AHIN_ENTRY_BURN_AMOUNT": "1",
+    "NEXT_PUBLIC_LIFE_PLUS_CA": "7YdwpERJjzw7UVojxLpvu5ycKBRdYaxaKn4HvoHLpump",
+    "NEXT_PUBLIC_LIFE_PLUS_FOUNDATION_SOLANA_ADDRESS": "J8ez8GMsHtd8x4ucd1Q1LuA1k4GJ9dHYFVoa3PpetFDu",
+    "NEXT_PUBLIC_LIFE_PLUS_MAX_SUPPLY": "993953256.43115",
+    "JUPITER_API_URL": "https://api.jup.ag",
+    "AHIN_ORACLE_MODE": "readonly",
+    "AHIN_PROTOCOL_EXECUTION_ENABLED": "false",
+    "AHIN_REAL_WALLET_VERIFICATION": "false",
+    "AHIN_REAL_LIFE_BALANCE_CHECK": "false",
+    "AHIN_REAL_USAGE_FEE_TRANSFER": "false",
+    "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAADUzG7HwBkY8f_O2",
+    "NEXT_PUBLIC_SOLANA_RPC_URL": "https://api.mainnet-beta.solana.com",
+    "NEXT_PUBLIC_SOLANA_CLUSTER": "mainnet-beta"
+    // AHIN_PAYMENT_CANARY_ENABLED — intentionally unset (defaults false)
+    // AHIN_PAYMENT_CANARY_ALLOWLIST — intentionally unset (defaults empty)
+    // AHIN_PAYMENT_CANARY_MAX_RAW — intentionally unset (defaults 0n → blocks)
+  }
+}
