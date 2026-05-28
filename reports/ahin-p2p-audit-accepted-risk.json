@@ -1,0 +1,269 @@
+{
+  "phase": "Phase P2P-A Runtime Audit Accepted-Risk Decision Pack",
+  "status": "OPERATOR_REVIEW_REQUIRED",
+  "summary": "Formal accepted-risk decision pack for the Solana transitive vulnerabilities surfaced by npm audit. This document does NOT change CI policy; npm audit remains a blocking gate. This document does NOT enable any runtime path; all live transfer flags remain disarmed. The pack records the structural reasoning for an operator decision and provides the JSON the policy can later consult if/when the operator signs the companion markdown.",
+  "issuedAt": "2026-05-27T00:00:00.000Z",
+  "documents": {
+    "machineReadable": "reports/ahin-p2p-audit-accepted-risk.json",
+    "humanReadable": "docs/security/p2p-runtime-audit-accepted-risk.md",
+    "linkedTriage": "reports/ahin-p2p-runtime-audit-triage.json",
+    "linkedAuditRaw": "reports/ahin-p2p-runtime-audit-raw.json",
+    "linkedLintLog": "reports/ahin-p2p-lint-full.log"
+  },
+  "operatorApproval": {
+    "required": true,
+    "signedBy": null,
+    "signedAt": null,
+    "validUntil": null,
+    "instruction": "Operator must edit this JSON to populate signedBy, signedAt (ISO-8601), and validUntil (ISO-8601) before this pack is treated as effective. Until populated, status remains OPERATOR_REVIEW_REQUIRED and CI continues to fail audit gate."
+  },
+  "deploymentExecuted": false,
+  "workflowDispatched": false,
+  "pushed": false,
+  "mainnetTransferExecuted": false,
+  "publicPaymentEnabled": false,
+  "burnEnabled": false,
+  "signingEnabled": false,
+  "protocolExecutionEnabled": false,
+  "treasuryMutationEnabled": false,
+  "ciPolicyChanged": false,
+  "auditIgnoreLogicAdded": false,
+  "auditMadeNonBlocking": false,
+  "currentAuditExitCode": 1,
+  "policyEffectIfSigned": {
+    "description": "When this pack is signed (operatorApproval.signedBy populated), a SUBSEQUENT operator-authorized CI-policy commit may consult this file to decide whether to treat specific advisory IDs as accepted vs blocking. That CI policy change is a separate decision recorded as its own commit in a separate phase. THIS commit does not implement any such policy.",
+    "acceptedAdvisoryIds": [
+      "GHSA-3gc7-fjrx-p6mg",
+      "GHSA-w5hq-g745-h8pq"
+    ],
+    "acceptedCascadePackages": [
+      "@solana/buffer-layout-utils",
+      "@solana/spl-token",
+      "@solana/web3.js"
+    ],
+    "doesNotAccept": [
+      "Any future advisory not listed above",
+      "Any direct-import vulnerability",
+      "Any advisory that breaks the AND-of-explicit-env-flags safety model",
+      "Any advisory in a package not in the Solana ecosystem cascade"
+    ]
+  },
+  "advisories": [
+    {
+      "id": "GHSA-3gc7-fjrx-p6mg",
+      "package": "bigint-buffer",
+      "severity": "high",
+      "title": "bigint-buffer Vulnerable to Buffer Overflow via toBigIntLE() Function",
+      "url": "https://github.com/advisories/GHSA-3gc7-fjrx-p6mg",
+      "import": {
+        "direct": false,
+        "dependencyChain": [
+          "@solana/spl-token (direct)",
+          "@solana/buffer-layout-utils (transitive)",
+          "bigint-buffer (transitive)"
+        ]
+      },
+      "reachability": {
+        "fromRootGovernanceUi": false,
+        "fromRootGovernanceUiNote": "Root renders <Gatekeeper> -> <AhinGateway/> (R3F scene). Neither path constructs Solana RPC objects or imports @solana/spl-token directly. bigint-buffer is loaded only when src/lib/lifePlusSolana.ts is exercised (via Gatekeeper's verifySolanaPocc).",
+        "withoutCanaryFlags": true,
+        "withoutCanaryFlagsNote": "When gateMode=live, readLifePlusBalanceRaw imports @solana/spl-token transitively pulling bigint-buffer. The vulnerable function toBigIntLE is invoked when reading u64 token amounts. Current production env keeps gateMode=mock so this path is not reachable today.",
+        "canCauseSigningTransferBurn": false,
+        "canCauseSigningTransferBurnNote": "Even if exploited, bigint-buffer cannot bypass the runtime AND-of-env-flags. Signing/transfer require AHIN_PROTOCOL_EXECUTION_ENABLED=true && AHIN_REAL_USAGE_FEE_TRANSFER=true && AHIN_PAYMENT_CANARY_ENABLED=true && wallet allowlisted && amount within cap. These are evaluated at module import via process.env; runtime code cannot mutate process.env to flip them."
+      },
+      "exploitabilityInThisCodebase": "Low. The vulnerability triggers on attacker-controlled Buffer inputs to toBigIntLE. Our code only invokes it via connection.getTokenAccountBalance(ata), where `ata` is a deterministic ATA derived from the user's pubkey + the LIFE++ mint. There is no path for the user to supply a malformed Buffer that flows into toBigIntLE.",
+      "availableFix": {
+        "type": "force_downgrade",
+        "target": "@solana/spl-token@0.1.8",
+        "isSemVerMajor": true,
+        "wouldBreak": true,
+        "breakDetail": "@solana/spl-token@0.1.8 (released ~2021) predates the modern API used in src/lib/transactionSolana.ts. Specifically createTransferCheckedInstruction and getAssociatedTokenAddressSync are not exported in 0.1.8 — the current code would fail to compile."
+      },
+      "whyForceFixRejected": "npm audit fix --force would silently downgrade @solana/spl-token to a version where our transfer-instruction builder cannot be constructed. The build would fail at tsc, and if we patched our code to use 0.1.x APIs we'd lose checked-decimal validation in transfers — a security regression. Cure worse than disease.",
+      "mitigation": [
+        "AND-of-explicit-env-flags safety model (release-lint enforced) blocks signing/transfer/burn regardless of dep behavior.",
+        "Wallet signing API confined to src/lib/walletAdapters.ts.",
+        "Transaction submission APIs confined to src/lib/walletAdapters.ts.",
+        "createTransferCheckedInstruction confined to src/lib/transactionSolana.ts.",
+        "Burn instruction path forbidden everywhere.",
+        "/active-hash simulator + root governance routes are web3-free.",
+        "Dev API routes 404 in production.",
+        "gateMode=mock + cluster=devnet in current env keeps the entire @solana/spl-token execution path cold."
+      ],
+      "residualRisk": "If gateMode is flipped to live (P3A) without this accepted-risk pack being signed, every Gatekeeper PoCC check would load the vulnerable dep chain. Risk is bounded to memory-safety of the JS runtime; no signing/transfer can be coerced.",
+      "review": {
+        "expiry": "2026-08-25T00:00:00.000Z",
+        "expiryRationale": "90 days from issue. If upstream has not patched by then, re-evaluate with current Solana ecosystem status.",
+        "triggerEarlyReReview": [
+          "Solana team publishes patched @solana/spl-token without bigint-buffer dependency",
+          "New advisory published against bigint-buffer with different exploit profile",
+          "Decision to advance to P3B (real foundation-wallet micro-transfer)",
+          "Decision to open canary beyond a single allowlisted wallet"
+        ]
+      },
+      "operatorApprovalRequiredBeforePush": true
+    },
+    {
+      "id": "GHSA-w5hq-g745-h8pq",
+      "package": "uuid",
+      "severity": "high",
+      "title": "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided",
+      "url": "https://github.com/advisories/GHSA-w5hq-g745-h8pq",
+      "import": {
+        "direct": false,
+        "dependencyChain": [
+          "@solana/web3.js (direct)",
+          "uuid (transitive)"
+        ]
+      },
+      "reachability": {
+        "fromRootGovernanceUi": false,
+        "fromRootGovernanceUiNote": "uuid is used by @solana/web3.js internally for request-id correlation. Our code never calls uuid.v3/v5/v6 with a user-supplied `buf` argument.",
+        "withoutCanaryFlags": true,
+        "withoutCanaryFlagsNote": "Loaded any time a Connection is constructed (lifePlusSolana.ts, paymentPreflight.ts, etc.).",
+        "canCauseSigningTransferBurn": false,
+        "canCauseSigningTransferBurnNote": "Bounds-check bypass in uuid cannot influence process.env or the env-derived gate flags."
+      },
+      "exploitabilityInThisCodebase": "Very low. The advisory requires the caller to pass a user-controlled `buf` argument to uuid.v3/v5/v6. Our code does not call these functions directly. @solana/web3.js's internal usage uses uuid.v4 (which is not affected by the advisory).",
+      "availableFix": {
+        "type": "transitive_upgrade",
+        "target": "uuid >= 11.1.1",
+        "isSemVerMajor": true,
+        "wouldBreak": "unknown",
+        "breakDetail": "@solana/web3.js pins an older uuid range. npm overrides could force uuid@11.1.1+ but the SDK may not be tested against that major. Could introduce subtle runtime incompatibilities in request correlation."
+      },
+      "whyForceFixRejected": "Same rationale as bigint-buffer: forced upgrade may destabilize the SDK in ways that aren't caught at build time. Better to wait for upstream coordination.",
+      "mitigation": [
+        "Same structural mitigations as bigint-buffer entry.",
+        "Additional: our code never invokes uuid.v3/v5/v6 directly."
+      ],
+      "residualRisk": "Minimal beyond what bigint-buffer already presents. Same upstream-fix dependency.",
+      "review": {
+        "expiry": "2026-08-25T00:00:00.000Z",
+        "expiryRationale": "Aligned with bigint-buffer review; the two are practically coupled.",
+        "triggerEarlyReReview": [
+          "@solana/web3.js publishes a version with uuid@11.1.1+",
+          "Discovery of a uuid.v4 advisory that would affect our code path"
+        ]
+      },
+      "operatorApprovalRequiredBeforePush": true
+    },
+    {
+      "id": "transitive-cascade-buffer-layout-utils",
+      "package": "@solana/buffer-layout-utils",
+      "severity": "moderate",
+      "title": "Cascading via bigint-buffer + @solana/web3.js",
+      "import": {
+        "direct": false,
+        "dependencyChain": [
+          "@solana/spl-token",
+          "@solana/buffer-layout-utils"
+        ]
+      },
+      "reachability": {
+        "fromRootGovernanceUi": false,
+        "withoutCanaryFlags": true,
+        "canCauseSigningTransferBurn": false
+      },
+      "exploitabilityInThisCodebase": "Identical to bigint-buffer root cause.",
+      "availableFix": {
+        "type": "force_downgrade",
+        "target": "@solana/spl-token@0.1.8",
+        "wouldBreak": true
+      },
+      "whyForceFixRejected": "Cascade of bigint-buffer fix — same reason.",
+      "mitigation": "Same as bigint-buffer.",
+      "residualRisk": "Same as bigint-buffer.",
+      "review": {
+        "expiry": "2026-08-25T00:00:00.000Z",
+        "expiryRationale": "Coupled to bigint-buffer."
+      },
+      "operatorApprovalRequiredBeforePush": true
+    },
+    {
+      "id": "transitive-cascade-spl-token",
+      "package": "@solana/spl-token",
+      "severity": "moderate",
+      "title": "Cascading via @solana/buffer-layout-utils + @solana/spl-token-group + @solana/spl-token-metadata + @solana/web3.js",
+      "import": {
+        "direct": true,
+        "dependencyChain": [
+          "@solana/spl-token (direct)"
+        ]
+      },
+      "reachability": {
+        "fromRootGovernanceUi": false,
+        "withoutCanaryFlags": true,
+        "canCauseSigningTransferBurn": false
+      },
+      "exploitabilityInThisCodebase": "Identical to bigint-buffer root cause; surfaced because direct import.",
+      "availableFix": {
+        "type": "force_downgrade",
+        "target": "@solana/spl-token@0.1.8",
+        "wouldBreak": true
+      },
+      "whyForceFixRejected": "Cascade of bigint-buffer fix — same reason.",
+      "mitigation": "Same as bigint-buffer.",
+      "residualRisk": "Same as bigint-buffer.",
+      "review": {
+        "expiry": "2026-08-25T00:00:00.000Z",
+        "expiryRationale": "Coupled to bigint-buffer."
+      },
+      "operatorApprovalRequiredBeforePush": true
+    },
+    {
+      "id": "transitive-cascade-web3",
+      "package": "@solana/web3.js",
+      "severity": "moderate",
+      "title": "Cascading via bigint-buffer + uuid",
+      "import": {
+        "direct": true,
+        "dependencyChain": [
+          "@solana/web3.js (direct)"
+        ]
+      },
+      "reachability": {
+        "fromRootGovernanceUi": false,
+        "withoutCanaryFlags": true,
+        "canCauseSigningTransferBurn": false
+      },
+      "exploitabilityInThisCodebase": "Cascade of bigint-buffer + uuid.",
+      "availableFix": "No clean fix; awaits upstream.",
+      "whyForceFixRejected": "No actionable fix exists.",
+      "mitigation": "Same as bigint-buffer + uuid.",
+      "residualRisk": "Same as bigint-buffer + uuid.",
+      "review": {
+        "expiry": "2026-08-25T00:00:00.000Z",
+        "expiryRationale": "Coupled to bigint-buffer."
+      },
+      "operatorApprovalRequiredBeforePush": true
+    }
+  ],
+  "structuralMitigationsSummary": [
+    "AND-of-explicit-env-flags safety model (release-lint enforced).",
+    "Wallet signing API confined to src/lib/walletAdapters.ts (release-lint enforced).",
+    "Transaction submission APIs confined to src/lib/walletAdapters.ts (release-lint enforced).",
+    "createTransferCheckedInstruction confined to src/lib/transactionSolana.ts (release-lint enforced).",
+    "Burn instruction path forbidden everywhere (release-lint enforced).",
+    "/active-hash simulator + root governance routes are web3-free (release-lint enforced).",
+    "Dev routes /api/dev/* return 404 in production (release-lint enforced).",
+    "grantAccess fires only after confirmation outcome (release-lint enforced).",
+    "PUBLIC_PAYMENT_ENABLED + BURN_ENABLED hardcoded false (release-lint enforced).",
+    "Canary allowlist defaults empty; cap defaults 0n (blocks); both env-derived (release-lint enforced)."
+  ],
+  "doNotInThisPatch": [
+    "Modify CI policy.",
+    "Make npm audit non-blocking.",
+    "Add audit-ignore logic.",
+    "Push to origin.",
+    "Dispatch any workflow.",
+    "Deploy.",
+    "Flip any runtime flag.",
+    "Enable public payment, transfer, burn, or signing.",
+    "Mutate treasury or Squads state."
+  ],
+  "blockers": [
+    "operatorApproval.signedBy unset — pack is not yet effective.",
+    "Even after signing, separate CI-policy commit required to make audit advisory-only-warn for the listed IDs."
+  ]
+}
