@@ -1,0 +1,40 @@
+{
+  "_template": "Operator fills <FILL: …> after rotating SOLANA_RPC_URL to a Worker-egress-permitting provider and running scripts/p3a-rpc-readonly-smoke.sh. Copy to reports/ahin-p3a-rpc-provider-migration.json before editing. Dangerous flags MUST remain false; if any would be true, the readonly boundary was breached and the change must be rolled back.",
+
+  "phase": "Phase P3A RPC Provider Migration (403 recovery)",
+  "timestamp": "<FILL: ISO-8601 UTC>",
+  "deployedWorkerUrl": "https://ahin-io-p3a.doovvvai.workers.dev",
+
+  "rpcProvider": "<FILL: helius | triton | quicknode | other (name only, never the URL/key)>",
+  "rpc403Resolved": false,
+  "validWalletRead": "<FILL: ok_true | failed + diagnosticCode>",
+  "treasuryPdaRead": "<FILL: ok_true | failed + diagnosticCode>",
+  "rpcSource": "<FILL: secret_binding (expected)>",
+
+  "secretLeakDetected": false,
+  "readonlyInvariantIntact": true,
+
+  "transferEnabled": false,
+  "signingEnabled": false,
+  "transactionObserved": false,
+  "rollbackRequired": false,
+
+  "smoke": {
+    "rootWorkerHttp200": "<FILL: true|false>",
+    "missingWallet400": "<FILL: true|false>",
+    "invalidWallet400": "<FILL: true|false>",
+    "rpcUrlLeaked": false,
+    "apiKeyLeaked": false,
+    "htmlErrorPageObserved": false,
+    "smokeScript": "scripts/p3a-rpc-readonly-smoke.sh",
+    "smokeExitCode": "<FILL: 0 on full pass>"
+  },
+
+  "diagnosticsFixDeployed": "<FILL: true|false — whether commit 7cebf9e (off-curve read + sanitized diagnostics) is live on the worker>",
+
+  "rollbackInstructions": "Non-destructive. Revert: npx wrangler secret put SOLANA_RPC_URL --config wrangler.workers.p3a.jsonc. Remove: npx wrangler secret delete SOLANA_RPC_URL --config wrangler.workers.p3a.jsonc (route then fails soft rpc_not_configured, readonly). Transfer/burn/signing/canary stay false; mint+treasury constants immutable; root ahin.io untouched.",
+
+  "finalStatus": "<FILL: P3A_RPC_PROVIDER_RECOVERY_READY | P3A_RPC_PROVIDER_RECOVERY_BLOCKED | P3A_RPC_PROVIDER_RECOVERY_FAILED>",
+
+  "boundaries": "Readonly migration only. No deploy/secret-set/workflow performed by the agent; mint (7Ydwp…pump) + treasury (5Cohfz…CzRo) immutable; no env override; P3B blocked."
+}
