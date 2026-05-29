@@ -1,0 +1,52 @@
+{
+  "_template": "Operator fills <FILL: …> fields after executing docs/deployment/p3a-run-operator-runbook.md. Copy this file to reports/ahin-p3a-mainnet-readonly-live-ui-run.json before editing. The `false` safety invariants MUST stay false; if any would be true, the run breached its boundary and must be rolled back.",
+
+  "phase": "Phase P3A-Run Mainnet Readonly Live-UI Deployment",
+  "status": "<FILL: P3A_RUN_PASS | P3A_RUN_FAILED | P3A_RUN_ROLLED_BACK>",
+  "timestamp": "<FILL: ISO-8601 UTC, e.g. 2026-05-29T00:00:00.000Z>",
+
+  "deployedUrl": "<FILL: https://ahin-io-p3a.<subdomain>.workers.dev>",
+  "deploymentExecuted": "<FILL: true|false>",
+  "workerName": "ahin-io-p3a",
+  "isRootWorker": false,
+  "rootWorkerName": "ahin-io (separate; untouched)",
+  "cluster": "mainnet-beta",
+  "gateMode": "live-readonly",
+
+  "rootDomainTouched": false,
+  "mainnetRpcConfigured": true,
+  "rpcSecretName": "SOLANA_RPC_URL",
+  "rpcUrlExposed": false,
+
+  "transferArmed": false,
+  "canaryEnabled": false,
+  "publicPaymentEnabled": false,
+  "burnEnabled": false,
+  "signingEnabled": false,
+  "transactionSubmissionEnabled": false,
+  "treasuryMutationEnabled": false,
+  "mainnetTransferExecuted": false,
+  "signatureRequested": false,
+
+  "smoke": {
+    "workerRootHttpStatus": "<FILL: 200>",
+    "liveReadonlyCopyPresent": "<FILL: true|false>",
+    "mainnetBetaIndicated": "<FILL: true|false>",
+    "balanceRouteRpcSource": "<FILL: secret_binding | process_env | public_env | default_devnet>",
+    "balanceReadSmokeResult": "<FILL: pass|fail + detail (e.g. wallet <addr> -> rawBalance <u64>, decimals 9, no url in response)>",
+    "eligibilitySmokeResult": "<FILL: pass|fail + detail (PoCC threshold evaluated from real balance + Jupiter quote)>",
+    "missingWalletStatus": "<FILL: 400>",
+    "invalidWalletStatus": "<FILL: 400>",
+    "devRoute404Confirmed": "<FILL: true|false (GET /api/dev/lifepp-balance must be 404)>",
+    "clientBundleRpcLeakDetected": false,
+    "rootAhinIoUnchanged": "<FILL: true|false>"
+  },
+
+  "commitSha": "94b1f6134dc4b705880b67389211503ca23a721e",
+  "productionGateRunId": 26619658690,
+  "gatesOnlyPreviewRunId": 26622711158,
+
+  "rollbackInstructions": "Non-destructive. Rotate/remove the secret: `npx wrangler secret put|delete SOLANA_RPC_URL --config wrangler.workers.p3a.jsonc` (route then fails soft, readonly). Or redeploy the previous P3A bundle, or tear down the separate worker: `npx wrangler delete --name ahin-io-p3a`. Transfer/burn/signing/canary/public-payment flags stay false; root ahin.io and the ahin-io worker are never touched; default wrangler.workers.jsonc (devnet/mock) unaffected.",
+
+  "nextPhase": "P3B (single foundation-wallet micro-transfer) remains BLOCKED — additionally requires allowlist + per-payment cap + kill-switch drill + OOB mint/treasury/ATA verification + explicit operator authorization."
+}
