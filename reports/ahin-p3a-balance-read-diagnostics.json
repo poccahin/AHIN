@@ -1,0 +1,71 @@
+{
+  "phase": "Phase P3A Balance Read Diagnostics",
+  "status": "P3A_BALANCE_READ_DIAGNOSED__RPC_403_IP_BLOCK_PLUS_OFFCURVE__CODE_FIX_PENDING_DEPLOY",
+  "timestamp": "2026-05-29T10:05:00.000Z",
+
+  "deploymentExecuted": false,
+  "rootDomainTouched": false,
+  "rpcSecretBound": true,
+  "rpcUrlExposed": false,
+
+  "transferArmed": false,
+  "canaryEnabled": false,
+  "publicPaymentEnabled": false,
+  "burnEnabled": false,
+  "signingEnabled": false,
+  "transactionSubmissionEnabled": false,
+  "treasuryMutationEnabled": false,
+
+  "observedError": "balance_read_failed",
+  "observedRpcSource": "secret_binding",
+
+  "rootCause": {
+    "primary": {
+      "id": "rpc_403_ip_block",
+      "evidence": "Live probe of the deployed worker for TWO on-curve controls (foundation wallet J8ez8GMs… and System Program 1111…1111) both returned balance_read_failed with diagnostic '403 Forbidden: {\"error\":{\"code\":403,\"message\":\"Your IP or provider is blocked from this endpoint\"}}', rpcSource=secret_binding.",
+      "meaning": "The SOLANA_RPC_URL secret IS bound, but the endpoint it points to rejects the Cloudflare Worker's egress IP/provider (403). Public api.mainnet-beta.solana.com and some providers block cloud/Worker IPs. ALL reads fail at the rpc_query stage until the secret points at a provider that permits Cloudflare Worker egress (e.g. Helius/Triton/QuickNode with Worker egress allowed).",
+      "fixOwner": "operator (infra) — re-set SOLANA_RPC_URL to a Worker-permitting endpoint; no code change can bypass a provider IP block.",
+      "stage": "rpc_query"
+    },
+    "secondary": {
+      "id": "owner_off_curve_empty_diagnostic",
+      "evidence": "The operator's treasury query (5Cohfz… , a Squads multisig PDA = off-curve) returned diagnostic:\"\" (empty). getAssociatedTokenAddress used allowOwnerOffCurve=false, so splGetAssociatedTokenAddressSync threw TokenOwnerOffCurveError (empty .message) DURING ATA derivation, before any RPC call — hence empty diagnostic. This masked the underlying RPC 403.",
+      "fixOwner": "code (this report) — read path now derives the ATA with allowOwnerOffCurve=true so PDA owners are queryable, and the route never returns an empty diagnostic.",
+      "stage": "ata_derivation"
+    }
+  },
+
+  "diagnosticImproved": true,
+  "codeChanges": [
+    "src/lib/lifePlusSolana.ts: getAssociatedTokenAddress gains allowOwnerOffCurve param (default false); readLifePlusBalanceForOwner derives the ATA with allowOwnerOffCurve=true so off-curve PDA owners (treasury) are queryable. On-curve wallets unaffected.",
+    "app/api/solana/lifepp-balance/route.ts: classifyBalanceReadError maps failures to safe codes (rpc_403_forbidden | rpc_429_rate_limited | rpc_timeout | rpc_request_failed | rpc_invalid_response | owner_has_no_token_account | invalid_owner_pubkey | token_account_query_failed); never returns an empty diagnostic; returns curated secret-free message + errorClass (class name only); raw provider body is NOT echoed; URL-shaped text is redacted; full detail logged server-side only (wrangler tail).",
+    "Added P3A debug-safe response fields: rpcSource, cluster, lifePlusMint, ownerAddressShort, balanceReadStage, diagnosticCode."
+  ],
+  "secretSafety": {
+    "rpcUrlReturnedToClient": false,
+    "apiKeyReturnedToClient": false,
+    "rawProviderBodyReturnedToClient": false,
+    "urlRedactionApplied": true,
+    "serverOnlySecretAccess": "getCloudflareContext().env['SOLANA_RPC_URL']"
+  },
+
+  "expectedPostDeployBehavior": {
+    "normalOnCurveWalletNoLife": "ok=true, rawBalance=\"0\" (ATA not found -> 0n) — ONCE the RPC 403 is resolved.",
+    "treasuryOffCurvePda": "now queryable (allowOwnerOffCurve=true): ok=true rawBalance=<n> if it holds LIFE++, else \"0\" — ONCE the RPC 403 is resolved. Until then both return diagnosticCode=rpc_403_forbidden (clear, non-empty).",
+    "note": "These code fixes are NOT deployed (no deploy in this phase). The deployed worker (version 8cde4a3c) still returns the old shape until the operator redeploys."
+  },
+
+  "nextSmokeCommands": [
+    "# After operator re-sets SOLANA_RPC_URL to a Worker-permitting provider AND redeploys ahin-io-p3a:",
+    "curl -s 'https://ahin-io-p3a.doovvvai.workers.dev/api/solana/lifepp-balance?wallet=<KNOWN_ONCURVE_WALLET>' | jq    # expect ok=true rawBalance",
+    "curl -s 'https://ahin-io-p3a.doovvvai.workers.dev/api/solana/lifepp-balance?wallet=5Cohfz6H7vHzQpp7fEdUgtrpqzG2ff2VvZTrrCUgCzRo' | jq   # treasury now queryable",
+    "curl -i 'https://ahin-io-p3a.doovvvai.workers.dev/api/solana/lifepp-balance'            # expect 400 missing_wallet_param",
+    "curl -i 'https://ahin-io-p3a.doovvvai.workers.dev/api/solana/lifepp-balance?wallet=bad' # expect 400 invalid_wallet_address",
+    "# If still failing, the JSON now carries diagnosticCode (e.g. rpc_403_forbidden) — never empty; check `wrangler tail` for URL-redacted server detail."
+  ],
+
+  "operatorNextAction": "Re-set the RPC secret to an endpoint that permits Cloudflare Worker egress: `npx wrangler secret put SOLANA_RPC_URL --config wrangler.workers.p3a.jsonc` (a paid Helius/Triton/QuickNode endpoint, NOT api.mainnet-beta.solana.com). Then rebuild+redeploy ahin-io-p3a so these diagnostic improvements ship. No code change can bypass a provider-side IP block.",
+
+  "boundaries": "Diagnostics + readonly-path only. No transfer/burn/signing/canary/public-payment enabled; mint + treasury constants unchanged and immutable; no deploy/Wrangler/workflow/secret-set/flag-flip; root ahin.io untouched; P3B blocked.",
+  "nextPhase": "Operator resolves the RPC 403 (Worker-permitting endpoint) + redeploys; re-run smoke. P3B remains BLOCKED."
+}

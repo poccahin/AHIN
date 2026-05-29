@@ -109,7 +109,8 @@ export function getLifePlusMint(): string {
  */
 export function getAssociatedTokenAddress(
   ownerAddress: string,
-  mint: string = getLifePlusMint()
+  mint: string = getLifePlusMint(),
+  allowOwnerOffCurve = false
 ): string {
   if (!isLikelySolanaAddress(ownerAddress) || !isLikelySolanaAddress(mint)) {
     throw new Error("Solana address validation failed.");
@@ -117,10 +118,13 @@ export function getAssociatedTokenAddress(
   const ata = splGetAssociatedTokenAddressSync(
     new PublicKey(mint),
     new PublicKey(ownerAddress),
-    // allowOwnerOffCurve = false. For end-user wallets the owner is an
-    // Ed25519 keypair on the curve. Flip to true only if we ever serve a
-    // PDA-owned holdings flow.
-    false
+    // allowOwnerOffCurve: default false (end-user wallets are on-curve Ed25519
+    // keypairs). The READONLY balance path passes true so PDA owners — e.g. the
+    // Squads treasury multisig (5Cohfz…) — are queryable; for an on-curve owner
+    // the derived ATA is identical, so this only *additionally* permits PDAs.
+    // This affects ATA derivation for READS only; no transfer/signing path here
+    // uses off-curve derivation.
+    allowOwnerOffCurve
   );
   return ata.toBase58();
 }
@@ -222,7 +226,11 @@ export async function readLifePlusBalanceForOwner(
   }
 
   const conn = getConnection(rpcUrlOverride);
-  const ataStr = getAssociatedTokenAddress(ownerAddress);
+  // allowOwnerOffCurve = true: a balance read must work for ANY owner, incl.
+  // off-curve PDAs (the Squads treasury). Previously this threw
+  // TokenOwnerOffCurveError (empty .message) for such owners, surfacing as an
+  // empty `balance_read_failed` diagnostic. On-curve wallets are unaffected.
+  const ataStr = getAssociatedTokenAddress(ownerAddress, getLifePlusMint(), true);
   const ata = new PublicKey(ataStr);
 
   try {
