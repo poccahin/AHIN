@@ -1,0 +1,69 @@
+{
+  // ---------------------------------------------------------------------------
+  // WARNING: NON-TRANSFER DEVNET CONTAINER ONLY. Mainnet LIFE++ mint and
+  // treasury remain hardcoded. This config CANNOT run a functional devnet
+  // token transfer rehearsal.
+  // ---------------------------------------------------------------------------
+  // Phase P3B — Devnet rehearsal CONTAINER (scaffold / documentation only).
+  //
+  // SEPARATE worker (ahin-io-devnet) on a SEPARATE subdomain (devnet.ahin.io).
+  // Deploy ONLY with an explicit --config flag, never as the default. Distinct
+  // worker name so it can never overwrite the production `ahin-io` worker, the
+  // P3A `ahin-io-p3a` worker, or the root ahin.io domain.
+  //
+  // Cluster is devnet (worthless test tokens). All transfer/canary/burn flags
+  // remain false here too: this config is the rehearsal *container*. Arming the
+  // devnet transfer path (gateMode "live" + AHIN_PROTOCOL_EXECUTION_ENABLED +
+  // AHIN_REAL_USAGE_FEE_TRANSFER) is a SEPARATE, explicit step — not enabled by
+  // scaffolding this file.
+  //
+  // NOTE on devnet mint/treasury retargeting: the code pins LIFE_PLUS_MINT and
+  // AHIN_TREASURY_MULTISIG_ADDRESS as hardcoded mainnet constants on purpose
+  // (immutable transfer destination — no env can redirect it). Per operator
+  // decision (2026-05-29) these stay FULLY HARDCODED; no env override was added
+  // (a devnet-gated override was considered and declined in favor of immutable
+  // constants). Consequently this worker still references the mainnet mint
+  // constant, which does not exist on devnet — a real devnet token-flow
+  // rehearsal is NOT functional until mint/treasury retargeting is done via a
+  // dedicated devnet-constants module (deferred). For now this is the devnet
+  // CONTAINER only: separate worker, devnet cluster/RPC, all transfer flags
+  // false, gateMode mock.
+  // ---------------------------------------------------------------------------
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ahin-io-devnet",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-05-14",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "AHIN_ORACLE_KV",
+      "id": "a7aa5c04dd674507802ecba08bdadd7b",
+      "preview_id": "b5d283d9d45d43879f9a21167cec1779"
+    }
+  ],
+  "vars": {
+    "NEXT_PUBLIC_AHIN_ENV": "preview",
+    "NEXT_PUBLIC_AHIN_TARGET_DOMAIN": "devnet.ahin.io",
+    "NEXT_PUBLIC_AHIN_GATE_MODE": "mock",
+    "NEXT_PUBLIC_AHIN_DEBUG_MATRIX": "false",
+    "NEXT_PUBLIC_AHIN_WALLET_MODE": "mock",
+    "NEXT_PUBLIC_AHIN_REQUIRED_LIFE_USDT": "10",
+    "NEXT_PUBLIC_AHIN_ENTRY_BURN_AMOUNT": "1",
+    "NEXT_PUBLIC_LIFE_PLUS_CA": "7YdwpERJjzw7UVojxLpvu5ycKBRdYaxaKn4HvoHLpump",
+    "NEXT_PUBLIC_LIFE_PLUS_FOUNDATION_SOLANA_ADDRESS": "J8ez8GMsHtd8x4ucd1Q1LuA1k4GJ9dHYFVoa3PpetFDu",
+    "NEXT_PUBLIC_LIFE_PLUS_MAX_SUPPLY": "993953256.43115",
+    "JUPITER_API_URL": "https://api.jup.ag",
+    "AHIN_ORACLE_MODE": "readonly",
+    "AHIN_PROTOCOL_EXECUTION_ENABLED": "false",
+    "AHIN_REAL_WALLET_VERIFICATION": "false",
+    "AHIN_REAL_LIFE_BALANCE_CHECK": "false",
+    "AHIN_REAL_USAGE_FEE_TRANSFER": "false",
+    "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAADUzG7HwBkY8f_O2",
+    "NEXT_PUBLIC_SOLANA_RPC_URL": "https://api.devnet.solana.com",
+    "NEXT_PUBLIC_SOLANA_CLUSTER": "devnet"
+  }
+}
