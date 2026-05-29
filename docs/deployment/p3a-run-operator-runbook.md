@@ -23,6 +23,92 @@ RPC key to the browser.
 
 ---
 
+## 0. CORRECTED STATE (2026-05-29) — P3A worker is ALREADY DEPLOYED
+
+> Supersedes the "deploy" framing below for the current cycle. Established from
+> `~/Library/Preferences/.wrangler/logs` + a live probe.
+
+- **The P3A worker is already live:** `https://ahin-io-p3a.doovvvai.workers.dev`
+  (worker `ahin-io-p3a`, Version `8cde4a3c-0e5a-48ec-83e3-ea354f23d08e`,
+  deployed from the host at **2026-05-29T07:56:44Z**; live-probe returned `HTTP 200`).
+- **Mode `live-readonly` on `mainnet-beta`** — transfer is structurally
+  impossible; all transfer/canary/burn/signing/public-payment flags are false.
+- **`SOLANA_RPC_URL` secret is NOT set** (the 07:52 `secret put` attempt failed
+  on intermittent connectivity; no `Secret` binding in the successful deploy).
+  So the balance route currently returns the intended **fail-soft**
+  `rpc_not_configured` (readonly reads unavailable) — no leak, no crash.
+- **Root `ahin.io` untouched** — the deploy was the separate `ahin-io-p3a`
+  worker; the root `ahin-io` worker was last deployed 2026-05-23.
+
+**The next action is NOT a deploy.** Section 5 (build + deploy) can be SKIPPED
+for this cycle. The next action is **setting the `SOLANA_RPC_URL` secret during a
+stable Cloudflare API window**, then running smoke tests only.
+
+Still forbidden, same as ever: do not bind root `ahin.io`; do not enable
+transfer flags; do not enable canary; do not enable burn; do not enable signing.
+
+### 0a. Host-side next commands
+
+```bash
+cd /Users/lee/Developer/ahin.io
+
+# Confirm auth (the 07:56 deploy proves the OAuth token is valid; if this
+# returns "fetch failed", it's intermittent connectivity — retry, do not
+# assume logged out).
+npx wrangler whoami
+
+# Set the production RPC as a server-only secret (never NEXT_PUBLIC, never
+# committed). Retry if it hits a transient fetch failure.
+npx wrangler secret put SOLANA_RPC_URL \
+  --config wrangler.workers.p3a.jsonc
+```
+
+> Setting the secret takes effect on the already-deployed worker without a
+> redeploy. If you prefer, a redeploy after the secret is set is also fine, but
+> not required for the secret to bind.
+
+### 0b. Smoke tests (after the secret is set) — readonly only
+
+```bash
+# Worker root is up.
+curl -I https://ahin-io-p3a.doovvvai.workers.dev
+
+# Balance route for a known holder (server-side RPC via the secret).
+curl -s "https://ahin-io-p3a.doovvvai.workers.dev/api/solana/lifepp-balance?wallet=<KNOWN_SOLANA_WALLET>" | jq
+
+# Missing wallet -> 400.
+curl -i "https://ahin-io-p3a.doovvvai.workers.dev/api/solana/lifepp-balance"
+
+# Invalid wallet -> 400.
+curl -i "https://ahin-io-p3a.doovvvai.workers.dev/api/solana/lifepp-balance?wallet=bad"
+```
+
+**Required smoke expectations:**
+- P3A URL returns **200**.
+- Balance route returns `ok=true` (known holder) **or** a clean readonly error
+  (e.g. `rpc_not_configured` if the secret didn't bind) — never a 500/stack.
+- Response **does not contain the RPC URL** / api-key / provider host.
+- Missing wallet → **400**; invalid wallet → **400**.
+- **No signature prompt · no transaction submitted · no transfer.**
+- Root `ahin.io` **unchanged**.
+
+### 0c. Cloudflare connectivity note
+
+- Host logs show the **deploy succeeded** (CF API `200`s) at 07:56:44Z.
+- The `fetch failed` lines after a successful deploy are typically the
+  **Metrics dispatcher** (Amplitude telemetry) — post-deploy noise, not failure.
+- Cloudflare API connectivity here is **intermittent, not permanently blocked**
+  (07:44–07:53 failed, 07:56 succeeded). **Retry** during a stable window.
+- A `dash.cloudflare.com` `cf-mitigated: challenge` (403) is a browser/IP
+  challenge and does **not** block OAuth/API-token CLI calls once the network
+  path is stable.
+- Optional robustness: the **API token path**
+  (`CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` exported locally, never
+  committed/pasted) avoids the OAuth refresh round-trip. Not required — OAuth
+  is functional.
+
+---
+
 ## 1. Preflight checks
 
 ```bash

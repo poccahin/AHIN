@@ -1,0 +1,55 @@
+{
+  "_note": "Corrected 2026-05-29 from the prior P3A_BLOCKED_MISSING_MAINNET_RPC record. The P3A worker was deployed OOB from the operator's host shell at 2026-05-29T07:56:44Z (confirmed via ~/Library/Preferences/.wrangler/logs + a live HTTP 200 probe). Earlier 'fetch failed' lines were intermittent connectivity / post-deploy metrics-dispatcher noise, not a failed deploy.",
+
+  "phase": "Phase P3A-Run Mainnet Readonly Live-UI Deployment Test",
+  "status": "P3A_ALREADY_DEPLOYED_READONLY_SECRET_MISSING",
+  "timestamp": "2026-05-29T09:20:00.000Z",
+
+  "deploymentExecuted": true,
+  "deployedUrl": "https://ahin-io-p3a.doovvvai.workers.dev",
+  "deploySource": "operator host shell (OOB), wrangler 4.94.0, deploy --config wrangler.workers.p3a.jsonc",
+  "deployTimestamp": "2026-05-29T07:56:44Z",
+  "workerName": "ahin-io-p3a",
+  "isRootWorker": false,
+  "rootWorkerName": "ahin-io (separate; last deployed 2026-05-23; untouched)",
+  "workerVersionId": "8cde4a3c-0e5a-48ec-83e3-ea354f23d08e",
+  "liveProbeHttpStatus": 200,
+  "cluster": "mainnet-beta",
+  "gateMode": "live-readonly",
+
+  "rootDomainTouched": false,
+  "mainnetRpcConfigured": false,
+  "solanaRpcSecretSet": false,
+  "solanaRpcSecretName": "SOLANA_RPC_URL",
+  "liveReadonlyMode": true,
+
+  "mainnetTransferExecuted": false,
+  "transferArmed": false,
+  "canaryEnabled": false,
+  "publicPaymentEnabled": false,
+  "burnEnabled": false,
+  "signingEnabled": false,
+  "transactionSubmissionEnabled": false,
+  "treasuryMutationEnabled": false,
+
+  "balanceReadSmokeResult": "fail_soft_rpc_not_configured",
+  "eligibilitySmokeResult": "blocked_until_rpc_secret",
+  "rpcUrlExposed": false,
+  "rootAhInUnchanged": true,
+  "p3bBlocked": true,
+
+  "transferStructuralReason": "src/config/life-plus.ts isLive === (gateMode === 'live'); live-readonly !== 'live', so TRANSFER_ENABLED is always false regardless of any flag.",
+  "rpcExposureNote": "NEXT_PUBLIC_SOLANA_RPC_URL is the public placeholder https://api.mainnet-beta.solana.com (no paid key). Server route /api/solana/lifepp-balance reads SOLANA_RPC_URL (server secret) only; with the secret unset it returns fail-soft rpc_not_configured. No RPC URL is returned in any API response.",
+
+  "connectivity": {
+    "state": "intermittent_not_blocked",
+    "evidence": "Host wrangler attempts 07:44-07:53 failed with 'fetch failed'; 07:56 deploy succeeded (CF API 200s). dash.cloudflare.com returned cf-mitigated: challenge (browser/IP challenge; does not block OAuth/API-token CLI once network is stable).",
+    "remediation": "Retry whoami/secret-put during a stable window; optionally use CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID (set locally, never committed) to avoid the OAuth refresh round-trip. OAuth is functional (deploy succeeded)."
+  },
+
+  "nextOperatorAction": "npx wrangler whoami  (confirm token valid; retry on transient fetch failed), then  npx wrangler secret put SOLANA_RPC_URL --config wrangler.workers.p3a.jsonc  (during a stable Cloudflare API window), then run readonly smoke tests. No redeploy required for the secret to bind.",
+
+  "rollbackInstructions": "Non-destructive. Rotate/remove the secret: npx wrangler secret put|delete SOLANA_RPC_URL --config wrangler.workers.p3a.jsonc (route reverts to fail-soft readonly). Or tear down the separate worker: npx wrangler delete --name ahin-io-p3a. Transfer/burn/signing/canary/public-payment flags stay false; root ahin.io and the ahin-io worker are never touched; default wrangler.workers.jsonc (devnet/mock) unaffected.",
+
+  "nextPhase": "P3B (single foundation-wallet micro-transfer) remains BLOCKED — additionally requires allowlist + per-payment cap + kill-switch drill + OOB mint/treasury/ATA verification + explicit operator authorization."
+}
