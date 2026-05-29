@@ -807,6 +807,13 @@ check(
       solanaBalanceRoute.indexOf("process.env.NEXT_PUBLIC_SOLANA_RPC_URL"),
   "app/api/solana/lifepp-balance/route.ts must resolve the secret via getCloudflareContext().env['SOLANA_RPC_URL'] (before the NEXT_PUBLIC fallback) and must not return the RPC URL in its response body."
 );
+check(
+  "Balance route fails soft with a readonly error when SOLANA_RPC_URL secret is missing in production",
+  solanaBalanceRoute.includes("rpc_not_configured") &&
+    solanaBalanceRoute.includes("NEXT_PUBLIC_AHIN_ENV") &&
+    solanaBalanceRoute.includes("status: 503"),
+  "app/api/solana/lifepp-balance/route.ts must return a fail-soft readonly error (rpc_not_configured, 503) when no server-side SOLANA_RPC_URL secret is configured in production, instead of silently using the public RPC fallback."
+);
 {
   const p3aPublicRpcLine =
     p3aWranglerSource.split("\n").find((l) => l.includes('"NEXT_PUBLIC_SOLANA_RPC_URL"')) || "";

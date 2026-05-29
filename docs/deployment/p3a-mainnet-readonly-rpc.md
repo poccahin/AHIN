@@ -37,6 +37,12 @@ canary payment, transaction submission, or treasury mutation, and it does
   default.
 - The route returns only a coarse `rpcSource` label (`secret_binding` /
   `process_env` / `public_env` / `default_devnet`) — **never the URL itself**.
+- **Fail-soft in production:** if `NEXT_PUBLIC_AHIN_ENV=production` and no
+  server-side `SOLANA_RPC_URL` is configured, the route returns
+  `{ ok: false, error: "rpc_not_configured" }` (HTTP 503) instead of silently
+  reading from the public fallback. The gate then shows the readonly
+  "quote unavailable" state. So a P3A deploy is not usable until the secret is
+  set — set it first.
 
 ## Required setup (once, out-of-band)
 
@@ -58,6 +64,13 @@ Do **not**:
 `NEXT_PUBLIC_SOLANA_RPC_URL` stays the public, rate-limited placeholder
 (`https://api.mainnet-beta.solana.com`). `NEXT_PUBLIC_SOLANA_CLUSTER` stays
 `mainnet-beta` so the readonly UI copy and explorer links are correct.
+
+## Confirm Cloudflare auth
+
+```bash
+npx wrangler whoami
+# Must show the authenticated account/email before any secret-set or deploy.
+```
 
 ## Verify the secret is set
 

@@ -109,6 +109,32 @@ export async function GET(request: Request): Promise<Response> {
 
   const rpc = resolveServerRpcUrl();
 
+  // P3A production REQUIRES a server-side RPC secret. If neither the env
+  // binding nor process.env carries SOLANA_RPC_URL, fail soft with a clear
+  // readonly error instead of silently serving reads from the public
+  // (rate-limited) fallback as if they were production-grade. This is what
+  // makes "P3A deploy not allowed unless the real secret is configured"
+  // structurally true. Local dev (NEXT_PUBLIC_AHIN_ENV !== "production") keeps
+  // the public/devnet fallback so it works without the secret.
+  const serverSecretConfigured =
+    rpc.source === "secret_binding" || rpc.source === "process_env";
+  const isProduction =
+    (process.env.NEXT_PUBLIC_AHIN_ENV ?? "").trim().toLowerCase() === "production";
+  if (isProduction && !serverSecretConfigured) {
+    return Response.json(
+      {
+        ok: false,
+        error: "rpc_not_configured",
+        diagnostic:
+          "SOLANA_RPC_URL secret is not configured on this Worker. Set it via " +
+          "`wrangler secret put SOLANA_RPC_URL` for production mainnet reads. " +
+          "Readonly quote unavailable.",
+        rpcSource: rpc.source
+      },
+      { status: 503 }
+    );
+  }
+
   try {
     const [rawBalance, decimals] = await Promise.all([
       readLifePlusBalanceForOwner(wallet, rpc.url),

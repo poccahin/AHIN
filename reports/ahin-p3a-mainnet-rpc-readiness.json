@@ -1,19 +1,22 @@
 {
   "phase": "Phase P3A-RPC Production Mainnet RPC Readiness",
-  "status": "P3A_RPC_PREPARED_SERVER_SIDE_NOT_DEPLOYED",
-  "summary": "Prepared a server-side RPC strategy so P3A can use a production-grade mainnet RPC without exposing a paid api-key to the browser. The paid RPC belongs in a server-only Worker secret named SOLANA_RPC_URL (set via `wrangler secret put`, never committed to vars). Browser LIFE++ balance/eligibility reads are routed through a new production server route /api/solana/lifepp-balance, which resolves the secret via getCloudflareContext().env and reads the chain server-side; the client never receives the RPC URL. NEXT_PUBLIC_SOLANA_RPC_URL stays the public, keyless, rate-limited placeholder. No deploy, no workflow dispatch, no root-domain change, no transfer/burn/signing/canary/transaction/treasury mutation.",
+  "status": "P3A_RPC_READY_SERVER_SIDE_NOT_DEPLOYED",
+  "summary": "Server-side RPC strategy in place so P3A can read real mainnet LIFE++ balances + evaluate eligibility through a production-grade RPC without exposing a paid api-key to the browser. The paid RPC is a server-only Worker secret named SOLANA_RPC_URL (set via `wrangler secret put`, never committed to vars). Browser balance/eligibility reads route through the production server route /api/solana/lifepp-balance, which resolves the secret via getCloudflareContext().env and reads the chain server-side; the response never includes the RPC URL. In production, if the secret is missing the route fails soft with a clear readonly error (rpc_not_configured, 503) instead of silently using the public fallback. NEXT_PUBLIC_SOLANA_RPC_URL stays the public, keyless, rate-limited placeholder. No deploy, no deploy/root-production workflow dispatch, no root-domain change, no transfer/burn/signing/canary/transaction/treasury mutation.",
   "timestamp": "2026-05-29T00:00:00.000Z",
+
   "deploymentExecuted": false,
   "workflowDispatched": false,
-  "pushed": false,
+  "rootProductionWorkflowDispatched": false,
   "rootDomainTouched": false,
-  "rpcClientExposed": false,
-  "rpcSecretStrategyImplemented": true,
-  "serverSideReadPathImplemented": true,
-  "requiredSecretName": "SOLANA_RPC_URL",
-  "secretSetCommand": "npx wrangler secret put SOLANA_RPC_URL --config wrangler.workers.p3a.jsonc",
-  "secretCommittedToVars": false,
-  "paidKeyInNextPublic": false,
+  "pushed": true,
+  "pushedSha": "b1bbc2597d97ec6cfd1017ac9f2a83026b7e6fe6",
+
+  "serverSideRpcSecretRequired": true,
+  "rpcSecretName": "SOLANA_RPC_URL",
+  "publicRpcKeyExposed": false,
+  "p3aDeployAllowed": false,
+  "p3aDeployAllowedNote": "Deploy allowed only after the real SOLANA_RPC_URL secret is configured (and operator authorizes). In production the readonly balance route fails soft (rpc_not_configured) when the secret is absent, so the deploy is not usable without it.",
+
   "mainnetTransferExecuted": false,
   "transferArmed": false,
   "canaryEnabled": false,
@@ -22,6 +25,28 @@
   "signingEnabled": false,
   "transactionSubmissionEnabled": false,
   "treasuryMutationEnabled": false,
+  "p3bBlocked": true,
+
+  "rpcClientExposed": false,
+  "rpcSecretStrategyImplemented": true,
+  "serverSideReadPathImplemented": true,
+  "secretSetCommand": "npx wrangler secret put SOLANA_RPC_URL --config wrangler.workers.p3a.jsonc",
+  "secretCommittedToVars": false,
+  "paidKeyInNextPublic": false,
+
+  "ciVerification": {
+    "note": "workflowDispatched/rootProductionWorkflowDispatched above refer to deploy/root-production workflows (none dispatched). The CI runs below are gates-only verification of the pushed commit; the preview deploy job was skipped.",
+    "pushGateRunId": 26616977708,
+    "pushGateWorkflow": "ahin production gate",
+    "pushGateConclusion": "success",
+    "pushGateDeployStepPresent": false,
+    "gatesOnlyPreviewRunId": 26617317662,
+    "gatesOnlyPreviewWorkflow": "ahin Cloudflare readonly preview",
+    "gatesOnlyPreviewConclusion": "success",
+    "gatesOnlyPreviewDeployJobSkipped": true,
+    "headSha": "b1bbc2597d97ec6cfd1017ac9f2a83026b7e6fe6"
+  },
+
   "rpcResolution": {
     "resolverFile": "src/lib/lifePlusSolana.ts",
     "resolverFunction": "resolveRpcUrl",
@@ -31,8 +56,9 @@
       "https://api.devnet.solana.com (default; never silently mainnet)"
     ],
     "browserBehavior": "readLifePlusBalanceRaw is environment-aware: when typeof window !== 'undefined' it fetches /api/solana/lifepp-balance instead of opening a client-side RPC Connection.",
-    "serverBehavior": "readLifePlusBalanceForOwner(owner, rpcUrlOverride?) reads the chain directly; the production route injects the secret URL resolved via getCloudflareContext().env."
+    "serverBehavior": "readLifePlusBalanceForOwner(owner, rpcUrlOverride?) reads the chain directly; the production route resolves the secret via getCloudflareContext().env and injects it."
   },
+
   "serverRoute": {
     "path": "/api/solana/lifepp-balance",
     "file": "app/api/solana/lifepp-balance/route.ts",
@@ -40,24 +66,46 @@
     "devGated": false,
     "readonly": true,
     "secretSource": "getCloudflareContext().env['SOLANA_RPC_URL'] -> process.env.SOLANA_RPC_URL -> process.env.NEXT_PUBLIC_SOLANA_RPC_URL -> devnet default",
+    "responseFields": ["ok", "rawBalance", "decimals", "rpcSource", "error (on failure)", "diagnostic (non-sensitive, on failure)"],
     "returnsRpcUrl": false,
-    "returnsCoarseSourceLabelOnly": "rpcSource: secret_binding | process_env | public_env | default_devnet",
-    "scope": "reads only the LIFE++ associated-token-account balance for the supplied wallet; no sign, build, submit, or broadcast."
+    "rpcSourceLabelOnly": "secret_binding | process_env | public_env | default_devnet",
+    "failSoftOnMissingSecretInProduction": "rpc_not_configured (HTTP 503) when NEXT_PUBLIC_AHIN_ENV=production and no server-side SOLANA_RPC_URL is configured",
+    "createsTransaction": false,
+    "requestsSignature": false,
+    "callsWalletProvider": false,
+    "writesTreasury": false,
+    "scope": "reads only the LIFE++ associated-token-account balance for the supplied wallet."
   },
+
   "answers": {
-    "isRpcClientExposedOrServerSide": "Both paths exist. The PUBLIC placeholder (NEXT_PUBLIC_SOLANA_RPC_URL) remains client-visible by design but carries no key. The PRODUCTION/paid RPC is server-side only (SOLANA_RPC_URL secret) and is never inlined into client JS.",
-    "doesSafeServerSidePathExist": true,
+    "isPaidRpcServerSideOnly": true,
+    "isSolanaRpcUrlUsedAsWorkerSecret": true,
+    "isPaidKeyExposedThroughNextPublic": false,
+    "doesBrowserBalanceReadGoThroughServerRoute": true,
+    "doesLiveReadonlyStructurallyPreventTransfer": true,
+    "doesReleaseLintEnforceP3aRpcInvariants": true,
     "exactSecretName": "SOLANA_RPC_URL",
     "isP3aDeployStillBlocked": true
   },
+
+  "structuralTransferPrevention": {
+    "isLiveStrict": "src/config/life-plus.ts: const isLive = (NEXT_PUBLIC_AHIN_GATE_MODE === 'live'); live-readonly !== 'live'",
+    "transferEnabled": "isLive && protocolArmed && transferArmed => always false in live-readonly",
+    "wouldTransferBeArmed": "src/config/life-plus-payment.ts requires gateMode === 'live'",
+    "lifePaymentModuleReadonly": "readonly prop forces dry-run (readonly || !INFRASTRUCTURE_TRANSFER_ARMED)",
+    "publicPaymentEnabled": false,
+    "burnEnabled": false
+  },
+
   "filesChanged": [
-    "src/lib/lifePlusSolana.ts (resolveRpcUrl prefers SOLANA_RPC_URL; getConnection rpcUrlOverride; environment-aware readLifePlusBalanceRaw; new readLifePlusBalanceForOwner + readLifePlusBalanceViaServer + LIFEPP_BALANCE_API_PATH)",
-    "app/api/solana/lifepp-balance/route.ts (new production readonly balance route)",
+    "src/lib/lifePlusSolana.ts (resolveRpcUrl prefers SOLANA_RPC_URL; getConnection rpcUrlOverride; environment-aware readLifePlusBalanceRaw; readLifePlusBalanceForOwner + readLifePlusBalanceViaServer + LIFEPP_BALANCE_API_PATH)",
+    "app/api/solana/lifepp-balance/route.ts (production readonly balance route; fail-soft rpc_not_configured in production)",
     "wrangler.workers.p3a.jsonc (doc-only: public placeholder marked keyless; SOLANA_RPC_URL secret documented; not added to vars)",
-    "docs/deployment/p3a-mainnet-readonly-rpc.md (new)",
-    "scripts/release-lint.mjs (P3A-RPC invariant guard)",
+    "docs/deployment/p3a-mainnet-readonly-rpc.md",
+    "scripts/release-lint.mjs (P3A-RPC invariant guard, incl. fail-soft check)",
     "reports/ahin-p3a-mainnet-rpc-readiness.json (this report)"
   ],
+
   "callSitesUnchanged": [
     "src/components/Gatekeeper.tsx (verifySolanaPocc still calls readLifePlusBalanceRaw(connection) — now auto-routed server-side in the browser)",
     "src/config/life-plus.ts (isLive strict; untouched)",
@@ -65,12 +113,14 @@
     "src/config/life-plus-payment.ts (PUBLIC_PAYMENT_ENABLED/BURN_ENABLED false; untouched)",
     "src/components/LifePaymentModule.tsx (readonly dry-run path; untouched)"
   ],
+
   "knownNonBlocking": [
-    "LifePaymentModule dry-run still builds a tx client-side against NEXT_PUBLIC_SOLANA_RPC_URL (public placeholder) to verify shape (getLatestBlockhash). It never sees the paid secret, never signs, and never broadcasts; in live-readonly the transfer is structurally impossible. Rate-limiting only affects the best-effort dry-run shape check.",
+    "LifePaymentModule dry-run still builds a tx client-side against NEXT_PUBLIC_SOLANA_RPC_URL (public placeholder) to verify shape (getLatestBlockhash). It never sees the paid secret, never signs, never broadcasts; in live-readonly the transfer is structurally impossible. Rate-limiting only affects the best-effort dry-run shape check.",
     "The /api/solana/lifepp-balance route is an open readonly LIFE++ balance oracle (no auth, pre-gate). It only reads the LIFE++ ATA for a supplied wallet. Per-IP rate limiting to protect paid RPC quota is a follow-up before wide exposure."
   ],
+
   "validation": {
-    "note": "Real exit codes captured; see commit run. No tail-masking.",
+    "note": "Real exit codes captured. No tail-masking, no faked PASS.",
     "commands": [
       "npm run lint",
       "npm run guard:no-agent-gates",
@@ -78,14 +128,18 @@
       "npm run build",
       "npm run test:audit-policy",
       "npm run test:payment-canary",
-      "npm run test:solana-transfer"
+      "npm run test:solana-transfer",
+      "npm run test:wallet-ux",
+      "npm run test:pocc",
+      "npm run test:agents"
     ]
   },
+
   "blockers": [
     {
       "id": "operator_sets_solana_rpc_secret",
       "primary": true,
-      "detail": "Operator must set the server-only secret before a real P3A run: `npx wrangler secret put SOLANA_RPC_URL --config wrangler.workers.p3a.jsonc` with a production RPC (Helius/Triton/QuickNode/Alchemy). Until then the server route falls back to the public, rate-limited endpoint."
+      "detail": "Operator must set the server-only secret before a real P3A run: `npx wrangler secret put SOLANA_RPC_URL --config wrangler.workers.p3a.jsonc` with a production RPC (Helius/Triton/QuickNode/Alchemy). Until then the production route fails soft with rpc_not_configured."
     },
     {
       "id": "cloudflare_auth_and_deploy_oob",
@@ -93,6 +147,8 @@
       "detail": "This shell has no Cloudflare/wrangler auth and intermittent outbound HTTPS via the sandbox proxy. Deploy is an explicit operator action from an authenticated host (opennextjs-cloudflare build/deploy with --config wrangler.workers.p3a.jsonc)."
     }
   ],
+
   "rollbackInstructions": "No deploy occurred — nothing to roll back. Secret rotate/remove: `npx wrangler secret put|delete SOLANA_RPC_URL --config wrangler.workers.p3a.jsonc`. If a P3A worker is later deployed and needs teardown: `npx wrangler delete --name ahin-io-p3a` (separate worker; never touches root ahin-io or ahin.io).",
+
   "nextPhase": "P3A deploy (operator action, requires SOLANA_RPC_URL secret + Cloudflare auth) -> clean readonly observation. P3B (single foundation-wallet micro-transfer) remains BLOCKED and additionally requires allowlist + cap + kill-switch drill + OOB mint/treasury/ATA verification + explicit operator authorization."
 }
