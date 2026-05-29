@@ -775,6 +775,50 @@ check(
   "LifePaymentModule must force the dry-run path when readonly (P3A live-readonly)."
 );
 
+// --- Phase P3A-RPC: production RPC is a server-side secret, never client-exposed ---
+const lifePlusSolanaSource = read("src/lib/lifePlusSolana.ts");
+const solanaBalanceRoute = read("app/api/solana/lifepp-balance/route.ts");
+const p3aWranglerSource = read("wrangler.workers.p3a.jsonc");
+
+check(
+  "resolveRpcUrl prefers the server-only SOLANA_RPC_URL secret",
+  lifePlusSolanaSource.includes("const serverSecret = process.env.SOLANA_RPC_URL?.trim()") &&
+    lifePlusSolanaSource.indexOf("process.env.SOLANA_RPC_URL") <
+      lifePlusSolanaSource.indexOf("process.env.NEXT_PUBLIC_SOLANA_RPC_URL"),
+  "src/lib/lifePlusSolana.ts resolveRpcUrl() must read SOLANA_RPC_URL (server secret) before NEXT_PUBLIC_SOLANA_RPC_URL."
+);
+check(
+  "Browser LIFE++ balance reads route through the server endpoint (no direct client RPC)",
+  lifePlusSolanaSource.includes('LIFEPP_BALANCE_API_PATH = "/api/solana/lifepp-balance"') &&
+    lifePlusSolanaSource.includes("readLifePlusBalanceViaServer") &&
+    /typeof window !== "undefined"[\s\S]*?readLifePlusBalanceViaServer/.test(lifePlusSolanaSource),
+  "readLifePlusBalanceRaw must fetch /api/solana/lifepp-balance in the browser so the paid RPC secret is never exposed to client JS."
+);
+check(
+  "Production balance route reads SOLANA_RPC_URL via the Cloudflare env binding and never echoes it",
+  solanaBalanceRoute.includes("getCloudflareContext") &&
+    solanaBalanceRoute.includes('"SOLANA_RPC_URL"') &&
+    solanaBalanceRoute.includes("rpcSource") &&
+    !/rpcUrl\s*:/.test(solanaBalanceRoute) &&
+    // The env-binding read (ctx?.env) must come before the NEXT_PUBLIC
+    // fallback in the resolution code. (Compare code tokens, not the JSDoc,
+    // which mentions NEXT_PUBLIC_SOLANA_RPC_URL earlier as a warning.)
+    solanaBalanceRoute.indexOf("ctx?.env") <
+      solanaBalanceRoute.indexOf("process.env.NEXT_PUBLIC_SOLANA_RPC_URL"),
+  "app/api/solana/lifepp-balance/route.ts must resolve the secret via getCloudflareContext().env['SOLANA_RPC_URL'] (before the NEXT_PUBLIC fallback) and must not return the RPC URL in its response body."
+);
+{
+  const p3aPublicRpcLine =
+    p3aWranglerSource.split("\n").find((l) => l.includes('"NEXT_PUBLIC_SOLANA_RPC_URL"')) || "";
+  check(
+    "P3A wrangler keeps the RPC secret out of committed vars and the public placeholder keyless",
+    !/"SOLANA_RPC_URL"\s*:/.test(p3aWranglerSource) &&
+      !p3aPublicRpcLine.includes("api-key") &&
+      p3aWranglerSource.includes("wrangler secret put SOLANA_RPC_URL"),
+    "wrangler.workers.p3a.jsonc must NOT set SOLANA_RPC_URL as a committed var, must document the secret, and NEXT_PUBLIC_SOLANA_RPC_URL must not carry an api-key."
+  );
+}
+
 const failures = checks.filter((item) => !item.passed);
 
 for (const item of checks) {

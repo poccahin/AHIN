@@ -14,9 +14,19 @@
   //   - all AHIN_REAL_* / PROTOCOL_EXECUTION / canary flags remain false.
   //   - no signature requested, no transaction submitted, no LIFE++ moved.
   //
-  // RPC: replace the placeholder with an operator-provided production RPC
-  // (Helius/Triton/etc.) before any real P3A run; the public mainnet endpoint
-  // is heavily rate-limited.
+  // RPC (server-side secret strategy — P3A-RPC):
+  //   - DO NOT put a paid/keyed RPC URL in NEXT_PUBLIC_SOLANA_RPC_URL below.
+  //     NEXT_PUBLIC_* vars are inlined into the client bundle at build time, so
+  //     the api-key would leak to every visitor. The value below is the public
+  //     mainnet endpoint placeholder ONLY (heavily rate-limited).
+  //   - The production RPC belongs in a server-only Worker SECRET named
+  //     SOLANA_RPC_URL (never in this committed `vars` block):
+  //       npx wrangler secret put SOLANA_RPC_URL --config wrangler.workers.p3a.jsonc
+  //     Browser balance/eligibility reads are routed through the server route
+  //     /api/solana/lifepp-balance, which resolves that secret via
+  //     getCloudflareContext().env and reads the chain server-side, so the paid
+  //     endpoint is never exposed to client JS. See
+  //     docs/deployment/p3a-mainnet-readonly-rpc.md.
   // ---------------------------------------------------------------------------
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "ahin-io-p3a",
@@ -52,8 +62,13 @@
     "AHIN_REAL_LIFE_BALANCE_CHECK": "false",
     "AHIN_REAL_USAGE_FEE_TRANSFER": "false",
     "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAADUzG7HwBkY8f_O2",
+    // Public, client-visible placeholder ONLY. Rate-limited; carries NO key.
+    // The real production RPC is the server-only SOLANA_RPC_URL SECRET (set via
+    // `wrangler secret put`), consumed server-side by /api/solana/lifepp-balance.
     "NEXT_PUBLIC_SOLANA_RPC_URL": "https://api.mainnet-beta.solana.com",
     "NEXT_PUBLIC_SOLANA_CLUSTER": "mainnet-beta"
+    // SOLANA_RPC_URL — server-only SECRET; intentionally NOT in vars. Set OOB:
+    //   npx wrangler secret put SOLANA_RPC_URL --config wrangler.workers.p3a.jsonc
     // AHIN_PAYMENT_CANARY_ENABLED — intentionally unset (defaults false)
     // AHIN_PAYMENT_CANARY_ALLOWLIST — intentionally unset (defaults empty)
     // AHIN_PAYMENT_CANARY_MAX_RAW — intentionally unset (defaults 0n → blocks)

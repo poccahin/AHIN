@@ -10,9 +10,25 @@
  *   - readLifePlusDecimals      (env-configured, defaults to 9)
  *   - existing flag/mint exports preserved for callers
  *
- * Network selection: RPC URL is read from NEXT_PUBLIC_SOLANA_RPC_URL (set
- * via wrangler.workers.jsonc). Defaults to devnet for Phase 1 rehearsal
- * safety — never silently fall back to mainnet.
+ * Network selection (resolveRpcUrl, in priority order):
+ *   1. SOLANA_RPC_URL            — server-only Worker secret. It is NOT a
+ *                                  NEXT_PUBLIC_* var, so Next never inlines it
+ *                                  into the client bundle. Set via `wrangler
+ *                                  secret put SOLANA_RPC_URL`. This is where a
+ *                                  paid RPC (Helius/Triton/…) whose URL carries
+ *                                  an api-key belongs — it stays server-side.
+ *   2. NEXT_PUBLIC_SOLANA_RPC_URL — public, client-visible endpoint (wrangler
+ *                                  `vars`). Rate-limited on mainnet; never put
+ *                                  a paid/keyed URL here (it ships to the
+ *                                  browser).
+ *   3. devnet default            — never silently fall back to mainnet.
+ *
+ * IMPORTANT — browser reads go through the server, not the RPC directly.
+ * readLifePlusBalanceRaw is environment-aware: in the browser it fetches the
+ * server route /api/solana/lifepp-balance (which resolves the SOLANA_RPC_URL
+ * secret via getCloudflareContext().env and reads the chain server-side), so
+ * the paid RPC endpoint is never exposed to client JS. On the server it reads
+ * the chain directly via readLifePlusBalanceForOwner.
  *
  * Burns / signed transactions are explicitly OUT OF SCOPE for this file.
  * They'll live in a separate module (LifePaymentModule) when we get there.
@@ -40,8 +56,23 @@ export const USDC_DECIMALS = 6;
 const DEFAULT_RPC_URL = "https://api.devnet.solana.com";
 
 function resolveRpcUrl(): string {
-  const fromEnv = process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim();
-  return fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_RPC_URL;
+  // 1. Server-only secret. SOLANA_RPC_URL is NOT NEXT_PUBLIC_*, so it is never
+  //    inlined into the client bundle; in the browser process.env.
+  //    SOLANA_RPC_URL is always undefined and this branch is skipped.
+  //
+  //    NOTE: on the Cloudflare Worker runtime, secrets set via `wrangler secret
+  //    put` live on the request `env` binding, not process.env (which only
+  //    mirrors wrangler `vars`). The production read path injects the secret
+  //    explicitly via readLifePlusBalanceForOwner(owner, rpcUrlOverride) after
+  //    resolving it with getCloudflareContext().env — see
+  //    app/api/solana/lifepp-balance/route.ts. This process.env branch still
+  //    covers local dev / `next dev` and any var-based SOLANA_RPC_URL.
+  const serverSecret = process.env.SOLANA_RPC_URL?.trim();
+  if (serverSecret && serverSecret.length > 0) return serverSecret;
+  // 2. Public, client-visible endpoint.
+  const publicEnv = process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim();
+  // 3. Devnet default — never silently fall back to mainnet.
+  return publicEnv && publicEnv.length > 0 ? publicEnv : DEFAULT_RPC_URL;
 }
 
 /**
@@ -50,8 +81,12 @@ function resolveRpcUrl(): string {
  * keyed by URL so a runtime env change invalidates it cleanly.
  */
 let connectionCache: { url: string; conn: Connection } | null = null;
-function getConnection(): Connection {
-  const url = resolveRpcUrl();
+function getConnection(rpcUrlOverride?: string): Connection {
+  // An explicit override lets a server route inject an RPC URL it resolved
+  // from a server-only source (the SOLANA_RPC_URL secret via the Cloudflare
+  // env binding). When omitted we fall back to env resolution.
+  const overridden = rpcUrlOverride?.trim();
+  const url = overridden && overridden.length > 0 ? overridden : resolveRpcUrl();
   if (connectionCache && connectionCache.url === url) return connectionCache.conn;
   // 'confirmed' is the standard choice for UX-facing balance reads — fast
   // enough for interactive flows, durable enough for entry-gate decisions.
@@ -123,30 +158,70 @@ export async function readLifePlusDecimals(
 }
 
 /**
- * Read the on-chain LIFE++ balance (raw u64, NOT decimal-shifted) for the
- * given wallet.
+ * Production server route that performs LIFE++ balance reads using the
+ * server-only RPC (SOLANA_RPC_URL secret). The browser calls THIS instead of
+ * opening an RPC Connection directly, so a paid RPC endpoint is never shipped
+ * in client JS. Path mirrors app/api/solana/lifepp-balance/route.ts.
+ */
+export const LIFEPP_BALANCE_API_PATH = "/api/solana/lifepp-balance";
+
+/**
+ * Browser-only balance read: fetch the raw LIFE++ balance from the server
+ * route. Keeps the same observable contract as the direct read — returns a
+ * bigint (0n for a non-existent ATA, which the server maps to "0"), and
+ * throws on any failure so the Gatekeeper PoCC layer can fail soft into the
+ * "readonly quote unavailable" state.
+ */
+async function readLifePlusBalanceViaServer(ownerAddress: string): Promise<bigint> {
+  const res = await fetch(
+    `${LIFEPP_BALANCE_API_PATH}?wallet=${encodeURIComponent(ownerAddress)}`,
+    { method: "GET", headers: { accept: "application/json" }, cache: "no-store" }
+  );
+  type BalanceResponse = { ok?: boolean; rawBalance?: unknown; error?: unknown };
+  let data: BalanceResponse | null = null;
+  try {
+    data = (await res.json()) as BalanceResponse;
+  } catch {
+    // fall through to the generic failure below
+  }
+  if (!res.ok || !data || data.ok !== true) {
+    const reason =
+      data && typeof data.error === "string" ? data.error : `http_${res.status}`;
+    throw new Error(`LIFE++ balance read failed: ${reason}`);
+  }
+  if (typeof data.rawBalance !== "string" || !/^\d+$/.test(data.rawBalance)) {
+    throw new Error("LIFE++ balance read failed: malformed_response");
+  }
+  return BigInt(data.rawBalance);
+}
+
+/**
+ * Server-side direct-RPC LIFE++ balance read (raw u64, NOT decimal-shifted).
+ *
+ * `rpcUrlOverride` lets a server route inject an RPC URL it resolved from a
+ * server-only source — e.g. the SOLANA_RPC_URL secret read via
+ * getCloudflareContext().env. When omitted, resolveRpcUrl() is used.
  *
  * Behavior contract:
- *   - Returns 0n when the wallet's ATA does not exist (brand-new wallet
- *     that has never received LIFE++). Detected by best-effort error
- *     message inspection — see isAccountNotFoundError below.
+ *   - Returns 0n when the wallet's ATA does not exist (brand-new wallet that
+ *     has never received LIFE++). Detected by best-effort error-message
+ *     inspection — see isAccountNotFoundError below.
  *   - Rethrows on any other RPC failure (network, rate limit, malformed
- *     response). Callers in the Gatekeeper PoCC layer convert these into
- *     a "blocked / readonly quote unavailable" state.
+ *     response).
  *
- * The `connection: WalletConnection` parameter is the dapp-side wallet
- * adapter handle (used only for its `.address`), NOT the Solana RPC
- * connection — the RPC client is constructed internally from env config.
+ * MUST be called only on the server. The browser path is
+ * readLifePlusBalanceRaw -> readLifePlusBalanceViaServer so the paid RPC
+ * endpoint is never exposed to client JS.
  */
-export async function readLifePlusBalanceRaw(
-  connection: WalletConnection,
-  ownerAddress: string = connection.address
+export async function readLifePlusBalanceForOwner(
+  ownerAddress: string,
+  rpcUrlOverride?: string
 ): Promise<bigint> {
   if (!isLikelySolanaAddress(ownerAddress)) {
     throw new Error("Solana address validation failed.");
   }
 
-  const conn = getConnection();
+  const conn = getConnection(rpcUrlOverride);
   const ataStr = getAssociatedTokenAddress(ownerAddress);
   const ata = new PublicKey(ataStr);
 
@@ -161,6 +236,40 @@ export async function readLifePlusBalanceRaw(
     }
     throw err;
   }
+}
+
+/**
+ * Read the on-chain LIFE++ balance (raw u64, NOT decimal-shifted) for the
+ * given wallet. Environment-aware so the SAME call works safely from both the
+ * browser and the server without leaking a paid RPC endpoint:
+ *
+ *   - Browser: routes through the server endpoint (readLifePlusBalanceViaServer)
+ *     so the SOLANA_RPC_URL secret is used server-side and never inlined into
+ *     client JS.
+ *   - Server (route handlers, scripts): reads the chain directly via
+ *     readLifePlusBalanceForOwner.
+ *
+ * The `connection: WalletConnection` parameter is the dapp-side wallet adapter
+ * handle (used only for its `.address`), NOT the Solana RPC connection.
+ *
+ * Behavior contract is unchanged from the original direct read: 0n for a
+ * non-existent ATA; throws on other failures so the Gatekeeper PoCC layer can
+ * convert them into a "blocked / readonly quote unavailable" state.
+ */
+export async function readLifePlusBalanceRaw(
+  connection: WalletConnection,
+  ownerAddress: string = connection.address
+): Promise<bigint> {
+  if (!isLikelySolanaAddress(ownerAddress)) {
+    throw new Error("Solana address validation failed.");
+  }
+  // typeof window !== "undefined" is true only in the browser. On the
+  // Cloudflare Worker / Node (route handlers, prerender, scripts) window is
+  // undefined, so those take the direct-RPC path.
+  if (typeof window !== "undefined") {
+    return readLifePlusBalanceViaServer(ownerAddress);
+  }
+  return readLifePlusBalanceForOwner(ownerAddress);
 }
 
 /**
