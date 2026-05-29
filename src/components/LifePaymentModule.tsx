@@ -606,7 +606,7 @@ export default function LifePaymentModule({
       case "submitted":
         return "Submitted — awaiting confirmation…";
       case "confirming":
-        return "Confirming…";
+        return "Awaiting network confirmation…";
       case "confirmed":
         return "Deposit confirmed";
       case "recoverable_error":

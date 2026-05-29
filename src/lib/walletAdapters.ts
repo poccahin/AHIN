@@ -136,6 +136,39 @@ export function formatWalletConnectionError(walletLabel: string, error: unknown)
   return `${walletLabel}: ${mapWalletProviderError(error).message}`;
 }
 
+/**
+ * Lightweight wallet-error classifier for UX retry messaging.
+ *
+ * Returns a coarse, actionable category so a caller can choose the right
+ * recovery hint (retry vs. unlock vs. switch network). Pure + side-effect
+ * free; never throws.
+ *
+ * NOTE: this is intentionally narrow. The live payment flow already uses the
+ * richer classifyWalletPaymentError() in src/lib/payment/paymentErrors.ts
+ * (which additionally distinguishes request_pending / rpc_timeout /
+ * stale_blockhash / insufficient_sol / insufficient_life / missing ATAs).
+ * Do NOT replace that hardened, gated path with this helper — the payment
+ * execution path must keep its isCanaryPaymentAuthorized + confirmSolana-
+ * Transaction gates intact.
+ */
+export function classifyWalletError(
+  err: unknown
+): "rejected" | "locked" | "wrong_network" | "unknown" {
+  const code =
+    err && typeof err === "object" ? (err as { code?: unknown }).code : undefined;
+  const rawMessage =
+    err && typeof err === "object" ? (err as { message?: unknown }).message : undefined;
+  const message = typeof rawMessage === "string" ? rawMessage.toLowerCase() : "";
+
+  // user rejection: EIP-1193 / Phantom code 4001, or an explicit message.
+  if (code === 4001 || message.includes("user rejected")) return "rejected";
+  if (message.includes("locked")) return "locked";
+  if (message.includes("wrong network") || message.includes("cluster")) {
+    return "wrong_network";
+  }
+  return "unknown";
+}
+
 export function discoverWallets(): WalletDescriptor[] {
   if (typeof window === "undefined") {
     return [];
